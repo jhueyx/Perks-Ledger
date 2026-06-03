@@ -318,7 +318,7 @@ export function renderDigest(){
      urgentCls:eoqDays<=7?'digest-urgent':eoqDays<=21?'digest-soon':'',items:[]},
     {key:'half',label:'This half-year',days:eohDays,dayLabel:`${eohDays}d left`,cadences:['semi-annual','cal-semi-annual'],
      urgentCls:eohDays<=14?'digest-urgent':eohDays<=45?'digest-soon':'',items:[]},
-    {key:'year',label:'This year',days:null,dayLabel:'renews annually',cadences:['annual','cal-annual','feb-annual'],
+    {key:'year',label:'This year',days:null,dayLabel:'renews annually',cadences:['annual','cal-annual','cal-annual-overlap','feb-annual'],
      urgentCls:'',items:[]},
   ];
 
@@ -604,7 +604,7 @@ function buildPriorityQueue(){
           tier=2;
         } else if(s.cadence==='annual'){
           urgency=10; urgencyLabel='This card year'; tier=1;
-        } else if(s.cadence==='cal-annual'){
+        } else if(s.cadence==='cal-annual'||s.cadence==='cal-annual-overlap'){
           urgency=10; urgencyLabel='This calendar year'; tier=1;
         } else if(s.cadence==='feb-annual'){
           urgency=10; urgencyLabel='This travel year'; tier=1;
@@ -671,7 +671,7 @@ export function renderCurrent(){
   if(totalNow>0) html+=progressHTML(pct,'',`${MONTHS_FULL[viewM]} ${viewY}: $${usedNow.toFixed(0)} of $${totalNow.toFixed(0)} claimed`);
   if(!isHistory) html+=`<div class="period-note">Use it now — <strong>${MONTHS_FULL[CM]} ${CY}</strong></div>`;
 
-  const CADENCE_THIS={'monthly':'This month','quarterly':'This quarter','semi-annual':'This half','cal-semi-annual':'This half','annual':'This card year','cal-annual':'This year','feb-annual':'This year'};
+  const CADENCE_THIS={'monthly':'This month','quarterly':'This quarter','semi-annual':'This half','cal-semi-annual':'This half','annual':'This card year','cal-annual':'This year','cal-annual-overlap':'This year','feb-annual':'This year'};
   card.sections.forEach(s=>{
     const isMonthly=s.cadence==='monthly';
     const pk=isMonthly?monthPK:getCurrentPK(state.activeCard,s.cadence);
@@ -814,7 +814,7 @@ export function renderSummBase(getPsFn,isCurFn,bannerHTML,label){
 // ── Render: all cards ──────────────────────────────────────────────────────
 export function renderAllCards(){
   const CARD_KEYS=getVisibleCardKeys();
-  const CADENCE_ORDER=['monthly','quarterly','cal-semi-annual','semi-annual','feb-annual','cal-annual','annual'];
+  const CADENCE_ORDER=['monthly','quarterly','cal-semi-annual','semi-annual','feb-annual','cal-annual','cal-annual-overlap','annual'];
   const CADENCE_LABELS={
     'monthly':`Monthly — ${MONTHS_FULL[CM]} ${CY}`,
     'quarterly':`Quarterly — Q${Math.floor(CM/3)+1} ${CY}`,
@@ -822,6 +822,7 @@ export function renderAllCards(){
     'semi-annual':'Semi-annual (card-year)',
     'feb-annual':`Annual — Feb ${CM>=1?CY:CY-1}–Jan ${CM>=1?CY+1:CY}`,
     'cal-annual':`Annual — ${CY}`,
+    'cal-annual-overlap':`Annual — ${CY}`,
     'annual':'Annual (card-year)',
   };
   const byPeriod={},byPeriodTotal={};
@@ -913,7 +914,7 @@ function buildHeatmapHTML(){
       } else if(cadence==='annual'){
         const pk=`cy-${fy}-${fm}-annual`;
         s.benefits.forEach(b=>{ if(isBNotAvailable(b,CY)) return; addAmt(11,b,pk); });
-      } else if(cadence==='cal-annual'){
+      } else if(cadence==='cal-annual'||cadence==='cal-annual-overlap'){
         const pk=`${CY}-annual`;
         s.benefits.forEach(b=>{ if(isBNotAvailable(b,CY)) return; addAmt(11,b,pk); });
       } else if(cadence==='feb-annual'){
@@ -1054,7 +1055,7 @@ export function renderPerformance(){
         } else if(s.cadence==='cal-semi-annual'){
           periods.push({pk:`${y}-h0`,m:0,calY:y,calM:0,endM:5,endY:y});
           if(lastMonth>=6) periods.push({pk:`${y}-h1`,m:6,calY:y,calM:6,endM:11,endY:y});
-        } else if(s.cadence==='cal-annual'){
+        } else if(s.cadence==='cal-annual'||s.cadence==='cal-annual-overlap'){
           periods.push({pk:`${y}-annual`,m:0,calY:y,calM:0});
         } else if(s.cadence==='semi-annual'){
           const fm=getCardFeeMonth(cardKey);
@@ -1148,7 +1149,7 @@ export function renderTrends(){
       } else if(s.cadence==='cal-semi-annual'){
         periods.push({pk:`${y}-h0`,m:0,calY:y,calM:0,endM:5,endY:y});
         if(lastMonth>=6) periods.push({pk:`${y}-h1`,m:6,calY:y,calM:6,endM:11,endY:y});
-      } else if(s.cadence==='cal-annual'){
+      } else if(s.cadence==='cal-annual'||s.cadence==='cal-annual-overlap'){
         periods.push({pk:`${y}-annual`,m:0,calY:y,calM:0});
       } else if(s.cadence==='semi-annual'){
         const fm=getCardFeeMonth(cardKey);
@@ -1656,7 +1657,7 @@ export function renderCardSimulator(){
   }
 
   // Benefit breakdown
-  const CADENCE_LBL={monthly:'Monthly',quarterly:'Quarterly','cal-semi-annual':'Semi-Annual','semi-annual':'Semi-Annual','cal-annual':'Annual',annual:'Annual','feb-annual':'Annual'};
+  const CADENCE_LBL={monthly:'Monthly',quarterly:'Quarterly','cal-semi-annual':'Semi-Annual','semi-annual':'Semi-Annual','cal-annual':'Annual','cal-annual-overlap':'Annual',annual:'Annual','feb-annual':'Annual'};
   let breakdown=`<div class="section-header" style="margin-top:16px"><span class="section-title">Benefit breakdown</span><span class="section-period">max → your projected</span></div>`;
   sections.forEach(({s,rows,sMax,sProj})=>{
     if(!rows.length) return;

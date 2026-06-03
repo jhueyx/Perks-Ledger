@@ -30,6 +30,13 @@ export function getCardYearPeriods(cardKey,cadence){
     out.push({m:1,y:curStart,pk:`feb-${curStart}`,lbl:`Feb ${curStart}–Jan ${curStart+1}`,calM:1,calY:curStart,endM:0,endY:curStart+1});
     return out;
   }
+  if(cadence==='cal-annual-overlap'){
+    const years=[...new Set(getCardYearMonths(cardKey).map(mo=>mo.y))];
+    const openedYear=state.cardMeta?.[cardKey]?.openedYear??CARDS[cardKey].openedYear;
+    return years
+      .filter(y=>!openedYear||y>=openedYear)
+      .map(y=>({m:0,y,pk:`${y}-annual`,lbl:`${y}`,calM:0,calY:y}));
+  }
   if(cadence==='cal-annual'){
     const {year:fy}=getCardYearStart(cardKey);
     const openedYear=state.cardMeta?.[cardKey]?.openedYear??CARDS[cardKey].openedYear;
@@ -79,6 +86,7 @@ export function getYTDPeriods(cadence){
     const curStart=SY>=CY&&CM>=1?CY:SY;
     return [{m:1,y:curStart,pk:`feb-${curStart}`,lbl:`Feb ${curStart}–Jan ${curStart+1}`,calM:1,calY:curStart,endM:0,endY:curStart+1}];
   }
+  if(cadence==='cal-annual-overlap') return getYTDPeriods('cal-annual');
   if(cadence==='monthly') return Array.from({length:lastMonth+1},(_,m)=>({m,y:SY,pk:getPK(cadence,m,SY),lbl:MONTHS[m],calM:m,calY:SY}));
   if(cadence==='quarterly'){ const seen=new Set(),out=[]; for(let m=0;m<=lastMonth;m++){ const pk=getPK(cadence,m,SY); if(!seen.has(pk)){seen.add(pk);out.push({m,y:SY,pk,lbl:`Q${Math.floor(m/3)+1}`,calM:m,calY:SY});} } return out; }
   if(cadence==='semi-annual'||cadence==='cal-semi-annual'){
@@ -95,7 +103,7 @@ export function isPCurrent(cadence,p){
   if(cadence==='quarterly') return Math.floor(p.calM/3)===Math.floor(CM/3)&&p.calY===CY;
   if(cadence==='semi-annual'){ const s=p.calY*12+p.calM,e=(p.endY||CY)*12+(p.endM!==undefined?p.endM:11),n=CY*12+CM; return n>=s&&n<=e; }
   if(cadence==='cal-semi-annual'){ const s=p.calY*12+p.calM,e=p.calY*12+(p.endM!==undefined?p.endM:11),n=CY*12+CM; return n>=s&&n<=e; }
-  if(cadence==='cal-annual') return p.calY===CY;
+  if(cadence==='cal-annual'||cadence==='cal-annual-overlap') return p.calY===CY;
   if(cadence==='feb-annual'){ const s=p.calY*12+1,e=(p.endY||p.calY+1)*12+(p.endM!==undefined?p.endM:0),n=CY*12+CM; return n>=s&&n<=e; }
   return !isPFuture(p);
 }
@@ -218,8 +226,14 @@ export function getUnclaimedMonthly(cardKey){
 export function maxCardYearValue(cardKey){
   const card=CARDS[cardKey]; let t=0;
   card.sections.forEach(s=>{
-    const n=s.cadence==='monthly'?12:s.cadence==='quarterly'?4:s.cadence==='cal-semi-annual'||s.cadence==='semi-annual'?2:1;
-    s.benefits.forEach(b=>{ if(isGloballySnoozed(cardKey,b.id)||isBNotAvailable(b,CY)) return; t+=b.amount*((b.halfStart!==undefined||b.halfEnd!==undefined)?1:n); });
+    const ps=getCardYearPeriods(cardKey,s.cadence);
+    s.benefits.forEach(b=>{
+      if(isGloballySnoozed(cardKey,b.id)) return;
+      ps.forEach(p=>{
+        if(isBExpired(b,p)||isBNotAvailable(b,CY,p)) return;
+        t+=getBAmount(b,p);
+      });
+    });
   });
   return t;
 }

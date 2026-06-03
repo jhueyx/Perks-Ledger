@@ -919,7 +919,7 @@ function firePerBenefitReminders(){
   if(localStorage.getItem('notif-perbenefit')!=='1') return;
   if(!('Notification' in window)||Notification.permission!=='granted') return;
   const now=new Date();
-  const THRESH={monthly:3,quarterly:7,'cal-semi-annual':14,'semi-annual':14,annual:30,'feb-annual':30};
+  const THRESH={monthly:3,quarterly:7,'cal-semi-annual':14,'semi-annual':14,annual:30,'cal-annual-overlap':30,'feb-annual':30};
   const cands=[];
   getVisibleCardKeys().forEach(ck=>{
     CARDS[ck].sections.forEach(s=>{

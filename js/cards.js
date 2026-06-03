@@ -121,8 +121,10 @@ export const CARDS={
     ]},
   ]},
   wf_premier_autograph:{name:'WF Premier Autograph',fee:95,historicalFees:{2025:95,2026:95},feeMonth:0,feeDay:1,sections:[
-    {label:'Annual (calendar year)',cadence:'cal-annual',benefits:[
+    {label:'Annual (calendar year)',cadence:'cal-annual-overlap',benefits:[
       {id:'wfpa_airline',name:'Airline Credit',desc:'Statement credit on airline purchases — flights, seat upgrades, bag fees, in-flight purchases',amount:50},
+    ]},
+    {label:'Benefit (every 4 years)',cadence:'cal-annual',benefits:[
       {id:'wfpa_ge',name:'Global Entry / TSA PreCheck',desc:'Statement credit every 4 years',amount:120},
     ]},
   ]},
