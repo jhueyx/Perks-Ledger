@@ -7,7 +7,7 @@ export const CARDS={
       {id:'g_dunkin',name:"Dunkin' Credit",desc:"At U.S. Dunkin' locations",amount:7,startsFrom:2025},
     ]},
     {label:'Semi-annual (calendar)',cadence:'cal-semi-annual',benefits:[
-      {id:'g_resy',name:'Resy Dining Credit',desc:'Any U.S. Resy restaurant — no reservation required',amount:50,startsFrom:2025},
+      {id:'g_resy',name:'Resy Dining Credit',desc:'Any U.S. Resy restaurant — no reservation required',amount:50,startsFrom:2025,partial:true},
     ]},
   ]},
   platinum:{name:'AMEX Platinum',fee:895,historicalFees:{2025:695},feeMonth:8,feeDay:17,openedYear:2025,sections:[
@@ -17,12 +17,12 @@ export const CARDS={
       {id:'p_walmart',name:'Walmart+ Credit',desc:'Covers monthly Walmart+ membership',amount:12.95},
     ]},
     {label:'Quarterly',cadence:'quarterly',benefits:[
-      {id:'p_resy',name:'Resy Dining Credit',desc:'At eligible U.S. Resy restaurants',amount:100,startsFrom:2025},
-      {id:'p_lulu',name:'Lululemon Credit',desc:'U.S. stores or lululemon.com',amount:75,startsFrom:2025},
+      {id:'p_resy',name:'Resy Dining Credit',desc:'At eligible U.S. Resy restaurants',amount:100,startsFrom:2025,partial:true},
+      {id:'p_lulu',name:'Lululemon Credit',desc:'U.S. stores or lululemon.com',amount:75,startsFrom:2025,partial:true},
     ]},
     {label:'Semi-annual (calendar)',cadence:'cal-semi-annual',benefits:[
-      {id:'p_saks',name:'Saks Fifth Avenue',desc:'At Saks stores or saks.com — resets Jan & Jul. Ends Jun 2026.',amount:50,expiresAfter:{y:2026,h:0}},
-      {id:'p_hotel',name:'Hotel Credit',desc:'Fine Hotels + Resorts or Hotel Collection, 2-night min — resets Jan & Jul',amount:300},
+      {id:'p_saks',name:'Saks Fifth Avenue',desc:'At Saks stores or saks.com — resets Jan & Jul. Ends Jun 2026.',amount:50,expiresAfter:{y:2026,h:0},partial:true},
+      {id:'p_hotel',name:'Hotel Credit',desc:'Fine Hotels + Resorts or Hotel Collection, 2-night min — resets Jan & Jul',amount:300,partial:true},
     ]},
     {label:'Annual (calendar year)',cadence:'cal-annual',benefits:[
       {id:'p_uberone',name:'Uber One Membership Credit',desc:'One-time credit for annual Uber One membership',amount:96,startsFrom:2025},
@@ -50,8 +50,8 @@ export const CARDS={
       {id:'c_peloton',name:'Peloton Credit',desc:'Toward eligible Peloton memberships',amount:10,startsFrom:2025},
     ]},
     {label:'Semi-annual (calendar)',cadence:'cal-semi-annual',benefits:[
-      {id:'c_dining',name:'Exclusive Tables Dining Credit',desc:'Via OpenTable Sapphire Reserve Exclusive Tables',amount:150,startsFrom:2025},
-      {id:'c_stub',name:'StubHub / Viagogo Credit',desc:'Concert and event tickets',amount:150,startsFrom:2025},
+      {id:'c_dining',name:'Exclusive Tables Dining Credit',desc:'Via OpenTable Sapphire Reserve Exclusive Tables',amount:150,startsFrom:2025,partial:true},
+      {id:'c_stub',name:'StubHub / Viagogo Credit',desc:'Concert and event tickets',amount:150,startsFrom:2025,partial:true},
       {id:'c_edit1',name:'The Edit Hotel Credit (H1)',desc:'Prepaid 2-night+ stay via Chase Travel The Edit — available Jan–Jun only',amount:250,startsFrom:2026,halfEnd:0},
       {id:'c_edit2',name:'The Edit Hotel Credit (H2)',desc:'Prepaid 2-night+ stay via Chase Travel The Edit — available Jul–Dec only',amount:250,startsFrom:2026,halfStart:1},
     ]},
@@ -72,12 +72,12 @@ export const CARDS={
   amex_green:{name:'AMEX Green',fee:150,historicalFees:{2025:150},feeMonth:0,feeDay:1,sections:[
     {label:'Annual (calendar year)',cadence:'cal-annual',benefits:[
       {id:'ag_clear',name:'CLEAR Plus Credit',desc:'Annual CLEAR Plus membership',amount:189},
-      {id:'ag_lounge',name:'LoungeBuddy Credit',desc:'Airport lounge access via LoungeBuddy app',amount:100},
+      {id:'ag_lounge',name:'LoungeBuddy Credit',desc:'Airport lounge access via LoungeBuddy app',amount:100,partial:true},
     ]},
   ]},
   amex_hilton_honors:{name:'Hilton Honors Aspire',fee:550,historicalFees:{2025:550},feeMonth:0,feeDay:1,sections:[
     {label:'Semi-annual (calendar)',cadence:'cal-semi-annual',benefits:[
-      {id:'ah_resort',name:'Hilton Resort Credit',desc:'At eligible Hilton resort properties worldwide',amount:200},
+      {id:'ah_resort',name:'Hilton Resort Credit',desc:'At eligible Hilton resort properties worldwide',amount:200,partial:true},
     ]},
     {label:'Annual (calendar year)',cadence:'cal-annual',benefits:[
       {id:'ah_airline',name:'Airline Fee Credit',desc:'Incidental fees with one selected airline',amount:200,partial:true},
@@ -87,7 +87,7 @@ export const CARDS={
   ]},
   amex_marriott_brill:{name:'Marriott Bonvoy Brilliant',fee:650,historicalFees:{2025:650},feeMonth:0,feeDay:1,sections:[
     {label:'Semi-annual (calendar)',cadence:'cal-semi-annual',benefits:[
-      {id:'amb_dining',name:'Dining Credit',desc:'Statement credit for U.S. restaurant purchases',amount:150},
+      {id:'amb_dining',name:'Dining Credit',desc:'Statement credit for U.S. restaurant purchases',amount:150,partial:true},
     ]},
     {label:'Annual (calendar year)',cadence:'cal-annual',benefits:[
       {id:'amb_freenight',name:'Free Night Award',desc:'One free night at any Marriott property (up to 85,000 pts)',amount:500},
@@ -102,7 +102,7 @@ export const CARDS={
   ]},
   chase_united_quest:{name:'United Quest',fee:250,historicalFees:{2025:250},feeMonth:0,feeDay:1,sections:[
     {label:'Semi-annual (calendar)',cadence:'cal-semi-annual',benefits:[
-      {id:'uq_credit',name:'United Purchase Credit',desc:'Statement credit on United Airlines purchases',amount:125},
+      {id:'uq_credit',name:'United Purchase Credit',desc:'Statement credit on United Airlines purchases',amount:125,partial:true},
     ]},
     {label:'Annual (calendar year)',cadence:'cal-annual',benefits:[
       {id:'uq_miles',name:'Award Miles Back',desc:'Up to 10,000 miles back per year on United award redemptions',amount:100},
@@ -122,7 +122,7 @@ export const CARDS={
   ]},
   wf_premier_autograph:{name:'WF Premier Autograph',fee:95,historicalFees:{2025:95,2026:95},feeMonth:0,feeDay:1,sections:[
     {label:'Annual (calendar year)',cadence:'cal-annual-overlap',benefits:[
-      {id:'wfpa_airline',name:'Airline Credit',desc:'Statement credit on airline purchases — flights, seat upgrades, bag fees, in-flight purchases',amount:50},
+      {id:'wfpa_airline',name:'Airline Credit',desc:'Statement credit on airline purchases — flights, seat upgrades, bag fees, in-flight purchases',amount:50,partial:true},
     ]},
     {label:'Benefit (every 4 years)',cadence:'cal-annual',benefits:[
       {id:'wfpa_ge',name:'Global Entry / TSA PreCheck',desc:'Statement credit every 4 years',amount:120},
