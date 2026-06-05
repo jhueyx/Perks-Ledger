@@ -1,4 +1,5 @@
 import { CARDS, CARD_LABELS, PREMIUM_CARD_CATALOG, POINTS_MULTIPLIERS, TRANSFER_PARTNERS } from './cards.js';
+const DEPLOY_DATE='2026-06-05';
 import { state, CY, CM, MONTHS, MONTHS_FULL, sb, freshDATA, STORAGE_KEY, escapeHtml, SUPABASE_URL, SUPABASE_KEY } from './state.js';
 import {
   toggle, scheduleSave, setSave, syncFromSupabase,
@@ -1898,6 +1899,10 @@ function renderMore(){
     credit.textContent='jhuey · 2026 · v2.0';
     credit.style.cssText='font-size:10px;font-family:var(--mono);color:var(--text-tertiary);margin-top:10px;padding:0 12px;opacity:0.4;user-select:none';
     drawerBottom.appendChild(credit);
+    const deployLine=document.createElement('div');
+    deployLine.textContent=`updated ${DEPLOY_DATE}`;
+    deployLine.style.cssText='font-size:9px;font-family:var(--mono);color:var(--text-tertiary);margin-top:2px;padding:0 12px;opacity:0.3;user-select:none';
+    drawerBottom.appendChild(deployLine);
   }
 })();
 
