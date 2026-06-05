@@ -1895,7 +1895,7 @@ function renderMore(){
   const drawerBottom=document.querySelector('#navExtras > div:last-child');
   if(drawerBottom){
     const credit=document.createElement('div');
-    credit.textContent='jhuey · 2026 · v1.0';
+    credit.textContent='jhuey · 2026 · v2.0';
     credit.style.cssText='font-size:10px;font-family:var(--mono);color:var(--text-tertiary);margin-top:10px;padding:0 12px;opacity:0.4;user-select:none';
     drawerBottom.appendChild(credit);
   }
