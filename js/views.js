@@ -707,7 +707,8 @@ export function renderCurrent(){
         const effectiveAmt=getEffectiveAmount(state.activeCard,b.id,getBAmount(b,{m:viewM}));
         const dispAmt=b.note&&b.amount===0?b.note:`$${effectiveAmt}`;
         const note=getNote(state.activeCard,b.id,pk);
-        const noteHTML=note?`<div class="benefit-note" data-id="${b.id}" data-pk="${pk}" data-name="${b.name}"><span class="note-dot"></span>${escapeHtml(note)}</div>`:`<div class="add-note" data-id="${b.id}" data-pk="${pk}" data-name="${b.name}">+ add note</div>`;
+        const periodLabel=isMonthly?`${MONTHS_FULL[viewM]} ${viewY}`:lbl;
+        const noteHTML=note?`<div class="benefit-note" data-id="${b.id}" data-pk="${pk}" data-name="${b.name}" data-period="${periodLabel}"><span class="note-dot"></span>${escapeHtml(note)}</div>`:`<div class="add-note" data-id="${b.id}" data-pk="${pk}" data-name="${b.name}" data-period="${periodLabel}">+ add note</div>`;
         const partialHTML=b.partial&&used?buildPartialBar(state.activeCard,b.id,pk,effectiveAmt):'';
         const creditedHTML=used?`<div style="margin-top:4px;font-size:10px;font-family:var(--mono)"><span style="color:${credited?'var(--green)':'var(--text-tertiary)'};cursor:pointer" data-credit-id="${b.id}" data-credit-pk="${pk}">${credited?'✓ Credit posted':'○ Credit pending'}</span></div>`:'';
         const snoozedBadge=snoozed?`<span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);margin-top:3px;display:block">⏸︎ snoozed until ${snoozedUntil} · <span style="cursor:pointer;text-decoration:underline" data-unsnooze="${b.id}" data-unsnooze-card="${state.activeCard}">resume</span></span>`:'';
@@ -727,7 +728,7 @@ export function renderCurrent(){
 
   set(html, ()=>{
     document.querySelectorAll('.benefit-note,.add-note').forEach(el=>el.addEventListener('click',()=>{
-      window.openNoteModal(state.activeCard,el.dataset.id,el.dataset.pk,el.dataset.name);
+      window.openNoteModal(state.activeCard,el.dataset.id,el.dataset.pk,el.dataset.name,el.dataset.period);
     }));
     document.querySelectorAll('.partial-input').forEach(inp=>inp.addEventListener('change',()=>{
       const amt=Math.min(parseFloat(inp.value)||0,parseFloat(inp.dataset.total));
@@ -2167,7 +2168,8 @@ export function buildAdvisorContext(){
     });
   });
   if(monthly.length){
-    lines.push(`Unclaimed this month (expires ${MONTHS[CM]} 30):`);
+    const lastDay=new Date(CY,CM+1,0).getDate();
+    lines.push(`Unclaimed this month (expires ${MONTHS[CM]} ${lastDay}):`);
     monthly.forEach(i=>lines.push(`- ${i}`));
     lines.push('');
   }

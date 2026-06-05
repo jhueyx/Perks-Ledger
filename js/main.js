@@ -213,7 +213,24 @@ function doUnlock(){
   setTimeout(()=>{
     checkBadges();
     const newOnes=[...backfill2025Badges(),...unlockReviewedBadges()];
-    if(newOnes.length) showBadgeToast(newOnes[0]);
+    if(newOnes.length>1){
+      const toast=document.getElementById('badgeToast');
+      const inner=document.getElementById('badgeToastInner');
+      if(toast&&inner){
+        inner.innerHTML=`
+          <div style="width:36px;height:36px;border-radius:50%;border:2px solid var(--gold);background:rgba(200,146,42,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px">🏅</div>
+          <div style="min-width:0">
+            <div style="font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:0.07em;color:var(--gold);font-weight:600">Prior Activity</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text);margin-top:1px">${newOnes.length} badges awarded</div>
+            <div style="font-size:11px;color:var(--text-secondary);font-family:var(--mono);margin-top:1px">Based on your tracking history</div>
+          </div>`;
+        inner.onclick=()=>{ toast.classList.remove('show'); setActiveView('badges'); };
+        toast.classList.add('show');
+        setTimeout(()=>toast.classList.remove('show'),5000);
+      }
+    } else if(newOnes.length===1){
+      showBadgeToast(newOnes[0]);
+    }
     if(state.activeView==='badges') renderBadgesView();
   },500);
 }
@@ -817,10 +834,10 @@ function saveCardDates(){
 }
 
 // ── Note modal ────────────────────────────────────────────────────────────
-function openNoteModal(cardKey,benefitId,pk,benefitName){
+function openNoteModal(cardKey,benefitId,pk,benefitName,periodLabel){
   state._noteCtx={cardKey,benefitId,pk};
   document.getElementById('noteModalTitle').textContent=benefitName;
-  document.getElementById('noteModalSub').textContent=`${MONTHS_FULL[CM]} ${CY}`;
+  document.getElementById('noteModalSub').textContent=periodLabel||`${MONTHS_FULL[CM]} ${CY}`;
   const notes=loadNotes();
   document.getElementById('noteText').value=notes[getNoteKey(cardKey,benefitId,pk)]||'';
   document.getElementById('noteModal').classList.remove('hidden');
