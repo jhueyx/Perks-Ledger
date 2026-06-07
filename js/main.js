@@ -819,7 +819,7 @@ function renderInsightsTab(){
     {view:'compare',label:'Compare Cards',desc:'Side-by-side card comparison'},
     {view:'history-log',label:'History',desc:'Full toggle history log'},
     {view:'recap',label:'Annual Recap',desc:'Year-end summary and CSV export'},
-    {view:'card-simulator',label:'Card Simulator',desc:'What-if for cards you don't own'},
+    {view:'card-simulator',label:'Card Simulator',desc:'What-if for cards you don’t own'},
     {view:'wrap',label:'Report Card',desc:'Personalized year-in-review'},
     {view:'badges',label:'Achievements',desc:'Earned badges and milestones'},
   ];
