@@ -740,7 +740,7 @@ function renderToday(){
         if(!isUsed(cardKey,b.id,pk)) return;
         if(isCredited(cardKey,b.id,pk)) return;
         const amt=getBAmount(b,{m:CM});
-        pendingCredits.push({cardKey,name:b.name,card:CARD_LABELS[cardKey],amt});
+        pendingCredits.push({cardKey,id:b.id,pk,name:b.name,card:CARD_LABELS[cardKey],amt});
       });
     });
   });
@@ -781,7 +781,16 @@ function renderToday(){
   </div>`:'';
   const pendingHTML=pendingCredits.length?`<div class="today-section">
     <div class="today-section-title">Pending credits <span class="today-section-count">${pendingCredits.length}</span></div>
-    ${pendingCredits.map(it=>rowOf({...it,badge:'<span class="status-badge status-pending">Pending</span>'})).join('')}
+    ${pendingCredits.map(it=>`<div class="today-list-row today-list-row--pending">
+      <div class="today-list-info">
+        <div class="today-list-name">${escapeHtml(it.name)}</div>
+        <div class="today-list-card">${escapeHtml(it.card)}</div>
+      </div>
+      <div class="today-list-right">
+        <div class="today-list-value">$${it.amt.toFixed(2)}</div>
+        <button class="btn-mark-posted" onclick="window.markBenefitPosted('${it.cardKey}','${it.id}','${it.pk}')">Mark posted</button>
+      </div>
+    </div>`).join('')}
   </div>`:'';
   const renewalsHTML=renewals.length?`<div class="today-section">
     <div class="today-section-title">Upcoming renewals <span class="today-section-count">${renewals.length}</span></div>
@@ -2179,6 +2188,7 @@ window.setActiveView=setActiveView;
 window.openFeeDateModal=openFeeDateModal;
 window.closeFeeDateModal=closeFeeDateModal;
 window.goToCardPeriod=goToCardPeriod;
+window.markBenefitPosted=(cardKey,id,pk)=>{ toggleCredited(cardKey,id,pk); renderToday(); };
 window.skipBenefit=skipBenefit;
 window.unskipBenefit=unskipBenefit;
 window.backfill2025Badges=()=>{ localStorage.removeItem('perks-badges-2025-backfill'); localStorage.removeItem('perks-badges-2025-backfill-v2'); checkBadges(); backfill2025Badges(); renderBadgesView(); };

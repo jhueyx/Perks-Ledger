@@ -723,7 +723,7 @@ export function renderCurrent(){
           return '';
         })();
         const snoozeBtnNew=!snoozed?`<button class="btn-labeled btn-snooze" data-snooze-id="${b.id}" data-snooze-card="${state.activeCard}" data-snooze-name="${b.name}" aria-label="Snooze benefit"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V4a2 2 0 0 0-4 0v3"/><path d="M8 7V4a2 2 0 0 0-4 0v3"/><line x1="10" y1="12" x2="14" y2="12"/></svg>Snooze</button>`:'';
-        const checkLabel=used?'✓ Marked':'Mark used';
+        const checkLabel=used?'✓ Used':'Mark used';
         html+=`<div class="benefit-row2${used?' br2-used':''}${snoozed?' br2-snoozed':''}">
           <div class="br2-top">
             <div class="br2-info">
