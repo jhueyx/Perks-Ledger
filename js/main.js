@@ -1,20 +1,20 @@
 import { CARDS, CARD_LABELS, PREMIUM_CARD_CATALOG, POINTS_MULTIPLIERS, TRANSFER_PARTNERS } from './cards.js';
-const DEPLOY_DATE='2026-06-06 21:11';
+const DEPLOY_DATE='2026-06-05';
 import { state, CY, CM, MONTHS, MONTHS_FULL, sb, freshDATA, STORAGE_KEY, escapeHtml, SUPABASE_URL, SUPABASE_KEY } from './state.js';
 import {
   toggle, scheduleSave, setSave, syncFromSupabase,
   loadCustomAmounts, saveCustomAmounts, setCustomAmount,
   loadPartial, savePartial, setPartialUsed,
   loadNotes, saveNotes, getNoteKey,
-  loadCredited, saveCredited, toggleCredited, isCredited,
+  loadCredited, saveCredited, toggleCredited,
   loadSkipped, saveSkipped, isSkipped, skipBenefit, unskipBenefit, clearAllSkipped, countSkipped,
   getFeeOverrides, saveFeeOverridesData, getCardFeeMonth, getCardFeeDay,
   setSnoozedBenefit, isGloballySnoozed, isUsed,
   loadCardMeta, setCardOpenedDate
 } from './storage.js';
-import { render, getVisibleCardKeys, renderCurrent, renderRecap, haptic, checkAllClaimed, animateCounters, renderFeeOptimizer, buildAdvisorContext, formatAdvisorMarkdown, computeAlerts, buildPriorityQueue } from './views.js';
+import { render, getVisibleCardKeys, renderCurrent, renderRecap, haptic, checkAllClaimed, animateCounters, renderFeeOptimizer, buildAdvisorContext, formatAdvisorMarkdown, computeAlerts } from './views.js';
 import { checkBadges, getEarnedBadges, getEarnedAt, getUnseenBadges, markAllSeen, BADGE_DEFS, getApplicableBadgeDefs, TIER_COLORS, backfill2025Badges, unlockReviewedBadges } from './badges.js';
-import { calcStats, getCardYearPeriods, isPCurrent, getFee, getBAmount, getCurrentPK, isBExpired, isBNotAvailable, daysUntilEOM, daysUntilFee } from './periods.js';
+import { calcStats, getCardYearPeriods, isPCurrent, getFee, getBAmount, getCurrentPK, isBExpired, isBNotAvailable } from './periods.js';
 
 // Web Push: paste the base64url VAPID PUBLIC key here (same one set as the
 // send-push function's VAPID_PUBLIC_KEY secret). Generate with:
@@ -206,7 +206,7 @@ function doUnlock(){
   }catch(e){}
   state.cardMeta=loadCardMeta();
   applyUserCards();
-  setActiveView('today');
+  render();
   updateAlertBadge();
   setTimeout(initCardFlip,200);
   syncFromSupabase();
@@ -721,127 +721,6 @@ function updateSecondaryNav(primary){
   stabs.forEach(t=>t.classList.toggle('active',t.dataset.view===state.activeView));
 }
 
-function renderToday(){
-  const eomDays=daysUntilEOM();
-  const queue=buildPriorityQueue();
-  const now=new Date();
-  let totalUnclaimed=0;
-  queue.forEach(it=>totalUnclaimed+=it.amt);
-  const topItem=queue[0]||null;
-  const expiring=queue.filter(it=>it.cadence==='monthly'&&eomDays<=5);
-  const pendingCredits=[];
-  (state.userCards||[]).filter(k=>CARDS[k]).forEach(cardKey=>{
-    const card=CARDS[cardKey];
-    card.sections.forEach(s=>{
-      const p={calY:CY,calM:CM,m:CM};
-      s.benefits.forEach(b=>{
-        if(isBExpired(b,p)||isBNotAvailable(b,CY,p)) return;
-        const pk=getCurrentPK(cardKey,s.cadence);
-        if(!isUsed(cardKey,b.id,pk)) return;
-        if(isCredited(cardKey,b.id,pk)) return;
-        const amt=getBAmount(b,{m:CM});
-        pendingCredits.push({cardKey,id:b.id,pk,name:b.name,card:CARD_LABELS[cardKey],amt});
-      });
-    });
-  });
-  const renewals=[];
-  (state.userCards||[]).filter(k=>CARDS[k]).forEach(cardKey=>{
-    const d=daysUntilFee(cardKey);
-    if(d>=0&&d<=60){
-      const fee=getFee(cardKey,CY);
-      if(fee>0) renewals.push({cardKey,card:CARD_LABELS[cardKey],fee,days:d});
-    }
-  });
-  renewals.sort((a,b)=>a.days-b.days);
-  const user=state.currentUser;
-  const uname=user?.user_metadata?.display_name||user?.email?.split('@')[0]||'there';
-  const h=now.getHours();
-  const greeting=h<12?'Good morning':h<17?'Good afternoon':'Good evening';
-  const topActionHTML=topItem?`
-  <div class="today-action-card">
-    <div class="today-action-label">Next best action</div>
-    <div class="today-action-name">${escapeHtml(topItem.name)}</div>
-    <div class="today-action-meta">${escapeHtml(topItem.card)} · <span class="today-urgency ${topItem.urgencyCls}">${topItem.urgencyLabel}</span></div>
-    <div class="today-action-amount">$${topItem.amt.toFixed(2)}</div>
-    <button class="today-action-btn" onclick="window.goToCardPeriod('${topItem.cardKey}')">Go to benefit →</button>
-  </div>`:totalUnclaimed===0?`<div class="today-empty-hero">All benefits claimed this month — great work!</div>`:'';
-  const rowOf=it=>`<div class="today-list-row">
-    <div class="today-list-info">
-      <div class="today-list-name">${escapeHtml(it.name)}</div>
-      <div class="today-list-card">${escapeHtml(it.card)}</div>
-    </div>
-    <div class="today-list-right">
-      <div class="today-list-value">$${it.amt.toFixed(2)}</div>
-      ${it.badge||''}
-    </div>
-  </div>`;
-  const expiringHTML=expiring.length?`<div class="today-section">
-    <div class="today-section-title">Expiring soon <span class="today-section-count">${expiring.length}</span></div>
-    ${expiring.map(it=>rowOf({...it,badge:`<span class="status-badge status-due-soon">${eomDays}d left</span>`})).join('')}
-  </div>`:'';
-  const pendingHTML=pendingCredits.length?`<div class="today-section">
-    <div class="today-section-title">Pending credits <span class="today-section-count">${pendingCredits.length}</span></div>
-    ${pendingCredits.map(it=>`<div class="today-list-row today-list-row--pending">
-      <div class="today-list-info">
-        <div class="today-list-name">${escapeHtml(it.name)}</div>
-        <div class="today-list-card">${escapeHtml(it.card)}</div>
-      </div>
-      <div class="today-list-right">
-        <div class="today-list-value">$${it.amt.toFixed(2)}</div>
-        <button class="btn-mark-posted" onclick="window.markBenefitPosted('${it.cardKey}','${it.id}','${it.pk}')">Mark posted</button>
-      </div>
-    </div>`).join('')}
-  </div>`:'';
-  const renewalsHTML=renewals.length?`<div class="today-section">
-    <div class="today-section-title">Upcoming renewals <span class="today-section-count">${renewals.length}</span></div>
-    ${renewals.map(r=>`<div class="today-list-row">
-      <div class="today-list-info">
-        <div class="today-list-name">${escapeHtml(r.card)}</div>
-        <div class="today-list-card">Annual fee due in ${r.days}d</div>
-      </div>
-      <div class="today-list-right">
-        <div class="today-list-value">$${r.fee.toFixed(0)}</div>
-        <span class="status-badge ${r.days<=14?'status-due-soon':'status-snoozed'}">${r.days}d</span>
-      </div>
-    </div>`).join('')}
-  </div>`:'';
-  document.getElementById('main').innerHTML=`<div class="today-view">
-    <div class="today-header">
-      <div class="today-greeting">${greeting}, ${escapeHtml(uname)}</div>
-      ${totalUnclaimed>0?`<div class="today-dominant">
-        <div class="today-dominant-value">$${totalUnclaimed.toFixed(0)}</div>
-        <div class="today-dominant-label">unclaimed this month</div>
-      </div>`:''}
-    </div>
-    ${topActionHTML}${expiringHTML}${pendingHTML}${renewalsHTML}
-  </div>`;
-}
-
-function renderInsightsTab(){
-  const INSIGHTS=[
-    {view:'digest',label:'Benefit Digest',desc:'Urgency-ranked unclaimed benefits'},
-    {view:'net-value',label:'Portfolio Value',desc:'Total captured & uncaptured value'},
-    {view:'fee-optimizer',label:'Fee Optimizer',desc:'ROI and cancel impact per card'},
-    {view:'performance',label:'Performance',desc:'ROI grades and capture trends'},
-    {view:'renewal-calendar',label:'Renewal Calendar',desc:'Annual fee dates and upcoming renewals'},
-    {view:'heatmap',label:'Heatmap',desc:'Usage patterns across time'},
-    {view:'compare',label:'Compare Cards',desc:'Side-by-side card comparison'},
-    {view:'history-log',label:'History',desc:'Full toggle history log'},
-    {view:'recap',label:'Annual Recap',desc:'Year-end summary and CSV export'},
-    {view:'card-simulator',label:'Card Simulator',desc:'What-if for cards you don’t own'},
-    {view:'wrap',label:'Report Card',desc:'Personalized year-in-review'},
-    {view:'badges',label:'Achievements',desc:'Earned badges and milestones'},
-  ];
-  const rows=INSIGHTS.map(it=>`<button class="insights-row" onclick="setActiveView('${it.view}')">
-    <div class="insights-row-info">
-      <div class="insights-row-label">${it.label}</div>
-      <div class="insights-row-desc">${it.desc}</div>
-    </div>
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;color:var(--text-tertiary)"><polyline points="6,3 11,8 6,13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  </button>`).join('');
-  document.getElementById('main').innerHTML=`<div class="insights-menu"><div class="insights-menu-title">Insights</div>${rows}</div>`;
-}
-
 function setActiveView(primary){
   state.activePrimary=primary;
   if(primary==='all-cards'){ state.activeView='all-cards'; state.selectedYear=CY; }
@@ -865,12 +744,9 @@ function setActiveView(primary){
   else if(primary==='benefit-alerts') state.activeView='benefit-alerts';
   else if(primary==='settings') state.activeView='settings';
   else if(primary==='more') state.activeView='more';
-  else if(primary==='today') state.activeView='today';
-  else if(primary==='insights-tab') state.activeView='insights-tab';
   else if(primary==='my-cards'){ openMyCards(); return; }
 
   const topViews=['all-cards','this-period','card-year','ytd'];
-  const cardSubViews=['all-cards','this-period','card-year','ytd'];
   if(topViews.includes(primary)){
     document.querySelectorAll('.nav-primary-btn').forEach(b=>b.classList.toggle('active',b.dataset.primary===primary));
     document.querySelectorAll('.drawer-item').forEach(b=>b.classList.remove('active'));
@@ -878,16 +754,13 @@ function setActiveView(primary){
     document.querySelectorAll('.nav-primary-btn').forEach(b=>b.classList.remove('active'));
     document.querySelectorAll('.drawer-item').forEach(b=>b.classList.toggle('active',b.dataset.primary===primary));
   }
-  const hideTopNav=['more','today','insights-tab','settings','badges'];
-  document.getElementById('navPrimary').classList.toggle('hidden', hideTopNav.includes(primary)||!cardSubViews.includes(primary));
+  document.getElementById('navPrimary').classList.toggle('hidden', primary==='more');
   updateSecondaryNav(primary);
   updateBottomTabBar(primary);
   updateMainChromeVisibility(primary);
   if(primary==='settings'){ renderSettings(); updateAlertBadge(); return; }
   if(primary==='more'){ renderMore(); updateAlertBadge(); return; }
   if(primary==='badges'){ renderBadgesView(); updateAlertBadge(); return; }
-  if(primary==='today'){ renderToday(); return; }
-  if(primary==='insights-tab'){ renderInsightsTab(); return; }
   render();
   if(primary==='benefit-alerts') markAlertsSeen();
   updateAlertBadge();
@@ -904,33 +777,21 @@ function closeDrawer(){
   document.getElementById('drawerOverlay').classList.remove('open');
 }
 function updateBottomTabBar(primary){
-  const TAB_MAP={
-    'today':'today',
-    'this-period':'this-period','current':'this-period',
-    'all-cards':'all-cards','card-year':'all-cards','ytd':'all-cards',
-    'history':'all-cards','annual':'all-cards','ytd-history':'all-cards',
-    'digest':'insights-tab','net-value':'insights-tab','fee-optimizer':'insights-tab',
-    'performance':'insights-tab','heatmap':'insights-tab','compare':'insights-tab',
-    'history-log':'insights-tab','recap':'insights-tab','card-simulator':'insights-tab',
-    'renewal-calendar':'insights-tab','wrap':'insights-tab','benefit-alerts':'insights-tab',
-    'upgrade-advisor':'insights-tab','ai-advisor':'insights-tab','badges':'insights-tab',
-    'settings':'settings','more':'settings',
-  };
-  const active=TAB_MAP[primary]||primary;
-  document.querySelectorAll('.bottom-tab[data-bottom]').forEach(b=>b.classList.toggle('active',b.dataset.bottom===active));
+  document.querySelectorAll('.bottom-tab[data-bottom]').forEach(b=>b.classList.toggle('active',b.dataset.bottom===primary));
+  const menuBtn=document.getElementById('bottomMenuBtn');
+  if(menuBtn) menuBtn.classList.toggle('active',primary==='more');
+  const homeBtn=document.getElementById('bottomHomeBtn');
+  if(homeBtn) homeBtn.classList.toggle('active',['all-cards','this-period','card-year','ytd'].includes(primary));
 }
 
 function updateMainChromeVisibility(primary){
-  const showCardSel=['all-cards','this-period','card-year','ytd'].includes(primary);
-  const showNavPrimary=['all-cards','card-year','ytd'].includes(primary);
-  const el=id=>document.getElementById(id);
-  if(el('cardSelector')) el('cardSelector').style.display=showCardSel?'':'none';
-  if(el('navPrimary')) el('navPrimary').style.display=showNavPrimary?'':'none';
-  ['navSecondary','yearSelector','ptrIndicator'].forEach(id=>{
-    if(el(id)) el(id).style.display=showCardSel?'':'none';
+  const showTopChrome=['all-cards','this-period','card-year','ytd'].includes(primary);
+  ['cardSelector','navPrimary','navSecondary','yearSelector','ptrIndicator'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.style.display=showTopChrome?'':'none';
   });
-  document.querySelectorAll('.drag-hint,.ptr-indicator').forEach(e=>{
-    e.style.display=showCardSel?'':'none';
+  document.querySelectorAll('.drag-hint,.ptr-indicator').forEach(el=>{
+    el.style.display=showTopChrome?'':'none';
   });
 }
 
@@ -1295,6 +1156,8 @@ document.getElementById('drawerClose').addEventListener('click',closeDrawer);
 document.getElementById('drawerOverlay').addEventListener('click',closeDrawer);
 
 // ── Bottom tab bar ────────────────────────────────────────────────────────
+document.getElementById('bottomMenuBtn').addEventListener('click',()=>setActiveView('more'));
+document.getElementById('bottomHomeBtn').addEventListener('click',()=>setActiveView('this-period'));
 document.getElementById('bottomTabBar').querySelectorAll('.bottom-tab[data-bottom]').forEach(btn=>{
   btn.addEventListener('click',()=>setActiveView(btn.dataset.bottom));
 });
@@ -2188,7 +2051,6 @@ window.setActiveView=setActiveView;
 window.openFeeDateModal=openFeeDateModal;
 window.closeFeeDateModal=closeFeeDateModal;
 window.goToCardPeriod=goToCardPeriod;
-window.markBenefitPosted=(cardKey,id,pk)=>{ toggleCredited(cardKey,id,pk); renderToday(); };
 window.skipBenefit=skipBenefit;
 window.unskipBenefit=unskipBenefit;
 window.backfill2025Badges=()=>{ localStorage.removeItem('perks-badges-2025-backfill'); localStorage.removeItem('perks-badges-2025-backfill-v2'); checkBadges(); backfill2025Badges(); renderBadgesView(); };

@@ -570,7 +570,7 @@ export function renderNetValue(){
 }
 
 // ── Priority queue ─────────────────────────────────────────────────────────
-export function buildPriorityQueue(){
+function buildPriorityQueue(){
   const eomDays=daysUntilEOM();
   const items=[];
   (state.userCards||[]).filter(k=>CARDS[k]).forEach(cardKey=>{
@@ -653,7 +653,6 @@ export function renderCurrent(){
   const isHistory=offset<0;
   const monthPK=`${viewY}-m${viewM}`;
 
-  const eomDays=daysUntilEOM();
   let totalNow=0,usedNow=0;
   card.sections.forEach(s=>{ if(s.cadence!=='monthly') return; s.benefits.forEach(b=>{ if(isBExpired(b,{calY:viewY,calM:viewM,m:viewM})||isBNotAvailable(b,viewY)||isGloballySnoozed(state.activeCard,b.id)) return; totalNow+=getBAmount(b,{m:viewM}); if(isUsed(state.activeCard,b.id,monthPK)) usedNow+=getBAmount(b,{m:viewM}); }); });
   const pct=totalNow>0?Math.round(usedNow/totalNow*100):0;
@@ -713,37 +712,15 @@ export function renderCurrent(){
         const partialHTML=b.partial&&used?buildPartialBar(state.activeCard,b.id,pk,effectiveAmt):'';
         const creditedHTML=used?`<div style="margin-top:4px;font-size:10px;font-family:var(--mono)"><span style="color:${credited?'var(--green)':'var(--text-tertiary)'};cursor:pointer" data-credit-id="${b.id}" data-credit-pk="${pk}">${credited?'✓ Credit posted':'○ Credit pending'}</span></div>`:'';
         const snoozedBadge=snoozed?`<span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);margin-top:3px;display:block">⏸︎ snoozed until ${snoozedUntil} · <span style="cursor:pointer;text-decoration:underline" data-unsnooze="${b.id}" data-unsnooze-card="${state.activeCard}">resume</span></span>`:'';
-        // Status badge
-        const statusBadge=(()=>{
-          if(snoozed) return `<span class="status-badge status-snoozed">Snoozed</span>`;
-          if(used && credited) return `<span class="status-badge status-posted">Posted</span>`;
-          if(used) return `<span class="status-badge status-pending">Pending</span>`;
-          if(s.cadence==='monthly'&&eomDays<=5) return `<span class="status-badge status-due-soon">${eomDays}d left</span>`;
-          if(s.cadence==='quarterly'&&Math.ceil((new Date(CY,(Math.floor(CM/3)+1)*3,0)-new Date())/86400000)<=7) return `<span class="status-badge status-due-soon">Qtr ends soon</span>`;
-          return '';
-        })();
-        const snoozeBtnNew=!snoozed?`<button class="btn-labeled btn-snooze" data-snooze-id="${b.id}" data-snooze-card="${state.activeCard}" data-snooze-name="${b.name}" aria-label="Snooze benefit"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V4a2 2 0 0 0-4 0v3"/><path d="M8 7V4a2 2 0 0 0-4 0v3"/><line x1="10" y1="12" x2="14" y2="12"/></svg>Snooze</button>`:'';
-        const checkLabel=used?'✓ Used':'Mark used';
-        html+=`<div class="benefit-row2${used?' br2-used':''}${snoozed?' br2-snoozed':''}">
-          <div class="br2-top">
-            <div class="br2-info">
-              <div class="br2-name">${b.name}${streakBadge}${expiryBadge}</div>
-              <div class="br2-deadline">${b.desc}</div>
-              ${snoozedBadge}${!snoozed?noteHTML:''}
-            </div>
-            <div class="br2-right">
-              <div class="br2-value">${dispAmt}</div>
-              ${statusBadge}
-            </div>
+        const snoozeBtn=!snoozed?`<button class="snooze-btn" data-snooze-id="${b.id}" data-snooze-card="${state.activeCard}" data-snooze-name="${b.name}" title="Snooze this benefit — hide from all calculations until a chosen month" style="background:none;border:none;cursor:pointer;font-size:12px;padding:2px 5px;color:var(--text-tertiary);opacity:0.25;transition:opacity 0.15s;line-height:1;border-radius:3px;flex-shrink:0" aria-label="Snooze benefit">⏸︎</button>`:'';
+        html+=`<div class="benefit-row${used?' used':''}${snoozed?' snoozed-row':''}" style="${snoozed?'opacity:0.45;':''}">
+          <div style="flex:1">
+            <div class="benefit-name">${b.name}${catTag}${streakBadge}${expiryBadge}</div>
+            <div class="benefit-desc">${b.desc}</div>
+            ${snoozedBadge}${!snoozed?noteHTML:''}${partialHTML}${creditedHTML}
           </div>
-          ${partialHTML}${creditedHTML}
-          <div class="br2-bottom">
-            <div class="br2-desc" style="display:none"></div>
-            <div class="br2-actions">
-              ${snoozeBtnNew}
-              <button class="btn-labeled btn-check check-btn${used?' checked':''}" data-id="${b.id}" data-pk="${pk}">${checkLabel}</button>
-            </div>
-          </div>
+          <div style="display:flex;align-items:center;gap:4px">${snoozeBtn}<div class="benefit-amt">${dispAmt}</div></div>
+          <button class="check-btn${used?' checked':''}" data-id="${b.id}" data-pk="${pk}"></button>
         </div>`;
       });
     }
@@ -2310,16 +2287,9 @@ export function formatAdvisorMarkdown(text){
 
 // ── Main render dispatcher ─────────────────────────────────────────────────
 export function render(){
-  const _analyticsViews=['compare','history-log','recap','heatmap','performance','digest','net-value','badges','fee-optimizer','card-simulator','renewal-calendar','upgrade-advisor','ai-advisor','wrap','benefit-alerts','today','insights-tab'];
+  const _analyticsViews=['compare','history-log','recap','heatmap','performance','digest','net-value','badges','fee-optimizer','card-simulator','renewal-calendar','upgrade-advisor','ai-advisor','wrap','benefit-alerts'];
   const _isAnalytics=_analyticsViews.includes(state.activeView);
-  // Card selector shows for period/history views but not analytics
-  const _cardSelViews=['all-cards','current','history','annual','ytd-history','ytd'];
-  const _cardSelEl=document.getElementById('cardSelector');
-  if(_cardSelEl) _cardSelEl.style.display=_cardSelViews.includes(state.activeView)?'':'none';
-  // Top nav (4 tabs) shows only for cards/history views, not for Benefits (current)
-  const _navPrimEl=document.getElementById('navPrimary');
-  if(_navPrimEl) _navPrimEl.classList.toggle('hidden',!['all-cards','history','annual','ytd-history','ytd'].includes(state.activeView));
-  ['navSecondary','yearSelector','ptrIndicator'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display=_isAnalytics?'none':''; });
+  ['cardSelector','navPrimary','navSecondary','yearSelector','ptrIndicator'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display=_isAnalytics?'none':''; });
   document.querySelectorAll('.drag-hint,.ptr-indicator').forEach(el=>{ el.style.display=_isAnalytics?'none':''; });
   const _btns=document.querySelectorAll('.card-btn[data-card]');
   if(state.activeView==='all-cards'){
