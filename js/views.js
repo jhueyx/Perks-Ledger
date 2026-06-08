@@ -1362,11 +1362,11 @@ export function renderKeepCard(){
     const fm2=getCardFeeMonth(cardKey),fd=getCardFeeDay(cardKey);
     const redeemedRow=redeemed>0?`<div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06)">
       <span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);flex:1">Points redeemed YTD</span>
-      <span style="font-size:11px;font-family:var(--mono);font-weight:600;color:var(--green)">+$${redeemed.toFixed(0)}</span>
+      <span style="font-size:11px;font-family:var(--mono);font-weight:600;color:var(--green)">+$${redeemed.toFixed(2)}</span>
     </div>
     <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
       <span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);flex:1">Total value extracted</span>
-      <span style="font-size:11px;font-family:var(--mono);font-weight:700;color:var(--green)">$${totalValue.toFixed(0)}</span>
+      <span style="font-size:11px;font-family:var(--mono);font-weight:700;color:var(--green)">$${totalValue.toFixed(2)}</span>
     </div>`:
     `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06);font-size:10px;font-family:var(--mono);color:var(--text-tertiary)">No points redeemed logged · <span style="color:var(--blue);cursor:pointer" onclick="setActiveView('points-redemptions')">add redemptions →</span></div>`;
     html+=`<div style="margin-bottom:12px" data-drag-card="${cardKey}" draggable="true">
@@ -2349,7 +2349,7 @@ export function renderPointsRedemptions(){
   html+=`<div class="netval-hero" style="margin-bottom:16px">
     <div class="netval-hero-row">
       <div>
-        <div class="netval-hero-val ${totalYTD>0?'green':''}">$${totalYTD.toFixed(0)}</div>
+        <div class="netval-hero-val ${totalYTD>0?'green':''}">$${totalYTD.toFixed(2)}</div>
         <div class="netval-hero-label">${CY} YTD — redeemed across all cards</div>
       </div>
     </div>
@@ -2371,7 +2371,7 @@ export function renderPointsRedemptions(){
     html+=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px">`;
     html+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <span style="font-size:12px;font-family:var(--mono);color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em">${CARD_LABELS[cardKey]}</span>
-      <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:${ytd>0?'var(--green)':'var(--text-tertiary)'}">$${ytd.toFixed(0)} YTD</span>
+      <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:${ytd>0?'var(--green)':'var(--text-tertiary)'}">$${ytd.toFixed(2)} YTD</span>
     </div>`;
 
     months.forEach(({year,month},i)=>{
@@ -2383,7 +2383,7 @@ export function renderPointsRedemptions(){
         <div style="width:68px;flex-shrink:0;font-size:11px;font-family:var(--mono);color:${isCurrent?'var(--text)':'var(--text-tertiary)'};font-weight:${isCurrent?'600':'400'}">${monthLabel}</div>
         <div style="display:flex;align-items:center;gap:4px;flex:1">
           <span style="font-size:12px;color:var(--text-tertiary);font-family:var(--mono)">$</span>
-          <input type="number" min="0" step="1" placeholder="0"
+          <input type="number" min="0" step="0.01" placeholder="0.00"
             value="${amt||''}"
             data-card="${cardKey}" data-mk="${mk}"
             class="pts-redeemed-input"
