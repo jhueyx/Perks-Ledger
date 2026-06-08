@@ -1,5 +1,5 @@
 import { CARDS, CARD_LABELS, PREMIUM_CARD_CATALOG, POINTS_MULTIPLIERS, TRANSFER_PARTNERS } from './cards.js';
-const DEPLOY_DATE='2026-06-07 18:23';
+const DEPLOY_DATE='2026-06-07 18:31';
 import { state, CY, CM, MONTHS, MONTHS_FULL, sb, freshDATA, STORAGE_KEY, escapeHtml, SUPABASE_URL, SUPABASE_KEY } from './state.js';
 import {
   toggle, scheduleSave, setSave, syncFromSupabase,
