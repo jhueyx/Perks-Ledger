@@ -2030,18 +2030,26 @@ window.downloadBenefitsCSV=function(){
 export function renderWrap(){
   const keys=getVisibleCardKeys();
   let totalCaptured=0,totalFees=0,totalClaims=0;
-  let bestCard=null,bestCapRate=-1;
+  let bestBenefitsCard={key:null,captured:0};
   let biggestWin={name:'',card:'',amt:0};
   const monthTotals={};
+
+  // Map period key → calendar month (0-indexed) for best-month attribution
+  function pkToCalMonth(pk){
+    const m=pk.match(/-m(\d+)/); if(m) return parseInt(m[1]);
+    const q=pk.match(/-q(\d+)/); if(q) return parseInt(q[1])*3;
+    if(pk.includes('-h2')) return 6;
+    return 0;
+  }
+
   const savedYear=state.selectedYear;
   state.selectedYear=CY;
   try{
     keys.forEach(k=>{
       totalFees+=getFee(k,CY);
-      const{captured,total}=calcStats(k,c=>getYTDPeriods(c),isYTDCurrent);
+      const{captured}=calcStats(k,c=>getYTDPeriods(c),isYTDCurrent);
       totalCaptured+=captured;
-      const rate=total>0?captured/total:0;
-      if(rate>bestCapRate){bestCapRate=rate;bestCard=k;}
+      if(captured>bestBenefitsCard.captured) bestBenefitsCard={key:k,captured};
       CARDS[k].sections.forEach(s=>{
         if(s.cadence==='monthly'){
           s.benefits.forEach(b=>{
@@ -2063,6 +2071,8 @@ export function renderWrap(){
               if(isUsed(k,b.id,p.pk)){
                 totalClaims++;
                 const amt=getBAmount(b,p);
+                const mo=pkToCalMonth(p.pk);
+                monthTotals[mo]=(monthTotals[mo]||0)+amt;
                 if(amt>biggestWin.amt) biggestWin={name:b.name,card:CARD_LABELS[k],amt};
               }
             });
@@ -2071,6 +2081,13 @@ export function renderWrap(){
       });
     });
   }finally{state.selectedYear=savedYear;}
+
+  // Best points card
+  let bestPointsCard={key:null,redeemed:0};
+  keys.forEach(k=>{
+    const r=getPointsRedeemedYTD(k,CY);
+    if(r>bestPointsCard.redeemed) bestPointsCard={key:k,redeemed:r};
+  });
 
   const totalRedeemed=getAllPointsRedeemedYTD(CY);
   const totalValueAllIn=totalCaptured+totalRedeemed;
@@ -2104,14 +2121,19 @@ export function renderWrap(){
         <div class="wrap-stat-lbl">Portfolio Grade</div>
       </div>
       <div class="wrap-stat">
-        <div class="wrap-stat-val">${bestCard?CARD_SHORT_LABELS[bestCard]:'—'}</div>
-        <div class="wrap-stat-lbl">Top Card · ${Math.round(bestCapRate*100)}%</div>
+        <div class="wrap-stat-val">${bestBenefitsCard.key?CARD_SHORT_LABELS[bestBenefitsCard.key]:'—'}</div>
+        <div class="wrap-stat-lbl">Top Benefits · $${bestBenefitsCard.captured.toFixed(0)}</div>
       </div>
       <div class="wrap-stat">
         <div class="wrap-stat-val">${bestMonthName}</div>
-        <div class="wrap-stat-lbl">Best Month · $${bestMonthAmt}</div>
+        <div class="wrap-stat-lbl">Best Month · $${bestMonthAmt.toFixed(0)}</div>
       </div>
     </div>
+    ${bestPointsCard.key&&bestPointsCard.redeemed>0?`<div class="wrap-win">
+      <div class="wrap-win-label">✦ Top Points Card</div>
+      <div class="wrap-win-name">${CARD_LABELS[bestPointsCard.key]}</div>
+      <div class="wrap-win-card">$${bestPointsCard.redeemed.toFixed(2)} redeemed</div>
+    </div>`:''}
     ${biggestWin.amt>0?`<div class="wrap-win">
       <div class="wrap-win-label">✦ Biggest Win</div>
       <div class="wrap-win-name">${biggestWin.name}</div>
@@ -2135,7 +2157,8 @@ export function renderWrap(){
         `💰 Extracted: $${totalValueAllIn.toFixed(0)}${totalRedeemed>0?` ($${totalCaptured.toFixed(0)} benefits + $${totalRedeemed.toFixed(0)} redeemed)`:''}\n`+
         `📊 Net: ${inProfit?'+':''}$${netValue.toFixed(0)}\n`+
         `🏅 Grade: ${grade}\n`+
-        `⭐ Top Card: ${bestCard?CARD_LABELS[bestCard]:'—'}\n`+
+        `⭐ Top Benefits: ${bestBenefitsCard.key?CARD_LABELS[bestBenefitsCard.key]:'—'} ($${bestBenefitsCard.captured.toFixed(0)})\n`+
+        (bestPointsCard.key&&bestPointsCard.redeemed>0?`💎 Top Points: ${CARD_LABELS[bestPointsCard.key]} ($${bestPointsCard.redeemed.toFixed(0)} redeemed)\n`:'')+
         `🎯 ${totalClaims} claims made\n\n`+
         `Tracked with Perks Ledger`;
       if(navigator.share) navigator.share({title:`${CY} Card Report Card`,text});
