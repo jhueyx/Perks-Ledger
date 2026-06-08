@@ -2379,43 +2379,55 @@ export function formatAdvisorMarkdown(text){
 // ── Render: points redeemed ────────────────────────────────────────────────
 export function renderPointsRedemptions(){
   const CARD_KEYS=getVisibleCardKeys();
-  const totalYTD=getAllPointsRedeemedYTD(CY);
+  const yr=window._ptsRY||CY;
+  const isPrior=yr<CY;
+  const totalYTD=getAllPointsRedeemedYTD(yr);
+
+  // Year selector tabs
+  const availableYears=[CY-1,CY];
+  let yearTabs=`<div style="display:flex;gap:6px;margin-bottom:12px">`;
+  availableYears.forEach(y=>{
+    const active=y===yr;
+    yearTabs+=`<button onclick="window.setPtsRY(${y})" style="flex:1;padding:7px;border:1px solid ${active?'var(--blue)':'var(--border)'};border-radius:var(--radius-sm);background:${active?'rgba(96,165,250,0.12)':'var(--surface)'};color:${active?'var(--blue)':'var(--text-secondary)'};font-size:12px;font-family:var(--mono);font-weight:${active?'700':'400'};cursor:pointer">${y}</button>`;
+  });
+  yearTabs+=`</div>`;
 
   let html=`<div class="banner"><strong>Points Redeemed</strong> — cash value from points, separate from statement credits</div>`;
+  html+=yearTabs;
 
   // Hero total
   html+=`<div class="netval-hero" style="margin-bottom:16px">
     <div class="netval-hero-row">
       <div>
         <div class="netval-hero-val ${totalYTD>0?'green':''}">$${totalYTD.toFixed(2)}</div>
-        <div class="netval-hero-label">${CY} YTD — redeemed across all cards</div>
+        <div class="netval-hero-label">${yr}${isPrior?' full year':' YTD'} — redeemed across all cards</div>
       </div>
     </div>
     <div style="font-size:11px;font-family:var(--mono);color:var(--text-tertiary);margin-top:6px">Log what you actually redeemed each month — statement cash, invest with rewards, point rewards, etc.</div>
   </div>`;
 
-  // Build last 6 months list (current month first)
+  // Build months list: prior year = all 12 months; current year = 0..CM — newest first
   const months=[];
-  for(let i=0;i<6;i++){
-    const absM=CY*12+CM-i;
-    months.push({year:Math.floor(absM/12),month:absM%12});
+  const maxM=isPrior?11:CM;
+  for(let m=maxM;m>=0;m--){
+    months.push({year:yr,month:m});
   }
 
   // Per-card sections
   CARD_KEYS.forEach(cardKey=>{
-    const ytd=getPointsRedeemedYTD(cardKey,CY);
+    const ytd=getPointsRedeemedYTD(cardKey,yr);
     const byMonth=loadPointsRedeemed()[cardKey]||{};
 
     html+=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px">`;
     html+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <span style="font-size:12px;font-family:var(--mono);color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em">${CARD_LABELS[cardKey]}</span>
-      <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:${ytd>0?'var(--green)':'var(--text-tertiary)'}">$${ytd.toFixed(2)} YTD</span>
+      <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:${ytd>0?'var(--green)':'var(--text-tertiary)'}">$${ytd.toFixed(2)} ${isPrior?yr:'YTD'}</span>
     </div>`;
 
-    months.forEach(({year,month},i)=>{
+    months.forEach(({year,month})=>{
       const mk=`${year}-${month}`;
       const amt=(byMonth[mk]||0);
-      const isCurrent=i===0;
+      const isCurrent=!isPrior&&month===CM;
       const monthLabel=`${MONTHS[month]} ${year}`;
       html+=`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border-light)">
         <div style="width:68px;flex-shrink:0;font-size:11px;font-family:var(--mono);color:${isCurrent?'var(--text)':'var(--text-tertiary)'};font-weight:${isCurrent?'600':'400'}">${monthLabel}</div>

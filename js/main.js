@@ -2213,6 +2213,7 @@ window.savePointsRedeemedEntry=function(cardKey,monthKey,amount){
   setPointsRedeemed(cardKey,monthKey,amount);
   renderPointsRedemptions();
 };
+window.setPtsRY=function(y){ window._ptsRY=y; renderPointsRedemptions(); };
 
 // ── AI Advisor helpers ─────────────────────────────────────────────────────
 window.askAdvisor=async function(question){
