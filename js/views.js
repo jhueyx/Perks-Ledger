@@ -2384,7 +2384,7 @@ export function renderPointsRedemptions(){
         <div style="display:flex;align-items:center;gap:4px;flex:1">
           <span style="font-size:12px;color:var(--text-tertiary);font-family:var(--mono)">$</span>
           <input type="number" min="0" step="0.01" placeholder="0.00"
-            value="${amt||''}"
+            value="${amt?amt.toFixed(2):''}"
             data-card="${cardKey}" data-mk="${mk}"
             class="pts-redeemed-input"
             style="width:90px;padding:5px 7px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-size:13px;font-family:var(--mono)">
