@@ -497,7 +497,7 @@ export function renderNetValue(){
   const coveragePct=totalFees>0?Math.min(100,Math.round(allInNow/totalFees*100)):0;
   const projPct=totalFees>0?Math.min(110,Math.round(allInProj/totalFees*100)):0;
 
-  let html=`<div class="banner"><strong>Portfolio value</strong> — benefits + redemptions + points balance vs fees</div>`;
+  let html=`<div class="banner"><strong>Portfolio value</strong> — all cards, this card year</div>`;
 
   // Hero summary
   html+=`<div class="netval-hero">
@@ -568,7 +568,7 @@ export function renderNetValue(){
   if(activeProgs.length){
     html+=`<div class="section-header" style="margin-top:4px"><span class="section-title">Points balances</span><span class="section-period">${totalPtsVal>0?'≈ $'+totalPtsVal.toFixed(2)+' est. · included in projected':''}</span></div>`;
     html+=progRows;
-    html+=`<div style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);text-align:center;margin-top:8px;padding-bottom:8px">Point values are estimates · edit ¢/pt to use your own valuation · included in projected year-end</div>`;
+    html+=`<div style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);text-align:center;margin-top:8px;padding-bottom:8px">Estimates only · edit ¢/pt to adjust</div>`;
   }
   set(html);
 }
@@ -1366,22 +1366,15 @@ export function renderKeepCard(){
     const days=daysUntilFee(cardKey);
     const fm2=getCardFeeMonth(cardKey),fd=getCardFeeDay(cardKey);
     const redeemedRow=redeemed>0?`<div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06)">
-      <span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);flex:1">Benefits captured</span>
-      <span style="font-size:11px;font-family:var(--mono);font-weight:600;color:var(--green)">$${captured.toFixed(2)}</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
-      <span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);flex:1">Points redeemed YTD</span>
-      <span style="font-size:11px;font-family:var(--mono);font-weight:600;color:var(--green)">+$${redeemed.toFixed(2)}</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
-      <span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);flex:1">Total value extracted</span>
-      <span style="font-size:11px;font-family:var(--mono);font-weight:700;color:var(--green)">$${totalCapture.toFixed(2)}</span>
+      <span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);flex:1">Total extracted</span>
+      <span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary)">$${captured.toFixed(0)} benefits + $${redeemed.toFixed(0)} pts</span>
+      <span style="font-size:11px;font-family:var(--mono);font-weight:700;color:var(--green);margin-left:4px">$${totalCapture.toFixed(2)}</span>
     </div>`:
     `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06);font-size:10px;font-family:var(--mono);color:var(--text-tertiary)">No points redeemed logged · <span style="color:var(--blue);cursor:pointer" onclick="setActiveView('points-redemptions')">add redemptions →</span></div>`;
     html+=`<div style="margin-bottom:12px" data-drag-card="${cardKey}" draggable="true">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span class="drag-handle" style="font-size:14px">⠿</span><span style="font-size:11px;font-family:var(--mono);color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.06em">${CARD_LABELS[cardKey]}</span></div>
       <div class="keep-card-result ${cls}"><div class="keep-verdict ${cls}">${verdict}</div><div class="keep-reason">${reason}<br><strong>${action}</strong></div>
-      <div style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);margin-top:8px">$${totalCapture.toFixed(0)} total extracted · $${totalProjected.toFixed(0)} projected · $${fee} fee<br>Next fee: ${MONTHS[fm2]} ${fd} · ${days} days away</div>
+      <div style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);margin-top:8px">Next fee: ${MONTHS[fm2]} ${fd} · ${days} days away</div>
       ${redeemedRow}
       </div>
     </div>`;
@@ -1563,7 +1556,7 @@ export function renderFeeOptimizer(){
     </div>
     <div class="netval-progress-labels">
       <span>$0</span>
-      <span style="color:${inProfit?'var(--green)':'var(--gold)'}">$${totalProjectedAllIn.toFixed(0)} projected (benefits + redemptions) vs $${totalFees} fees</span>
+      <span style="color:${inProfit?'var(--green)':'var(--gold)'}">$${totalProjectedAllIn.toFixed(0)} projected vs $${totalFees} fees</span>
       <span>$${totalFees}</span>
     </div>
   </div>`;
