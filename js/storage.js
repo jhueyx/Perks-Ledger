@@ -212,6 +212,32 @@ export function setCardOpenedDate(cardKey,year,month){
   saveCardMetaData(d);
 }
 
+// ── Redemption dates ──────────────────────────────────────────────────────
+// Returns a map of "cardKey__benefitId__pk" → month index (0-11) for the most
+// recent "used" log entry in the current calendar year. Used to place non-monthly
+// benefits at the month they were actually redeemed rather than their display month.
+export async function loadRedemptionDates(){
+  if(!sb||!state.currentUser||state.currentUser.id==='demo') return {};
+  try{
+    const yearStart=`${CY}-01-01T00:00:00.000Z`;
+    const yearEnd=`${CY+1}-01-01T00:00:00.000Z`;
+    const {data,error}=await sb.from('benefit_log')
+      .select('card_key,benefit_id,period_key,created_at')
+      .eq('user_id',state.currentUser.id)
+      .eq('action','used')
+      .gte('created_at',yearStart)
+      .lt('created_at',yearEnd)
+      .order('created_at',{ascending:false});
+    if(error||!data) return {};
+    const dates={};
+    data.forEach(row=>{
+      const k=`${row.card_key}__${row.benefit_id}__${row.period_key}`;
+      if(dates[k]===undefined) dates[k]=new Date(row.created_at).getMonth();
+    });
+    return dates;
+  }catch(e){ return {}; }
+}
+
 // ── Fee date overrides ─────────────────────────────────────────────────────
 export function getFeeOverrides(){ if(!state._feeOverrides) state._feeOverrides=JSON.parse(localStorage.getItem('perks-fee-overrides')||'{}'); return state._feeOverrides; }
 export function saveFeeOverridesData(d){ state._feeOverrides=d; localStorage.setItem('perks-fee-overrides',JSON.stringify(d)); }

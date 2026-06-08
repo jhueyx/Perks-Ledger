@@ -2,7 +2,7 @@ import { CARDS, CARD_LABELS, PREMIUM_CARD_CATALOG, POINTS_MULTIPLIERS, TRANSFER_
 const DEPLOY_DATE='2026-06-07 18:04';
 import { state, CY, CM, MONTHS, MONTHS_FULL, sb, freshDATA, STORAGE_KEY, escapeHtml, SUPABASE_URL, SUPABASE_KEY } from './state.js';
 import {
-  toggle, scheduleSave, setSave, syncFromSupabase,
+  toggle, scheduleSave, setSave, syncFromSupabase, loadRedemptionDates,
   loadCustomAmounts, saveCustomAmounts, setCustomAmount,
   loadPartial, savePartial, setPartialUsed,
   loadNotes, saveNotes, getNoteKey,
@@ -210,6 +210,7 @@ function doUnlock(){
   updateAlertBadge();
   setTimeout(initCardFlip,200);
   syncFromSupabase();
+  loadRedemptionDates().then(dates=>{ state.redemptionDates=dates; });
   setTimeout(saveDigestCache,3000);
   setTimeout(()=>{
     checkBadges();
@@ -1062,6 +1063,7 @@ document.addEventListener('perks:benefit-skipped',e=>{
   showUndo(e.detail.cardKey,e.detail.id,e.detail.pk,'skipped');
 });
 document.addEventListener('perks:rerender',()=>{ if(state.activeView!=='settings') render(); });
+document.addEventListener('perks:benefit-toggled',()=>{ loadRedemptionDates().then(dates=>{ state.redemptionDates=dates; }); });
 document.addEventListener('perks:benefit-toggled',()=>{ setTimeout(checkProfitConfetti,200); });
 document.addEventListener('perks:benefit-toggled',()=>{
   setTimeout(()=>{
