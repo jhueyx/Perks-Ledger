@@ -2579,7 +2579,7 @@
   .pts-cards { font-size: 10px; font-family: var(--mono); color: var(--text-tertiary); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pts-inputs { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
   .pts-balance-input {
-    width: 72px; background: var(--bg); border: 1px solid var(--border);
+    width: 80px; background: var(--bg); border: 1px solid var(--border);
     border-radius: 6px; padding: 4px 6px; font-size: 11px; font-family: var(--mono);
     color: var(--text); text-align: right;
   }
@@ -2589,7 +2589,7 @@
     color: var(--text); text-align: right;
   }
   .pts-sep, .pts-cpp { font-size: 11px; color: var(--text-tertiary); }
-  .pts-est { font-size: 13px; font-family: var(--mono); font-weight: 600; flex-shrink: 0; min-width: 36px; text-align: right; }
+  .pts-est { font-size: 13px; font-family: var(--mono); font-weight: 600; flex-shrink: 0; width: 80px; text-align: right; }
 
   /* AI Advisor */
   .adv-quick-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
