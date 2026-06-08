@@ -476,22 +476,20 @@ export function renderNetValue(){
   });
 
   // ── Per-card stats including redemptions ───────────────────────────────
-  let totalFees=0,totalCaptured=0,totalProjected=0,totalRedeemed=0,totalProjRedeemed=0;
+  let totalFees=0,totalCaptured=0,totalProjected=0,totalRedeemed=0;
   const cards=CARD_KEYS.map(cardKey=>{
     const fee=getFee(cardKey,CY);
     const {captured}=calcStats(cardKey,c=>getCardYearPeriods(cardKey,c),isPCurrent);
     const projected=getProjectedCapture(cardKey);
     const redeemed=getPointsRedeemedYTD(cardKey,CY);
-    const elapsed=getCardYearMonthsElapsed(cardKey);
-    const projRedeemed=elapsed>0?(redeemed/elapsed)*12:0;
     totalFees+=fee; totalCaptured+=captured; totalProjected+=projected;
-    totalRedeemed+=redeemed; totalProjRedeemed+=projRedeemed;
-    return {cardKey,fee,captured,projected,redeemed,projRedeemed};
+    totalRedeemed+=redeemed;
+    return {cardKey,fee,captured,projected,redeemed};
   });
 
-  // All-in = benefits + redemptions (now) + projected redemptions + points balance (projected)
+  // Projected year-end: benefit projection + locked-in redemptions YTD + points balance held
   const allInNow=totalCaptured+totalRedeemed;
-  const allInProj=totalProjected+totalProjRedeemed+totalPtsVal;
+  const allInProj=totalProjected+totalRedeemed+totalPtsVal;
   const netNow=allInNow-totalFees;
   const netProj=allInProj-totalFees;
   const inProfit=netNow>=0;
@@ -536,9 +534,9 @@ export function renderNetValue(){
 
   // Per-card breakdown sorted by all-in captured %
   html+=`<div class="section-header"><span class="section-title">Per card breakdown</span></div>`;
-  [...cards].sort((a,b)=>((b.captured+b.redeemed)/(b.fee||1))-((a.captured+a.redeemed)/(a.fee||1))).forEach(({cardKey,fee,captured,projected,redeemed,projRedeemed})=>{
+  [...cards].sort((a,b)=>((b.captured+b.redeemed)/(b.fee||1))-((a.captured+a.redeemed)/(a.fee||1))).forEach(({cardKey,fee,captured,projected,redeemed})=>{
     const allIn=captured+redeemed;
-    const allInProj2=projected+projRedeemed;
+    const allInProj2=projected+redeemed;
     const capPct=fee>0?Math.min(100,allIn/fee*100):0;
     const projPct2=fee>0?Math.min(110,allInProj2/fee*100):0;
     const net=allIn-fee;
@@ -1357,14 +1355,12 @@ export function renderKeepCard(){
     const captured=repeating+oneTime;
     const projected=getProjectedCapture(cardKey);
     const redeemed=getPointsRedeemedYTD(cardKey,CY);
-    const elapsed=getCardYearMonthsElapsed(cardKey);
-    const projRedeemed=elapsed>0?(redeemed/elapsed)*12:0;
     const totalCapture=captured+redeemed;
-    const totalProjected=projected+projRedeemed;
+    const totalProjected=projected+redeemed;
     const gap=fee-totalProjected;
     let verdict,cls,reason,action;
     if(totalCapture>=fee){ verdict='✓ Keep it'; cls='keep'; reason=`You've already extracted $${totalCapture.toFixed(0)} in total value ($${captured.toFixed(0)} benefits + $${redeemed.toFixed(0)} redeemed) — covering the $${fee} fee with $${(totalCapture-fee).toFixed(0)} profit.`; action='Renewal is clearly worth it.'; }
-    else if(totalProjected>=fee){ verdict='✓ Keep it'; cls='keep'; reason=`You've extracted $${totalCapture.toFixed(0)} so far. At this rate you'll reach $${totalProjected.toFixed(0)} by card year end — covering the $${fee} fee.`; action='On track to break even. Renewal recommended.'; }
+    else if(totalProjected>=fee){ verdict='✓ Keep it'; cls='keep'; reason=`You've extracted $${totalCapture.toFixed(0)} so far. Projected benefits + redemptions reach $${totalProjected.toFixed(0)} by card year end — covering the $${fee} fee.`; action='On track to break even. Renewal recommended.'; }
     else if(gap<=250){ verdict='✓ Keep it'; cls='keep'; reason=`Projecting $${totalProjected.toFixed(0)} in total value by year end vs $${fee} fee. You'll be $${gap.toFixed(0)} short of break-even.`; action='Within $250 of break-even — worth keeping.'; }
     else if(gap<=500){ verdict='⚠ Reconsider'; cls='reconsider'; reason=`Projecting $${totalProjected.toFixed(0)} in total value by year end vs $${fee} fee. You'll be $${gap.toFixed(0)} short.`; action='Try to use more benefits and redeem points before renewal.'; }
     else { verdict='✗ Downgrade or Cancel'; cls='cancel'; reason=`Projecting $${totalProjected.toFixed(0)} in total value by year end — $${gap.toFixed(0)} short of the $${fee} fee.`; action='Consider downgrading or cancelling before renewal.'; }
@@ -1543,11 +1539,9 @@ export function renderFeeOptimizer(){
     const projected=getProjectedCapture(cardKey);
     const {captured}=calcStats(cardKey,c=>getCardYearPeriods(cardKey,c),isPCurrent);
     const redeemed=getPointsRedeemedYTD(cardKey,CY);
-    const elapsed=getCardYearMonthsElapsed(cardKey);
-    const projRedeemed=elapsed>0?(redeemed/elapsed)*12:0;
-    const projAllIn=projected+projRedeemed;
+    const projAllIn=projected+redeemed;
     totalFees+=fee; totalProjectedAllIn+=projAllIn;
-    return {cardKey,fee,projected,captured,redeemed,projRedeemed,projAllIn,cancelImpact:fee-projAllIn};
+    return {cardKey,fee,projected,captured,redeemed,projAllIn,cancelImpact:fee-projAllIn};
   });
   cards.sort((a,b)=>b.cancelImpact-a.cancelImpact);
   const netPortfolio=totalProjectedAllIn-totalFees;
@@ -1575,7 +1569,7 @@ export function renderFeeOptimizer(){
     </div>
   </div>`;
   html+=`<div class="section-header"><span class="section-title">Cancel impact</span><span class="section-period">sorted by net gain from canceling</span></div>`;
-  cards.forEach(({cardKey,fee,projected,captured,redeemed,projRedeemed,projAllIn,cancelImpact})=>{
+  cards.forEach(({cardKey,fee,projected,captured,redeemed,projAllIn,cancelImpact})=>{
     const saves=cancelImpact>0;
     const close=Math.abs(cancelImpact)<=75;
     const verdictColor=saves?'var(--green)':close?'var(--gold)':'var(--text-secondary)';
