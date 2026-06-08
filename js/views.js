@@ -524,8 +524,7 @@ export function renderNetValue(){
     </div>
     <div class="netval-hero-totals">
       <span><strong style="color:var(--green)">$${totalCaptured.toFixed(0)}</strong> benefits</span>
-      <span>·</span>
-      <span><strong style="color:var(--green)">$${totalRedeemed.toFixed(0)}</strong> redeemed</span>
+      ${totalRedeemed>0?`<span>·</span><span><strong style="color:var(--green)">$${totalRedeemed.toFixed(0)}</strong> redeemed</span>`:''}
       ${totalPtsVal>0?`<span>·</span><span><strong style="color:var(--green)">$${totalPtsVal.toFixed(0)}</strong> pts balance</span>`:''}
       <span>·</span>
       <span><strong>$${totalFees}</strong> fees</span>
@@ -1359,7 +1358,7 @@ export function renderKeepCard(){
     const totalProjected=projected+redeemed;
     const gap=fee-totalProjected;
     let verdict,cls,reason,action;
-    if(totalCapture>=fee){ verdict='✓ Keep it'; cls='keep'; reason=`You've already extracted $${totalCapture.toFixed(0)} in total value ($${captured.toFixed(0)} benefits + $${redeemed.toFixed(0)} redeemed) — covering the $${fee} fee with $${(totalCapture-fee).toFixed(0)} profit.`; action='Renewal is clearly worth it.'; }
+    if(totalCapture>=fee){ verdict='✓ Keep it'; cls='keep'; reason=`You've already extracted $${totalCapture.toFixed(0)} in total value${redeemed>0?` ($${captured.toFixed(0)} benefits + $${redeemed.toFixed(0)} redeemed)`:''} — covering the $${fee} fee with $${(totalCapture-fee).toFixed(0)} profit.`; action='Renewal is clearly worth it.'; }
     else if(totalProjected>=fee){ verdict='✓ Keep it'; cls='keep'; reason=`You've extracted $${totalCapture.toFixed(0)} so far. Projected benefits + redemptions reach $${totalProjected.toFixed(0)} by card year end — covering the $${fee} fee.`; action='On track to break even. Renewal recommended.'; }
     else if(gap<=250){ verdict='✓ Keep it'; cls='keep'; reason=`Projecting $${totalProjected.toFixed(0)} in total value by year end vs $${fee} fee. You'll be $${gap.toFixed(0)} short of break-even.`; action='Within $250 of break-even — worth keeping.'; }
     else if(gap<=500){ verdict='⚠ Reconsider'; cls='reconsider'; reason=`Projecting $${totalProjected.toFixed(0)} in total value by year end vs $${fee} fee. You'll be $${gap.toFixed(0)} short.`; action='Try to use more benefits and redeem points before renewal.'; }
