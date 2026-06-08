@@ -1474,13 +1474,13 @@ export function renderRecap(){
   <div class="export-report">
     <div class="export-head"><h2>Benefits Report — ${year}</h2><p>Perks Ledger · generated ${new Date().toLocaleDateString()}</p></div>
     <table class="export-table">
-      <thead><tr><th>Card</th><th>Annual Fee</th><th>Captured</th>${hasRedeemed?'<th>Redeemed</th>':''}<th>Missed</th><th>Net vs Fee</th><th>Capture</th><th>ROI</th></tr></thead>
+      <thead><tr><th>Card</th><th>Annual Fee</th><th>Captured</th>${hasRedeemed?'<th>Redeemed</th>':''}<th>Missed</th><th>Net vs Fee</th></tr></thead>
       <tbody>
-        ${exportRows.map(r=>{const pct=r.total>0?Math.round(r.captured/r.total*100):0;return `<tr><td>${r.label}</td><td>$${r.fee.toLocaleString()}</td><td>$${r.captured.toFixed(0)}</td>${hasRedeemed?`<td>${r.redeemed>0?'$'+r.redeemed.toFixed(0):'—'}</td>`:''}<td>$${r.missed.toFixed(0)}</td><td class="${r.net>=0?'pos':'neg'}">${r.net>=0?'+':'−'}$${Math.abs(r.net).toFixed(0)}</td><td>${pct}%</td><td>${r.grade}</td></tr>`;}).join('')}
-        <tr class="export-total"><td>Total</td><td>$${totEx.fee.toLocaleString()}</td><td>$${totEx.captured.toFixed(0)}</td>${hasRedeemed?`<td>$${totEx.redeemed.toFixed(0)}</td>`:''}<td>$${totEx.missed.toFixed(0)}</td><td class="${totEx.net>=0?'pos':'neg'}">${totEx.net>=0?'+':'−'}$${Math.abs(totEx.net).toFixed(0)}</td><td>${totPct}%</td><td></td></tr>
+        ${exportRows.map(r=>`<tr><td>${r.label}</td><td>$${r.fee.toLocaleString()}</td><td>$${r.captured.toFixed(0)}</td>${hasRedeemed?`<td>${r.redeemed>0?'$'+r.redeemed.toFixed(0):'—'}</td>`:''}<td>$${r.missed.toFixed(0)}</td><td class="${r.net>=0?'pos':'neg'}">${r.net>=0?'+':'−'}$${Math.abs(r.net).toFixed(0)}</td></tr>`).join('')}
+        <tr class="export-total"><td>Total</td><td>$${totEx.fee.toLocaleString()}</td><td>$${totEx.captured.toFixed(0)}</td>${hasRedeemed?`<td>$${totEx.redeemed.toFixed(0)}</td>`:''}<td>$${totEx.missed.toFixed(0)}</td><td class="${totEx.net>=0?'pos':'neg'}">${totEx.net>=0?'+':'−'}$${Math.abs(totEx.net).toFixed(0)}</td></tr>
       </tbody>
     </table>
-    <p class="export-foot">Net vs Fee = benefits captured + points redeemed − annual fee. Capture % = benefits only. ROI grade based on projected full-card-year.</p>
+    <p class="export-foot">Net vs Fee = benefits captured + points redeemed − annual fee.</p>
   </div>`;
   set(html);
 }
