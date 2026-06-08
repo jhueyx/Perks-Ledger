@@ -2353,7 +2353,7 @@ export function renderPointsRedemptions(){
         <div class="netval-hero-label">${CY} YTD — redeemed across all cards</div>
       </div>
     </div>
-    <div style="font-size:11px;font-family:var(--mono);color:var(--text-tertiary);margin-top:6px">Log what you actually redeemed each month — Schwab cashback, Chase travel portal, statement cash, etc.</div>
+    <div style="font-size:11px;font-family:var(--mono);color:var(--text-tertiary);margin-top:6px">Log what you actually redeemed each month — statement cash, invest with rewards, point rewards, etc.</div>
   </div>`;
 
   // Build last 6 months list (current month first)
