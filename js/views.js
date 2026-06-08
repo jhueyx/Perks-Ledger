@@ -936,15 +936,18 @@ function buildHeatmapHTML(){
         s.benefits.forEach(b=>{ if(isBNotAvailable(b,CY)) return; addAmt(11,b,pk); });
       }
     });
-    // store detail data for double-click handler
-    for(let m=0;m<=CM;m++){
-      window._heatmapMonthDetails[`${cardKey}_${m}`]={
-        cardLabel:CARD_LABELS[cardKey],
-        monthLabel:MONTHS[m],
-        items:monthData[m].items,
-        totalClaimed:monthData[m].claimed,
-        totalAvailable:monthData[m].total
-      };
+    // store detail data for all months that have claimed items (including future display months
+    // where annual/semi-annual benefits land when not yet re-placed by a stored redemption date)
+    for(let m=0;m<12;m++){
+      if(m<=CM||monthData[m].claimed>0){
+        window._heatmapMonthDetails[`${cardKey}_${m}`]={
+          cardLabel:CARD_LABELS[cardKey],
+          monthLabel:MONTHS[m],
+          items:monthData[m].items,
+          totalClaimed:monthData[m].claimed,
+          totalAvailable:monthData[m].total
+        };
+      }
     }
     // each card is a row (draggable on desktop only)
     const rowAttrs=isMobile?'':`data-drag-card="${cardKey}" draggable="true"`;
@@ -961,7 +964,15 @@ function buildHeatmapHTML(){
     const rowTotalClaimed=monthData.reduce((s,md)=>s+md.claimed,0);
     for(let m=0;m<12;m++){
       const isFut=m>CM,{total,claimed}=monthData[m];
-      if(isFut){ html+=`<div style="width:${CELL_W}px;flex-shrink:0;height:${CELL_H}px;border-radius:4px;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:${labelFontSize}px;color:var(--text-tertiary)">–</div>`; continue; }
+      if(isFut){
+        if(claimed>0){
+          // future month with already-redeemed benefits (e.g. annual placed at Dec) — make it tappable to set date
+          html+=`<div ondblclick="showHeatmapMonthDetail('${cardKey}',${m})" title="Double-click to set redemption date" style="width:${CELL_W}px;flex-shrink:0;height:${CELL_H}px;border-radius:4px;background:rgba(42,155,106,0.2);border:1px solid rgba(42,155,106,0.4);display:flex;align-items:center;justify-content:center;font-size:${labelFontSize}px;font-family:var(--mono);color:#2a9b6a;cursor:zoom-in">✓</div>`;
+        } else {
+          html+=`<div style="width:${CELL_W}px;flex-shrink:0;height:${CELL_H}px;border-radius:4px;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:${labelFontSize}px;color:var(--text-tertiary)">–</div>`;
+        }
+        continue;
+      }
       if(total===0){ html+=`<div style="width:${CELL_W}px;flex-shrink:0;height:${CELL_H}px;border-radius:4px"></div>`; continue; }
       const rate=claimed/total,pct=Math.round(rate*100);
       const bg=rate===0?'var(--border-light)':rate<0.5?'rgba(220,60,60,0.6)':rate<0.9?'rgba(210,160,0,0.5)':rate<1?'rgba(210,160,0,0.85)':'#2a9b6a';
