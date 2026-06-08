@@ -9,6 +9,8 @@ export function toggle(card,id,pk){
   const k=bKey(id,pk);
   state.DATA[card][k]=!state.DATA[card][k];
   const action=state.DATA[card][k]?'used':'unused';
+  if(action==='used') setRedemptionMonth(card,id,pk,CY,CM);
+  else clearRedemptionMonth(card,id,pk);
   scheduleSave();
   document.dispatchEvent(new CustomEvent('perks:benefit-toggled',{detail:{cardKey:card,id,pk,action}}));
   if(sb&&state.currentUser){
@@ -25,10 +27,10 @@ export async function syncFromSupabase(){
       const localTs=localStorage.getItem(STORAGE_KEY+'-ts-'+state.currentUser.id);
       if(localTs&&data.updated_at&&new Date(data.updated_at)<=new Date(localTs)) return;
       const raw=data.data;
-      const remoteExtras={_customAmounts:raw._customAmounts||{},_partial:raw._partial||{},_notes:raw._notes||{},_credited:raw._credited||{},_skipped:raw._skipped||{},_feeOverrides:raw._feeOverrides||{},_snoozed:raw._snoozed||{},_cardOrder:raw._cardOrder||[],_cardMeta:raw._cardMeta||{},_badges:raw._badges||{}};
+      const remoteExtras={_customAmounts:raw._customAmounts||{},_partial:raw._partial||{},_notes:raw._notes||{},_credited:raw._credited||{},_skipped:raw._skipped||{},_feeOverrides:raw._feeOverrides||{},_snoozed:raw._snoozed||{},_cardOrder:raw._cardOrder||[],_cardMeta:raw._cardMeta||{},_badges:raw._badges||{},_redemptionMonths:raw._redemptionMonths||{}};
       const benefitData={...raw};
-      delete benefitData._customAmounts; delete benefitData._partial; delete benefitData._notes; delete benefitData._credited; delete benefitData._skipped; delete benefitData._feeOverrides; delete benefitData._snoozed; delete benefitData._cardOrder; delete benefitData._cardMeta; delete benefitData._badges;
-      const localExtras={_customAmounts:loadCustomAmounts(),_partial:loadPartial(),_notes:loadNotes(),_credited:loadCredited(),_skipped:loadSkipped(),_feeOverrides:getFeeOverrides(),_snoozed:loadSnoozed(),_cardOrder:JSON.parse(localStorage.getItem('perks-card-order')||'[]'),_cardMeta:loadCardMeta(),_badges:loadBadges()};
+      delete benefitData._customAmounts; delete benefitData._partial; delete benefitData._notes; delete benefitData._credited; delete benefitData._skipped; delete benefitData._feeOverrides; delete benefitData._snoozed; delete benefitData._cardOrder; delete benefitData._cardMeta; delete benefitData._badges; delete benefitData._redemptionMonths;
+      const localExtras={_customAmounts:loadCustomAmounts(),_partial:loadPartial(),_notes:loadNotes(),_credited:loadCredited(),_skipped:loadSkipped(),_feeOverrides:getFeeOverrides(),_snoozed:loadSnoozed(),_cardOrder:JSON.parse(localStorage.getItem('perks-card-order')||'[]'),_cardMeta:loadCardMeta(),_badges:loadBadges(),_redemptionMonths:loadRedemptionMonths()};
       const changed=JSON.stringify(benefitData)!==JSON.stringify(state.DATA)||JSON.stringify(remoteExtras)!==JSON.stringify(localExtras);
       if(changed){
         state.DATA=Object.assign(freshDATA(),benefitData);
@@ -44,6 +46,7 @@ export async function syncFromSupabase(){
         if(remoteExtras._cardOrder.length) localStorage.setItem('perks-card-order',JSON.stringify(remoteExtras._cardOrder));
         if(Object.keys(remoteExtras._cardMeta).length) saveCardMetaData(remoteExtras._cardMeta);
         if(Object.keys(remoteExtras._badges).length) saveBadges(remoteExtras._badges);
+        if(Object.keys(remoteExtras._redemptionMonths).length) saveRedemptionMonths(remoteExtras._redemptionMonths);
         document.dispatchEvent(new CustomEvent('perks:rerender'));
       }
     }
@@ -60,7 +63,7 @@ export async function saveToStorage(){
     localStorage.setItem(STORAGE_KEY+'-ts-'+state.currentUser.id,ts);
   }catch(e){}
   try{
-    const payload={...state.DATA,_customAmounts:loadCustomAmounts(),_partial:loadPartial(),_notes:loadNotes(),_credited:loadCredited(),_skipped:loadSkipped(),_feeOverrides:getFeeOverrides(),_snoozed:loadSnoozed(),_cardOrder:JSON.parse(localStorage.getItem('perks-card-order')||'[]'),_cardMeta:loadCardMeta(),_badges:loadBadges()};
+    const payload={...state.DATA,_customAmounts:loadCustomAmounts(),_partial:loadPartial(),_notes:loadNotes(),_credited:loadCredited(),_skipped:loadSkipped(),_feeOverrides:getFeeOverrides(),_snoozed:loadSnoozed(),_cardOrder:JSON.parse(localStorage.getItem('perks-card-order')||'[]'),_cardMeta:loadCardMeta(),_badges:loadBadges(),_redemptionMonths:loadRedemptionMonths()};
     const {data:updated,error:upErr}=await sb.from('tracker_data').update({data:payload,updated_at:ts}).eq('user_id',state.currentUser.id).select('user_id');
     if(upErr) throw upErr;
     if(!updated||updated.length===0){
@@ -212,30 +215,21 @@ export function setCardOpenedDate(cardKey,year,month){
   saveCardMetaData(d);
 }
 
-// ── Redemption dates ──────────────────────────────────────────────────────
-// Returns a map of "cardKey__benefitId__pk" → month index (0-11) for the most
-// recent "used" log entry in the current calendar year. Used to place non-monthly
-// benefits at the month they were actually redeemed rather than their display month.
-export async function loadRedemptionDates(){
-  if(!sb||!state.currentUser||state.currentUser.id==='demo') return {};
-  try{
-    const yearStart=`${CY}-01-01T00:00:00.000Z`;
-    const yearEnd=`${CY+1}-01-01T00:00:00.000Z`;
-    const {data,error}=await sb.from('benefit_log')
-      .select('card_key,benefit_id,period_key,created_at')
-      .eq('user_id',state.currentUser.id)
-      .eq('action','used')
-      .gte('created_at',yearStart)
-      .lt('created_at',yearEnd)
-      .order('created_at',{ascending:false});
-    if(error||!data) return {};
-    const dates={};
-    data.forEach(row=>{
-      const k=`${row.card_key}__${row.benefit_id}__${row.period_key}`;
-      if(dates[k]===undefined) dates[k]=new Date(row.created_at).getMonth();
-    });
-    return dates;
-  }catch(e){ return {}; }
+// ── Redemption months ─────────────────────────────────────────────────────
+// Stores {year, month} for each benefit the user has marked used.
+// Auto-written on toggle; editable via the heatmap detail sheet for old data.
+const REDEMPTION_MONTHS_KEY='perks-redemption-dates';
+export function loadRedemptionMonths(){ try{ return JSON.parse(localStorage.getItem(REDEMPTION_MONTHS_KEY)||'{}'); }catch(e){ return {}; } }
+export function saveRedemptionMonths(d){ localStorage.setItem(REDEMPTION_MONTHS_KEY,JSON.stringify(d)); state.redemptionDates=d; }
+export function setRedemptionMonth(card,id,pk,year,month){
+  const d=loadRedemptionMonths();
+  d[`${card}__${id}__${pk}`]={year,month};
+  saveRedemptionMonths(d);
+}
+export function clearRedemptionMonth(card,id,pk){
+  const d=loadRedemptionMonths();
+  delete d[`${card}__${id}__${pk}`];
+  saveRedemptionMonths(d);
 }
 
 // ── Fee date overrides ─────────────────────────────────────────────────────

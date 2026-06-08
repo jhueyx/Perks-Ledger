@@ -910,10 +910,11 @@ function buildHeatmapHTML(){
         const amt=b.amount||0;
         const used=isUsed(cardKey,b.id,pk);
         // for redeemed benefits, place at actual redemption month if known
-        const rdMonth=used?(state.redemptionDates[`${cardKey}__${b.id}__${pk}`]??displayM):displayM;
+        const rdEntry=used?state.redemptionDates[`${cardKey}__${b.id}__${pk}`]:null;
+        const rdMonth=(rdEntry&&rdEntry.year===CY)?rdEntry.month:displayM;
         monthData[rdMonth].total+=amt;
         if(used) monthData[rdMonth].claimed+=amt;
-        monthData[rdMonth].items.push({name:b.name||b.label||'Benefit',amount:amt,claimed:used});
+        monthData[rdMonth].items.push({name:b.name||b.label||'Benefit',amount:amt,claimed:used,id:b.id,pk});
       };
       if(cadence==='monthly'){
         for(let m=0;m<12;m++){ const pk=`${CY}-m${m}`; s.benefits.forEach(b=>{ if(isBNotAvailable(b,CY)||isBExpired(b,{calY:CY,calM:m,m})) return; addAmt(m,b,pk); }); }

@@ -2,7 +2,8 @@ import { CARDS, CARD_LABELS, PREMIUM_CARD_CATALOG, POINTS_MULTIPLIERS, TRANSFER_
 const DEPLOY_DATE='2026-06-07 18:09';
 import { state, CY, CM, MONTHS, MONTHS_FULL, sb, freshDATA, STORAGE_KEY, escapeHtml, SUPABASE_URL, SUPABASE_KEY } from './state.js';
 import {
-  toggle, scheduleSave, setSave, syncFromSupabase, loadRedemptionDates,
+  toggle, scheduleSave, setSave, syncFromSupabase,
+  loadRedemptionMonths, setRedemptionMonth,
   loadCustomAmounts, saveCustomAmounts, setCustomAmount,
   loadPartial, savePartial, setPartialUsed,
   loadNotes, saveNotes, getNoteKey,
@@ -210,7 +211,7 @@ function doUnlock(){
   updateAlertBadge();
   setTimeout(initCardFlip,200);
   syncFromSupabase();
-  loadRedemptionDates().then(dates=>{ state.redemptionDates=dates; });
+  state.redemptionDates=loadRedemptionMonths();
   setTimeout(saveDigestCache,3000);
   setTimeout(()=>{
     checkBadges();
@@ -1063,7 +1064,6 @@ document.addEventListener('perks:benefit-skipped',e=>{
   showUndo(e.detail.cardKey,e.detail.id,e.detail.pk,'skipped');
 });
 document.addEventListener('perks:rerender',()=>{ if(state.activeView!=='settings') render(); });
-document.addEventListener('perks:benefit-toggled',()=>{ loadRedemptionDates().then(dates=>{ state.redemptionDates=dates; }); });
 document.addEventListener('perks:benefit-toggled',()=>{ setTimeout(checkProfitConfetti,200); });
 document.addEventListener('perks:benefit-toggled',()=>{
   setTimeout(()=>{
@@ -1835,24 +1835,36 @@ window.toggleAchLocked=function(el){
 };
 
 // ── Heatmap month detail sheet ────────────────────────────────────────────
-window.showHeatmapMonthDetail=function(cardKey,month){
+function _buildHeatmapDetailHTML(cardKey,month){
   const data=window._heatmapMonthDetails&&window._heatmapMonthDetails[`${cardKey}_${month}`];
-  if(!data) return;
+  if(!data) return '';
   const {cardLabel,monthLabel,items,totalClaimed,totalAvailable}=data;
   const claimed=items.filter(i=>i.claimed);
   const unclaimed=items.filter(i=>!i.claimed);
-  const existing=document.getElementById('heatmapMonthOverlay');
-  if(existing) existing.remove();
-  const overlay=document.createElement('div');
-  overlay.id='heatmapMonthOverlay';
-  overlay.style.cssText='position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.72);display:flex;align-items:flex-end;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);animation:bdFadeIn 0.15s ease';
-  const claimedRows=claimed.length
-    ? claimed.map(i=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06)"><span style="font-size:13px;color:var(--text)">${escapeHtml(i.name)}</span><span style="font-size:13px;font-family:var(--mono);color:var(--green)">+$${i.amount.toFixed(0)}</span></div>`).join('')
-    : `<div style="font-size:12px;color:var(--text-tertiary);padding:8px 0">Nothing redeemed this month</div>`;
+  const claimedRows=claimed.length ? claimed.map(i=>{
+    const rdKey=`${cardKey}__${i.id}__${i.pk}`;
+    const rd=state.redemptionDates[rdKey];
+    const dateLabel=rd?MONTHS[rd.month]:'Set date';
+    const dateColor=rd?'var(--text-tertiary)':'var(--blue)';
+    return `<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06)">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:13px;color:var(--text)">${escapeHtml(i.name)}</span>
+        <span style="font-size:13px;font-family:var(--mono);color:var(--green)">+$${i.amount.toFixed(0)}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:3px">
+        <span style="font-size:10px;color:var(--text-tertiary);font-family:var(--mono)">Redeemed:</span>
+        <button id="rdDate_${cardKey}_${i.id}" onclick="toggleHeatmapDatePicker('${cardKey}','${escapeHtml(i.id)}','${escapeHtml(i.pk)}')" style="background:none;border:none;cursor:pointer;font-size:10px;font-family:var(--mono);color:${dateColor};padding:0;text-decoration:underline;text-underline-offset:2px">${dateLabel}</button>
+      </div>
+      <div id="rdPicker_${cardKey}_${i.id}" style="display:none;flex-wrap:wrap;gap:4px;margin-top:6px">
+        ${MONTHS.map((m,idx)=>`<button onclick="setHeatmapRedemptionDate('${cardKey}','${escapeHtml(i.id)}','${escapeHtml(i.pk)}',${CY},${idx})" style="background:${rd&&rd.month===idx?'var(--blue)':'var(--surface)'};border:1px solid var(--border);border-radius:4px;color:${rd&&rd.month===idx?'#fff':'var(--text)'};font-size:10px;font-family:var(--mono);padding:3px 6px;cursor:pointer">${m}</button>`).join('')}
+      </div>
+    </div>`;
+  }).join('')
+  : `<div style="font-size:12px;color:var(--text-tertiary);padding:8px 0">Nothing redeemed this month</div>`;
   const unclaimedRows=unclaimed.length
     ? `<div style="margin-top:12px"><div style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Missed</div>${unclaimed.map(i=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="font-size:12px;color:var(--text-tertiary)">${escapeHtml(i.name)}</span><span style="font-size:12px;font-family:var(--mono);color:var(--red)">−$${i.amount.toFixed(0)}</span></div>`).join('')}</div>`
     : '';
-  overlay.innerHTML=`<div style="background:#111116;border:1px solid rgba(255,255,255,0.1);border-radius:20px 20px 0 0;padding:8px 24px 44px;width:100%;max-height:80vh;overflow-y:auto;animation:bdSlideUp 0.22s ease">
+  return `<div style="background:#111116;border:1px solid rgba(255,255,255,0.1);border-radius:20px 20px 0 0;padding:8px 24px 44px;width:100%;max-height:80vh;overflow-y:auto;animation:bdSlideUp 0.22s ease">
     <div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:8px auto 16px"></div>
     <div style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px">${escapeHtml(cardLabel)}</div>
     <div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:16px">${monthLabel} Redeemed</div>
@@ -1864,8 +1876,38 @@ window.showHeatmapMonthDetail=function(cardKey,month){
       <span style="font-size:16px;font-weight:700;font-family:var(--mono);color:${totalClaimed>0?'var(--green)':'var(--text-tertiary)'}">$${totalClaimed.toFixed(0)} <span style="font-size:11px;font-weight:400;color:var(--text-tertiary)">/ $${totalAvailable.toFixed(0)}</span></span>
     </div>
   </div>`;
+}
+
+window.showHeatmapMonthDetail=function(cardKey,month){
+  const existing=document.getElementById('heatmapMonthOverlay');
+  if(existing) existing.remove();
+  const html=_buildHeatmapDetailHTML(cardKey,month);
+  if(!html) return;
+  const overlay=document.createElement('div');
+  overlay.id='heatmapMonthOverlay';
+  overlay.dataset.card=cardKey;
+  overlay.dataset.month=month;
+  overlay.style.cssText='position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.72);display:flex;align-items:flex-end;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);animation:bdFadeIn 0.15s ease';
+  overlay.innerHTML=html;
   overlay.addEventListener('click',e=>{ if(e.target===overlay) overlay.remove(); });
   document.body.appendChild(overlay);
+};
+
+window.toggleHeatmapDatePicker=function(cardKey,id,pk){
+  const picker=document.getElementById(`rdPicker_${cardKey}_${id}`);
+  if(!picker) return;
+  picker.style.display=picker.style.display==='none'?'flex':'none';
+};
+
+window.setHeatmapRedemptionDate=function(cardKey,id,pk,year,month){
+  setRedemptionMonth(cardKey,id,pk,year,month);
+  // update date label inline
+  const dateBtn=document.getElementById(`rdDate_${cardKey}_${id}`);
+  if(dateBtn){ dateBtn.textContent=MONTHS[month]; dateBtn.style.color='var(--text-tertiary)'; }
+  const picker=document.getElementById(`rdPicker_${cardKey}_${id}`);
+  if(picker) picker.style.display='none';
+  // refresh heatmap behind the sheet
+  render();
 };
 
 // ── More page ─────────────────────────────────────────────────────────────
