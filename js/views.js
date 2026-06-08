@@ -551,16 +551,16 @@ export function renderNetValue(){
             oninput="window.savePointsValuation('${pid}',this.value)">
           <span class="pts-cpp">¢</span>
         </div>
-        <div class="pts-est" style="color:${est>0?'var(--green)':'var(--text-tertiary)'}">${est>0?'$'+est.toFixed(0):'—'}</div>
+        <div class="pts-est" style="color:${est>0?'var(--green)':'var(--text-tertiary)'}">${est>0?'$'+est.toFixed(2):'—'}</div>
       </div>`;
     });
-    html+=`<div class="section-header" style="margin-top:4px"><span class="section-title">Points balances</span><span class="section-period">${totalPtsVal>0?'≈ $'+totalPtsVal.toFixed(0)+' est.':''}</span></div>`;
+    html+=`<div class="section-header" style="margin-top:4px"><span class="section-title">Points balances</span><span class="section-period">${totalPtsVal>0?'≈ $'+totalPtsVal.toFixed(2)+' est.':''}</span></div>`;
     if(totalPtsVal>0){
       const combined=totalCaptured+totalPtsVal;
       html+=`<div class="pts-combined">
         <div class="pts-combined-label">Credits + points total value</div>
-        <div class="pts-combined-val">$${combined.toFixed(0)}</div>
-        <div class="pts-combined-sub">$${totalCaptured.toFixed(0)} credits + $${totalPtsVal.toFixed(0)} points</div>
+        <div class="pts-combined-val">$${combined.toFixed(2)}</div>
+        <div class="pts-combined-sub">$${totalCaptured.toFixed(2)} credits + $${totalPtsVal.toFixed(2)} points</div>
       </div>`;
     }
     html+=progRows;
