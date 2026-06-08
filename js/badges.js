@@ -1,6 +1,6 @@
 import { CARDS, PREMIUM_CARD_CATALOG } from './cards.js';
 import { state, CY, CM } from './state.js';
-import { isUsed, isGloballySnoozed, scheduleSave } from './storage.js';
+import { isUsed, isGloballySnoozed, isMonthSnoozed, scheduleSave } from './storage.js';
 import { calcStats, getCardYearPeriods, isPCurrent, getFee, getLongestStreak, getCurrentPK, isBExpired, isBNotAvailable } from './periods.js';
 import { getVisibleCardKeys } from './views.js';
 
@@ -177,6 +177,21 @@ export const BADGE_DEFS = [
   { id:'both_resy',          tier:'bronze',    name:'Resy Devotee',             desc:'Both Gold and Platinum Resy credits used',                 cards:['gold','platinum'], hidden:true },
   { id:'uber_double_month',  tier:'gold',      name:'Uber Everything',          desc:'Uber credits claimed on both Gold and Platinum in the same month', cards:['gold','platinum'], hidden:true },
   { id:'four_kings',         tier:'legendary', name:'The Quad',                 desc:'CSR, Gold, Platinum, and WF Premier — all four tracked',   cards:['csr','gold','platinum','wf_premier_autograph'], hidden:true },
+
+  // ── Perfect month — 2026 ────────────────────────────────────────────────
+  { id:'perf_2026_01', tier:'gold',     name:'January 2026',      desc:'All monthly benefits redeemed across every card — January 2026' },
+  { id:'perf_2026_02', tier:'gold',     name:'February 2026',     desc:'All monthly benefits redeemed across every card — February 2026' },
+  { id:'perf_2026_03', tier:'gold',     name:'March 2026',        desc:'All monthly benefits redeemed across every card — March 2026' },
+  { id:'perf_2026_04', tier:'gold',     name:'April 2026',        desc:'All monthly benefits redeemed across every card — April 2026' },
+  { id:'perf_2026_05', tier:'gold',     name:'May 2026',          desc:'All monthly benefits redeemed across every card — May 2026' },
+  { id:'perf_2026_06', tier:'gold',     name:'June 2026',         desc:'All monthly benefits redeemed across every card — June 2026' },
+  { id:'perf_2026_07', tier:'gold',     name:'July 2026',         desc:'All monthly benefits redeemed across every card — July 2026' },
+  { id:'perf_2026_08', tier:'gold',     name:'August 2026',       desc:'All monthly benefits redeemed across every card — August 2026' },
+  { id:'perf_2026_09', tier:'gold',     name:'September 2026',    desc:'All monthly benefits redeemed across every card — September 2026' },
+  { id:'perf_2026_10', tier:'gold',     name:'October 2026',      desc:'All monthly benefits redeemed across every card — October 2026' },
+  { id:'perf_2026_11', tier:'gold',     name:'November 2026',     desc:'All monthly benefits redeemed across every card — November 2026' },
+  { id:'perf_2026_12', tier:'gold',     name:'December 2026',     desc:'All monthly benefits redeemed across every card — December 2026' },
+  { id:'perf_sweep_2026', tier:'platinum', name:'2026 Perfect Run', desc:'All monthly benefits redeemed every month so far in 2026 — not a single miss' },
 
   // ── Legendary ────────────────────────────────────────────────────────
   { id:'founder',         tier:'legendary', name:'Founder',                  desc:'Built this — no one else gets this badge', special:true },
@@ -650,6 +665,28 @@ export function checkBadges(){
   maybe('both_resy',         everUsed('gold','g_resy')&&everUsed('platinum','p_resy'));
   maybe('uber_double_month', uberDoubleMonth);
   maybe('four_kings',        ['csr','gold','platinum','wf_premier_autograph'].every(k=>cardKeys.includes(k)));
+
+  // Perfect month — check each elapsed month of the current year
+  let allPerfect=CM>=0;
+  for(let m=0;m<=CM;m++){
+    const mId=`perf_${CY}_${String(m+1).padStart(2,'0')}`;
+    const pk=`${CY}-m${m}`;
+    const p={calY:CY,calM:m,m};
+    let perfect=cardKeys.length>0;
+    outer: for(const ck of cardKeys){
+      for(const sec of CARDS[ck].sections){
+        if(sec.cadence!=='monthly') continue;
+        for(const b of sec.benefits){
+          if(isBExpired(b,p)||isBNotAvailable(b,CY,p)) continue;
+          if(isGloballySnoozed(ck,b.id)||isMonthSnoozed(ck,b.id,CY,m)) continue;
+          if(!isUsed(ck,b.id,pk)){perfect=false;break outer;}
+        }
+      }
+    }
+    maybe(mId,perfect);
+    if(!perfect) allPerfect=false;
+  }
+  maybe('perf_sweep_2026',allPerfect&&CY===2026&&CM>=0);
 
   // Meta — must come last, uses current earned count
   const earnedCount=earned.length;
