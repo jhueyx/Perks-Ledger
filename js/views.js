@@ -1424,15 +1424,17 @@ export function renderRecap(){
       });
     });
   });
-  const effectiveFees=totalFees-totalCaptured;
-  const feeCoverageRate=totalFees>0?Math.min(100,Math.round(totalCaptured/totalFees*100)):0;
+  const totalRedeemed=getAllPointsRedeemedYTD(year);
+  const totalValueAllIn=totalCaptured+totalRedeemed;
+  const effectiveFees=totalFees-totalValueAllIn;
+  const feeCoverageRate=totalFees>0?Math.min(100,Math.round(totalValueAllIn/totalFees*100)):0;
   const recapYearBtns=[CY-1,CY].map(y=>`<button onclick="setSelectedYear(${y});renderRecap()" style="padding:3px 12px;border-radius:20px;border:1px solid ${y===year?'rgba(255,255,255,0.5)':'rgba(255,255,255,0.2)'};background:${y===year?'rgba(255,255,255,0.2)':'transparent'};color:${y===year?'#fff':'rgba(255,255,255,0.5)'};font-size:11px;font-family:var(--mono);cursor:pointer;transition:all 0.15s">${y===CY?y+' YTD':y}</button>`).join('');
   let html=`
     <div class="recap-hero">
       <div style="display:flex;justify-content:center;gap:6px;margin-bottom:14px">${recapYearBtns}</div>
       <div class="recap-year">${year===CY?year+' YTD':year} Annual Recap · Perks Ledger</div>
-      <div class="recap-total">$${totalCaptured.toFixed(0)}</div>
-      <div class="recap-total-label">total value captured across all cards</div>
+      <div class="recap-total">$${totalValueAllIn.toFixed(0)}</div>
+      <div class="recap-total-label">total value extracted across all cards${totalRedeemed>0?` · $${totalCaptured.toFixed(0)} benefits + $${totalRedeemed.toFixed(0)} redeemed`:''}</div>
     </div>
     <div class="recap-grid">
       <div class="recap-stat"><div class="recap-stat-val ${feeCoverageRate>=100?'green':feeCoverageRate>=80?'gold':''}">${feeCoverageRate}%</div><div class="recap-stat-label">Fee coverage</div></div>
@@ -1449,11 +1451,13 @@ export function renderRecap(){
   const exportRows=CARD_KEYS.map(ck=>{
     const fee=getFee(ck,year);
     const {captured:ec,missed:em,total:et}=calcStats(ck,c=>getYTDPeriods(c),isYTDCurrent);
-    return {ck,label:CARD_LABELS[ck],fee,captured:ec,missed:em,total:et,net:ec-fee,grade:getROIGrade(fee,ck)};
+    const redeemed=getPointsRedeemedYTD(ck,year);
+    return {ck,label:CARD_LABELS[ck],fee,captured:ec,redeemed,missed:em,total:et,net:ec+redeemed-fee,grade:getROIGrade(fee,ck)};
   });
   state.selectedYear=savedYearEx;
-  const totEx=exportRows.reduce((a,r)=>({fee:a.fee+r.fee,captured:a.captured+r.captured,missed:a.missed+r.missed,total:a.total+r.total,net:a.net+r.net}),{fee:0,captured:0,missed:0,total:0,net:0});
+  const totEx=exportRows.reduce((a,r)=>({fee:a.fee+r.fee,captured:a.captured+r.captured,redeemed:a.redeemed+r.redeemed,missed:a.missed+r.missed,total:a.total+r.total,net:a.net+r.net}),{fee:0,captured:0,redeemed:0,missed:0,total:0,net:0});
   const totPct=totEx.total>0?Math.round(totEx.captured/totEx.total*100):0;
+  const hasRedeemed=totEx.redeemed>0;
   state._exportRows=exportRows; state._exportYear=year;
   html+=`<div class="section-header" style="margin-top:20px"><span class="section-title">Per-card breakdown</span><span class="section-period">${year===CY?year+' YTD':year}</span></div>`;
   html+=`<div class="export-actions">
@@ -1463,13 +1467,13 @@ export function renderRecap(){
   <div class="export-report">
     <div class="export-head"><h2>Benefits Report — ${year}</h2><p>Perks Ledger · generated ${new Date().toLocaleDateString()}</p></div>
     <table class="export-table">
-      <thead><tr><th>Card</th><th>Annual Fee</th><th>Captured</th><th>Missed</th><th>Net vs Fee</th><th>Capture</th><th>ROI</th></tr></thead>
+      <thead><tr><th>Card</th><th>Annual Fee</th><th>Captured</th>${hasRedeemed?'<th>Redeemed</th>':''}<th>Missed</th><th>Net vs Fee</th><th>Capture</th><th>ROI</th></tr></thead>
       <tbody>
-        ${exportRows.map(r=>{const pct=r.total>0?Math.round(r.captured/r.total*100):0;return `<tr><td>${r.label}</td><td>$${r.fee.toLocaleString()}</td><td>$${r.captured.toFixed(0)}</td><td>$${r.missed.toFixed(0)}</td><td class="${r.net>=0?'pos':'neg'}">${r.net>=0?'+':'−'}$${Math.abs(r.net).toFixed(0)}</td><td>${pct}%</td><td>${r.grade}</td></tr>`;}).join('')}
-        <tr class="export-total"><td>Total</td><td>$${totEx.fee.toLocaleString()}</td><td>$${totEx.captured.toFixed(0)}</td><td>$${totEx.missed.toFixed(0)}</td><td class="${totEx.net>=0?'pos':'neg'}">${totEx.net>=0?'+':'−'}$${Math.abs(totEx.net).toFixed(0)}</td><td>${totPct}%</td><td></td></tr>
+        ${exportRows.map(r=>{const pct=r.total>0?Math.round(r.captured/r.total*100):0;return `<tr><td>${r.label}</td><td>$${r.fee.toLocaleString()}</td><td>$${r.captured.toFixed(0)}</td>${hasRedeemed?`<td>${r.redeemed>0?'$'+r.redeemed.toFixed(0):'—'}</td>`:''}<td>$${r.missed.toFixed(0)}</td><td class="${r.net>=0?'pos':'neg'}">${r.net>=0?'+':'−'}$${Math.abs(r.net).toFixed(0)}</td><td>${pct}%</td><td>${r.grade}</td></tr>`;}).join('')}
+        <tr class="export-total"><td>Total</td><td>$${totEx.fee.toLocaleString()}</td><td>$${totEx.captured.toFixed(0)}</td>${hasRedeemed?`<td>$${totEx.redeemed.toFixed(0)}</td>`:''}<td>$${totEx.missed.toFixed(0)}</td><td class="${totEx.net>=0?'pos':'neg'}">${totEx.net>=0?'+':'−'}$${Math.abs(totEx.net).toFixed(0)}</td><td>${totPct}%</td><td></td></tr>
       </tbody>
     </table>
-    <p class="export-foot">Captured and Missed reflect calendar-year-to-date. Net vs Fee = captured − annual fee. ROI grade is the projected full-card-year capture vs fee.</p>
+    <p class="export-foot">Net vs Fee = benefits captured + points redeemed − annual fee. Capture % = benefits only. ROI grade based on projected full-card-year.</p>
   </div>`;
   set(html);
 }
