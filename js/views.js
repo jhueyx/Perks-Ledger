@@ -1,6 +1,6 @@
 import { CARDS, MONTHS, MONTHS_FULL, CARD_LABELS, CARD_SHORT_LABELS, CARD_CLS, BENEFIT_CATEGORIES, POINTS_MULTIPLIERS, POINTS_PROGRAMS } from './cards.js';
 import { state, CY, CM, escapeHtml } from './state.js';
-import { isUsed, isCredited, toggleCredited, getEffectiveAmount, getNote, getPartialUsed, loadNotes, saveNotes, getNoteKey, isSkipped, isGloballySnoozed, isMonthSnoozed, getSnoozedUntil, getCardFeeMonth, getCardFeeDay, countSkipped, clearAllSkipped, loadSkipped } from './storage.js';
+import { isUsed, isCredited, toggleCredited, getEffectiveAmount, getNote, getPartialUsed, loadNotes, saveNotes, getNoteKey, isSkipped, isGloballySnoozed, isMonthSnoozed, getSnoozedUntil, getCardFeeMonth, getCardFeeDay, countSkipped, clearAllSkipped, loadSkipped, loadPointsRedeemed, getPointsRedeemedYTD, getAllPointsRedeemedYTD } from './storage.js';
 import {
   getCardYearStart, getCardYearPeriods, getYTDPeriods, isPFuture, isPCurrent, isYTDCurrent,
   getCurrentPK, getCurrentLabel, getBAmount, getFee, isBExpired, isBNotAvailable,
@@ -1349,19 +1349,31 @@ export function renderKeepCard(){
     const {repeating,oneTime}=calcCapturedByType(cardKey);
     const captured=repeating+oneTime;
     const projected=getProjectedCapture(cardKey);
+    const redeemed=getPointsRedeemedYTD(cardKey,CY);
+    const totalValue=captured+redeemed;
     const gap=fee-projected;
     let verdict,cls,reason,action;
-    if(captured>=fee){ verdict='✓ Keep it'; cls='keep'; reason=`You've already captured $${captured.toFixed(0)} — covering the $${fee} fee with $${(captured-fee).toFixed(0)} profit.`; action='Renewal is clearly worth it.'; }
+    if(captured>=fee){ verdict='✓ Keep it'; cls='keep'; reason=`You've already captured $${captured.toFixed(0)} in benefits — covering the $${fee} fee with $${(captured-fee).toFixed(0)} profit.`; action='Renewal is clearly worth it.'; }
     else if(projected>=fee){ verdict='✓ Keep it'; cls='keep'; reason=`You've captured $${captured.toFixed(0)} so far. At this rate you'll hit $${projected.toFixed(0)} by card year end — covering the $${fee} fee.`; action='On track to break even. Renewal recommended.'; }
     else if(gap<=250){ verdict='✓ Keep it'; cls='keep'; reason=`Projecting $${projected.toFixed(0)} by year end vs $${fee} fee. You'll be $${gap.toFixed(0)} short of breaking even.`; action='Within $250 of break-even — worth keeping.'; }
     else if(gap<=500){ verdict='⚠ Reconsider'; cls='reconsider'; reason=`Projecting $${projected.toFixed(0)} by year end vs $${fee} fee. You'll be $${gap.toFixed(0)} short.`; action='Try to use more benefits before renewal.'; }
     else { verdict='✗ Downgrade or Cancel'; cls='cancel'; reason=`Projecting $${projected.toFixed(0)} by year end — $${gap.toFixed(0)} short of the $${fee} fee.`; action='Consider downgrading or cancelling before renewal.'; }
     const days=daysUntilFee(cardKey);
     const fm2=getCardFeeMonth(cardKey),fd=getCardFeeDay(cardKey);
+    const redeemedRow=redeemed>0?`<div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06)">
+      <span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);flex:1">Points redeemed YTD</span>
+      <span style="font-size:11px;font-family:var(--mono);font-weight:600;color:var(--green)">+$${redeemed.toFixed(0)}</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+      <span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);flex:1">Total value extracted</span>
+      <span style="font-size:11px;font-family:var(--mono);font-weight:700;color:var(--green)">$${totalValue.toFixed(0)}</span>
+    </div>`:
+    `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06);font-size:10px;font-family:var(--mono);color:var(--text-tertiary)">No points redeemed logged · <span style="color:var(--blue);cursor:pointer" onclick="setActiveView('points-redemptions')">add redemptions →</span></div>`;
     html+=`<div style="margin-bottom:12px" data-drag-card="${cardKey}" draggable="true">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span class="drag-handle" style="font-size:14px">⠿</span><span style="font-size:11px;font-family:var(--mono);color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.06em">${CARD_LABELS[cardKey]}</span></div>
       <div class="keep-card-result ${cls}"><div class="keep-verdict ${cls}">${verdict}</div><div class="keep-reason">${reason}<br><strong>${action}</strong></div>
-      <div style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);margin-top:8px">$${captured.toFixed(0)} captured · $${projected.toFixed(0)} projected · $${fee} fee<br>Next fee: ${MONTHS[fm2]} ${fd} · ${days} days away</div>
+      <div style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);margin-top:8px">$${captured.toFixed(0)} benefits captured · $${projected.toFixed(0)} projected · $${fee} fee<br>Next fee: ${MONTHS[fm2]} ${fd} · ${days} days away</div>
+      ${redeemedRow}
       </div>
     </div>`;
   });
@@ -2326,8 +2338,79 @@ export function formatAdvisorMarkdown(text){
 }
 
 // ── Main render dispatcher ─────────────────────────────────────────────────
+// ── Render: points redeemed ────────────────────────────────────────────────
+export function renderPointsRedemptions(){
+  const CARD_KEYS=getVisibleCardKeys();
+  const totalYTD=getAllPointsRedeemedYTD(CY);
+
+  let html=`<div class="banner"><strong>Points Redeemed</strong> — cash value from points, separate from statement credits</div>`;
+
+  // Hero total
+  html+=`<div class="netval-hero" style="margin-bottom:16px">
+    <div class="netval-hero-row">
+      <div>
+        <div class="netval-hero-val ${totalYTD>0?'green':''}">$${totalYTD.toFixed(0)}</div>
+        <div class="netval-hero-label">${CY} YTD — redeemed across all cards</div>
+      </div>
+    </div>
+    <div style="font-size:11px;font-family:var(--mono);color:var(--text-tertiary);margin-top:6px">Log what you actually redeemed each month — Schwab cashback, Chase travel portal, statement cash, etc.</div>
+  </div>`;
+
+  // Build last 6 months list (current month first)
+  const months=[];
+  for(let i=0;i<6;i++){
+    const absM=CY*12+CM-i;
+    months.push({year:Math.floor(absM/12),month:absM%12});
+  }
+
+  // Per-card sections
+  CARD_KEYS.forEach(cardKey=>{
+    const ytd=getPointsRedeemedYTD(cardKey,CY);
+    const byMonth=loadPointsRedeemed()[cardKey]||{};
+
+    html+=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px">`;
+    html+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span style="font-size:12px;font-family:var(--mono);color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em">${CARD_LABELS[cardKey]}</span>
+      <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:${ytd>0?'var(--green)':'var(--text-tertiary)'}">$${ytd.toFixed(0)} YTD</span>
+    </div>`;
+
+    months.forEach(({year,month},i)=>{
+      const mk=`${year}-${month}`;
+      const amt=(byMonth[mk]||0);
+      const isCurrent=i===0;
+      const monthLabel=`${MONTHS[month]} ${year}`;
+      html+=`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border-light)">
+        <div style="width:68px;flex-shrink:0;font-size:11px;font-family:var(--mono);color:${isCurrent?'var(--text)':'var(--text-tertiary)'};font-weight:${isCurrent?'600':'400'}">${monthLabel}</div>
+        <div style="display:flex;align-items:center;gap:4px;flex:1">
+          <span style="font-size:12px;color:var(--text-tertiary);font-family:var(--mono)">$</span>
+          <input type="number" min="0" step="1" placeholder="0"
+            value="${amt||''}"
+            data-card="${cardKey}" data-mk="${mk}"
+            class="pts-redeemed-input"
+            style="width:90px;padding:5px 7px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-size:13px;font-family:var(--mono)">
+          ${isCurrent?`<span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);margin-left:4px">this month</span>`:''}
+        </div>
+        ${amt>0?`<span style="font-size:12px;font-family:var(--mono);color:var(--green);flex-shrink:0">✓</span>`:''}
+      </div>`;
+    });
+
+    html+=`</div>`;
+  });
+
+  html+=`<div style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);text-align:center;margin-top:8px;padding-bottom:16px">Values save automatically · shown in Keep/Cancel view as total card value</div>`;
+
+  set(html, ()=>{
+    document.querySelectorAll('.pts-redeemed-input').forEach(inp=>{
+      inp.addEventListener('change',()=>{
+        const amt=Math.max(0,parseFloat(inp.value)||0);
+        window.savePointsRedeemedEntry(inp.dataset.card, inp.dataset.mk, amt);
+      });
+    });
+  });
+}
+
 export function render(){
-  const _analyticsViews=['compare','history-log','recap','heatmap','performance','digest','net-value','badges','fee-optimizer','card-simulator','renewal-calendar','upgrade-advisor','ai-advisor','wrap','benefit-alerts'];
+  const _analyticsViews=['compare','history-log','recap','heatmap','performance','digest','net-value','badges','fee-optimizer','card-simulator','renewal-calendar','upgrade-advisor','ai-advisor','wrap','benefit-alerts','points-redemptions'];
   const _isAnalytics=_analyticsViews.includes(state.activeView);
   ['cardSelector','navPrimary','navSecondary','yearSelector','ptrIndicator'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display=_isAnalytics?'none':''; });
   document.querySelectorAll('.drag-hint,.ptr-indicator').forEach(el=>{ el.style.display=_isAnalytics?'none':''; });
@@ -2364,5 +2447,6 @@ export function render(){
   else if(state.activeView==='ai-advisor') renderAIAdvisor();
   else if(state.activeView==='wrap') renderWrap();
   else if(state.activeView==='benefit-alerts') renderBenefitAlerts();
+  else if(state.activeView==='points-redemptions') renderPointsRedemptions();
   setTimeout(()=>{ updateTabBadge(); updateCardBadges(); },200);
 }

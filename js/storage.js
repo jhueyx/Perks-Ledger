@@ -27,10 +27,10 @@ export async function syncFromSupabase(){
       const localTs=localStorage.getItem(STORAGE_KEY+'-ts-'+state.currentUser.id);
       if(localTs&&data.updated_at&&new Date(data.updated_at)<=new Date(localTs)) return;
       const raw=data.data;
-      const remoteExtras={_customAmounts:raw._customAmounts||{},_partial:raw._partial||{},_notes:raw._notes||{},_credited:raw._credited||{},_skipped:raw._skipped||{},_feeOverrides:raw._feeOverrides||{},_snoozed:raw._snoozed||{},_cardOrder:raw._cardOrder||[],_cardMeta:raw._cardMeta||{},_badges:raw._badges||{},_redemptionMonths:raw._redemptionMonths||{}};
+      const remoteExtras={_customAmounts:raw._customAmounts||{},_partial:raw._partial||{},_notes:raw._notes||{},_credited:raw._credited||{},_skipped:raw._skipped||{},_feeOverrides:raw._feeOverrides||{},_snoozed:raw._snoozed||{},_cardOrder:raw._cardOrder||[],_cardMeta:raw._cardMeta||{},_badges:raw._badges||{},_redemptionMonths:raw._redemptionMonths||{},_pointsRedeemed:raw._pointsRedeemed||{}};
       const benefitData={...raw};
-      delete benefitData._customAmounts; delete benefitData._partial; delete benefitData._notes; delete benefitData._credited; delete benefitData._skipped; delete benefitData._feeOverrides; delete benefitData._snoozed; delete benefitData._cardOrder; delete benefitData._cardMeta; delete benefitData._badges; delete benefitData._redemptionMonths;
-      const localExtras={_customAmounts:loadCustomAmounts(),_partial:loadPartial(),_notes:loadNotes(),_credited:loadCredited(),_skipped:loadSkipped(),_feeOverrides:getFeeOverrides(),_snoozed:loadSnoozed(),_cardOrder:JSON.parse(localStorage.getItem('perks-card-order')||'[]'),_cardMeta:loadCardMeta(),_badges:loadBadges(),_redemptionMonths:loadRedemptionMonths()};
+      delete benefitData._customAmounts; delete benefitData._partial; delete benefitData._notes; delete benefitData._credited; delete benefitData._skipped; delete benefitData._feeOverrides; delete benefitData._snoozed; delete benefitData._cardOrder; delete benefitData._cardMeta; delete benefitData._badges; delete benefitData._redemptionMonths; delete benefitData._pointsRedeemed;
+      const localExtras={_customAmounts:loadCustomAmounts(),_partial:loadPartial(),_notes:loadNotes(),_credited:loadCredited(),_skipped:loadSkipped(),_feeOverrides:getFeeOverrides(),_snoozed:loadSnoozed(),_cardOrder:JSON.parse(localStorage.getItem('perks-card-order')||'[]'),_cardMeta:loadCardMeta(),_badges:loadBadges(),_redemptionMonths:loadRedemptionMonths(),_pointsRedeemed:loadPointsRedeemed()};
       const changed=JSON.stringify(benefitData)!==JSON.stringify(state.DATA)||JSON.stringify(remoteExtras)!==JSON.stringify(localExtras);
       if(changed){
         state.DATA=Object.assign(freshDATA(),benefitData);
@@ -47,6 +47,7 @@ export async function syncFromSupabase(){
         if(Object.keys(remoteExtras._cardMeta).length) saveCardMetaData(remoteExtras._cardMeta);
         if(Object.keys(remoteExtras._badges).length) saveBadges(remoteExtras._badges);
         if(Object.keys(remoteExtras._redemptionMonths).length) saveRedemptionMonths(remoteExtras._redemptionMonths);
+        if(Object.keys(remoteExtras._pointsRedeemed).length) savePointsRedeemedData(remoteExtras._pointsRedeemed);
         document.dispatchEvent(new CustomEvent('perks:rerender'));
       }
     }
@@ -63,7 +64,7 @@ export async function saveToStorage(){
     localStorage.setItem(STORAGE_KEY+'-ts-'+state.currentUser.id,ts);
   }catch(e){}
   try{
-    const payload={...state.DATA,_customAmounts:loadCustomAmounts(),_partial:loadPartial(),_notes:loadNotes(),_credited:loadCredited(),_skipped:loadSkipped(),_feeOverrides:getFeeOverrides(),_snoozed:loadSnoozed(),_cardOrder:JSON.parse(localStorage.getItem('perks-card-order')||'[]'),_cardMeta:loadCardMeta(),_badges:loadBadges(),_redemptionMonths:loadRedemptionMonths()};
+    const payload={...state.DATA,_customAmounts:loadCustomAmounts(),_partial:loadPartial(),_notes:loadNotes(),_credited:loadCredited(),_skipped:loadSkipped(),_feeOverrides:getFeeOverrides(),_snoozed:loadSnoozed(),_cardOrder:JSON.parse(localStorage.getItem('perks-card-order')||'[]'),_cardMeta:loadCardMeta(),_badges:loadBadges(),_redemptionMonths:loadRedemptionMonths(),_pointsRedeemed:loadPointsRedeemed()};
     const {data:updated,error:upErr}=await sb.from('tracker_data').update({data:payload,updated_at:ts}).eq('user_id',state.currentUser.id).select('user_id');
     if(upErr) throw upErr;
     if(!updated||updated.length===0){
@@ -237,3 +238,30 @@ export function getFeeOverrides(){ if(!state._feeOverrides) state._feeOverrides=
 export function saveFeeOverridesData(d){ state._feeOverrides=d; localStorage.setItem('perks-fee-overrides',JSON.stringify(d)); }
 export function getCardFeeMonth(cardKey){ return getFeeOverrides()[cardKey]?.feeMonth??FEE_MONTHS[cardKey]??0; }
 export function getCardFeeDay(cardKey){ return getFeeOverrides()[cardKey]?.feeDay??CARDS[cardKey]?.feeDay??1; }
+
+// ── Points redeemed (cash value from points redemptions, not statement credits) ──
+// Key format: cardKey → { "YYYY-M": amount }  (M is 0-indexed, same as CM)
+const POINTS_REDEEMED_KEY='perks-points-redeemed';
+export function loadPointsRedeemed(){ try{ return JSON.parse(localStorage.getItem(POINTS_REDEEMED_KEY)||'{}'); }catch(e){ return {}; } }
+export function savePointsRedeemedData(d){ localStorage.setItem(POINTS_REDEEMED_KEY,JSON.stringify(d)); }
+export function setPointsRedeemed(cardKey,yearMonth,amount){
+  const d=loadPointsRedeemed();
+  if(!d[cardKey]) d[cardKey]={};
+  if(!amount||amount<=0) delete d[cardKey][yearMonth];
+  else d[cardKey][yearMonth]=amount;
+  savePointsRedeemedData(d);
+  scheduleSave();
+}
+export function getPointsRedeemed(cardKey,yearMonth){ return (loadPointsRedeemed()[cardKey]||{})[yearMonth]||0; }
+export function getPointsRedeemedYTD(cardKey,year){
+  const byMonth=loadPointsRedeemed()[cardKey]||{};
+  return Object.entries(byMonth).filter(([k])=>k.startsWith(`${year}-`)).reduce((s,[,v])=>s+v,0);
+}
+export function getAllPointsRedeemedYTD(year){
+  const d=loadPointsRedeemed();
+  let total=0;
+  Object.values(d).forEach(byMonth=>{
+    Object.entries(byMonth).filter(([k])=>k.startsWith(`${year}-`)).forEach(([,v])=>{ total+=v; });
+  });
+  return total;
+}
