@@ -448,32 +448,68 @@ export function renderDigest(){
 // ── Net value dashboard ────────────────────────────────────────────────────
 export function renderNetValue(){
   const CARD_KEYS=getVisibleCardKeys();
-  let totalFees=0,totalCaptured=0,totalProjected=0;
+
+  // ── Points balance (computed upfront so it feeds the hero) ─────────────
+  const ptsBalances=JSON.parse(localStorage.getItem('perks-points-balances')||'{}');
+  const ptsVals=JSON.parse(localStorage.getItem('perks-points-valuations')||'{}');
+  const cardKeySet=new Set(CARD_KEYS);
+  const activeProgs=Object.entries(POINTS_PROGRAMS).filter(([,p])=>p.cards.some(c=>cardKeySet.has(c)));
+  let totalPtsVal=0, progRows='';
+  activeProgs.forEach(([pid,prog])=>{
+    const bal=parseFloat(ptsBalances[pid])||0;
+    const cpp=ptsVals[pid]??prog.centsPerPt;
+    const est=bal*cpp/100;
+    totalPtsVal+=est;
+    const cardNames=prog.cards.filter(c=>cardKeySet.has(c)).map(c=>CARD_LABELS[c]).join(', ');
+    progRows+=`<div class="pts-row">
+      <div class="pts-info"><div class="pts-name">${prog.name}</div><div class="pts-cards">${cardNames}</div></div>
+      <div class="pts-inputs">
+        <input type="number" class="pts-balance-input" value="${bal||''}" placeholder="0"
+          oninput="window.savePointsBalance('${pid}',this.value)">
+        <span class="pts-sep">×</span>
+        <input type="number" class="pts-val-input" step="0.05" min="0.1" max="10" value="${cpp}"
+          oninput="window.savePointsValuation('${pid}',this.value)">
+        <span class="pts-cpp">¢</span>
+      </div>
+      <div class="pts-est" style="color:${est>0?'var(--green)':'var(--text-tertiary)'}">${est>0?'$'+est.toFixed(2):'—'}</div>
+    </div>`;
+  });
+
+  // ── Per-card stats including redemptions ───────────────────────────────
+  let totalFees=0,totalCaptured=0,totalProjected=0,totalRedeemed=0,totalProjRedeemed=0;
   const cards=CARD_KEYS.map(cardKey=>{
     const fee=getFee(cardKey,CY);
     const {captured}=calcStats(cardKey,c=>getCardYearPeriods(cardKey,c),isPCurrent);
     const projected=getProjectedCapture(cardKey);
+    const redeemed=getPointsRedeemedYTD(cardKey,CY);
+    const elapsed=getCardYearMonthsElapsed(cardKey);
+    const projRedeemed=elapsed>0?(redeemed/elapsed)*12:0;
     totalFees+=fee; totalCaptured+=captured; totalProjected+=projected;
-    return {cardKey,fee,captured,projected};
+    totalRedeemed+=redeemed; totalProjRedeemed+=projRedeemed;
+    return {cardKey,fee,captured,projected,redeemed,projRedeemed};
   });
-  const netNow=totalCaptured-totalFees;
-  const netProj=totalProjected-totalFees;
+
+  // All-in = benefits + redemptions (now) + projected redemptions + points balance (projected)
+  const allInNow=totalCaptured+totalRedeemed;
+  const allInProj=totalProjected+totalProjRedeemed+totalPtsVal;
+  const netNow=allInNow-totalFees;
+  const netProj=allInProj-totalFees;
   const inProfit=netNow>=0;
   const projProfit=netProj>=0;
-  const coveragePct=totalFees>0?Math.min(100,Math.round(totalCaptured/totalFees*100)):0;
-  const projPct=totalFees>0?Math.min(110,Math.round(totalProjected/totalFees*100)):0;
+  const coveragePct=totalFees>0?Math.min(100,Math.round(allInNow/totalFees*100)):0;
+  const projPct=totalFees>0?Math.min(110,Math.round(allInProj/totalFees*100)):0;
 
-  let html=`<div class="banner"><strong>Portfolio value</strong> — all cards, this card year</div>`;
+  let html=`<div class="banner"><strong>Portfolio value</strong> — benefits + redemptions + points balance vs fees</div>`;
 
   // Hero summary
   html+=`<div class="netval-hero">
     <div class="netval-hero-row">
       <div>
-        <div class="netval-hero-val ${inProfit?'green':'red'}">${inProfit?'+':'-'}$${Math.abs(netNow).toFixed(0)}</div>
+        <div class="netval-hero-val ${inProfit?'green':'red'}">${inProfit?'+':'-'}$${Math.abs(netNow).toFixed(2)}</div>
         <div class="netval-hero-label">Net position now</div>
       </div>
       <div style="text-align:right">
-        <div class="netval-hero-val ${projProfit?'green':''}">${projProfit?'+':'-'}$${Math.abs(netProj).toFixed(0)}</div>
+        <div class="netval-hero-val ${projProfit?'green':''}">${projProfit?'+':'-'}$${Math.abs(netProj).toFixed(2)}</div>
         <div class="netval-hero-label">Projected year-end</div>
       </div>
     </div>
@@ -484,27 +520,30 @@ export function renderNetValue(){
     <div class="netval-progress-labels">
       <span>$0</span>
       <span style="color:${inProfit?'var(--green)':'var(--gold)'}">
-        ${coveragePct}% of $${totalFees} in fees captured
+        ${coveragePct}% of $${totalFees} in fees covered
       </span>
       <span>$${totalFees}</span>
     </div>
     <div class="netval-hero-totals">
-      <span><strong style="color:var(--green)">$${totalCaptured.toFixed(0)}</strong> captured</span>
+      <span><strong style="color:var(--green)">$${totalCaptured.toFixed(0)}</strong> benefits</span>
       <span>·</span>
-      <span><strong>$${totalProjected.toFixed(0)}</strong> projected</span>
+      <span><strong style="color:var(--green)">$${totalRedeemed.toFixed(0)}</strong> redeemed</span>
+      ${totalPtsVal>0?`<span>·</span><span><strong style="color:var(--green)">$${totalPtsVal.toFixed(0)}</strong> pts balance</span>`:''}
       <span>·</span>
-      <span><strong>$${totalFees}</strong> total fees</span>
+      <span><strong>$${totalFees}</strong> fees</span>
     </div>
   </div>`;
 
-  // Per-card breakdown sorted by captured %
+  // Per-card breakdown sorted by all-in captured %
   html+=`<div class="section-header"><span class="section-title">Per card breakdown</span></div>`;
-  [...cards].sort((a,b)=>(b.captured/(b.fee||1))-(a.captured/(a.fee||1))).forEach(({cardKey,fee,captured,projected})=>{
-    const capPct=fee>0?Math.min(100,captured/fee*100):0;
-    const projPct2=fee>0?Math.min(110,projected/fee*100):0;
-    const net=captured-fee;
+  [...cards].sort((a,b)=>((b.captured+b.redeemed)/(b.fee||1))-((a.captured+a.redeemed)/(a.fee||1))).forEach(({cardKey,fee,captured,projected,redeemed,projRedeemed})=>{
+    const allIn=captured+redeemed;
+    const allInProj2=projected+projRedeemed;
+    const capPct=fee>0?Math.min(100,allIn/fee*100):0;
+    const projPct2=fee>0?Math.min(110,allInProj2/fee*100):0;
+    const net=allIn-fee;
     const inP=net>=0;
-    const projNet=projected-fee;
+    const projNet=allInProj2-fee;
     const projInP=projNet>=0;
     html+=`<div class="netval-card-row" onclick="goToCardPeriod('${cardKey}')">
       <div class="netval-card-header">
@@ -518,9 +557,10 @@ export function renderNetValue(){
         <div class="netval-bar-cap" style="width:${capPct}%;background:${inP?'var(--green)':'var(--gold)'}"></div>
       </div>
       <div class="netval-card-sub">
-        <span style="color:var(--green)">$${captured.toFixed(0)} captured</span>
+        <span style="color:var(--green)">$${captured.toFixed(0)} benefits</span>
+        ${redeemed>0?`<span style="color:var(--text-tertiary)">·</span><span style="color:var(--green)">$${redeemed.toFixed(0)} redeemed</span>`:''}
         <span style="color:var(--text-tertiary)">·</span>
-        <span>$${projected.toFixed(0)} projected</span>
+        <span>$${allInProj2.toFixed(0)} projected</span>
         <span style="color:var(--text-tertiary)">·</span>
         <span style="color:${projInP?'var(--green)':'var(--text-tertiary)'}">$${fee} fee${projInP?' ✓':''}</span>
       </div>
@@ -528,43 +568,10 @@ export function renderNetValue(){
   });
 
   // Points balances section
-  const ptsBalances=JSON.parse(localStorage.getItem('perks-points-balances')||'{}');
-  const ptsVals=JSON.parse(localStorage.getItem('perks-points-valuations')||'{}');
-  const cardKeySet=new Set(CARD_KEYS);
-  const activeProgs=Object.entries(POINTS_PROGRAMS).filter(([,p])=>p.cards.some(c=>cardKeySet.has(c)));
   if(activeProgs.length){
-    let totalPtsVal=0;
-    let progRows='';
-    activeProgs.forEach(([pid,prog])=>{
-      const bal=parseFloat(ptsBalances[pid])||0;
-      const cpp=ptsVals[pid]??prog.centsPerPt;
-      const est=bal*cpp/100;
-      totalPtsVal+=est;
-      const cardNames=prog.cards.filter(c=>cardKeySet.has(c)).map(c=>CARD_LABELS[c]).join(', ');
-      progRows+=`<div class="pts-row">
-        <div class="pts-info"><div class="pts-name">${prog.name}</div><div class="pts-cards">${cardNames}</div></div>
-        <div class="pts-inputs">
-          <input type="number" class="pts-balance-input" value="${bal||''}" placeholder="0"
-            oninput="window.savePointsBalance('${pid}',this.value)">
-          <span class="pts-sep">×</span>
-          <input type="number" class="pts-val-input" step="0.05" min="0.1" max="10" value="${cpp}"
-            oninput="window.savePointsValuation('${pid}',this.value)">
-          <span class="pts-cpp">¢</span>
-        </div>
-        <div class="pts-est" style="color:${est>0?'var(--green)':'var(--text-tertiary)'}">${est>0?'$'+est.toFixed(2):'—'}</div>
-      </div>`;
-    });
-    html+=`<div class="section-header" style="margin-top:4px"><span class="section-title">Points balances</span><span class="section-period">${totalPtsVal>0?'≈ $'+totalPtsVal.toFixed(2)+' est.':''}</span></div>`;
-    if(totalPtsVal>0){
-      const combined=totalCaptured+totalPtsVal;
-      html+=`<div class="pts-combined">
-        <div class="pts-combined-label">Credits + points total value</div>
-        <div class="pts-combined-val">$${combined.toFixed(2)}</div>
-        <div class="pts-combined-sub">$${totalCaptured.toFixed(2)} credits + $${totalPtsVal.toFixed(2)} points</div>
-      </div>`;
-    }
+    html+=`<div class="section-header" style="margin-top:4px"><span class="section-title">Points balances</span><span class="section-period">${totalPtsVal>0?'≈ $'+totalPtsVal.toFixed(2)+' est. · included in projected':''}</span></div>`;
     html+=progRows;
-    html+=`<div style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);text-align:center;margin-top:8px;padding-bottom:8px">Point values are estimates · edit ¢/pt to use your own valuation</div>`;
+    html+=`<div style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);text-align:center;margin-top:8px;padding-bottom:8px">Point values are estimates · edit ¢/pt to use your own valuation · included in projected year-end</div>`;
   }
   set(html);
 }
@@ -1350,29 +1357,36 @@ export function renderKeepCard(){
     const captured=repeating+oneTime;
     const projected=getProjectedCapture(cardKey);
     const redeemed=getPointsRedeemedYTD(cardKey,CY);
-    const totalValue=captured+redeemed;
-    const gap=fee-projected;
+    const elapsed=getCardYearMonthsElapsed(cardKey);
+    const projRedeemed=elapsed>0?(redeemed/elapsed)*12:0;
+    const totalCapture=captured+redeemed;
+    const totalProjected=projected+projRedeemed;
+    const gap=fee-totalProjected;
     let verdict,cls,reason,action;
-    if(captured>=fee){ verdict='✓ Keep it'; cls='keep'; reason=`You've already captured $${captured.toFixed(0)} in benefits — covering the $${fee} fee with $${(captured-fee).toFixed(0)} profit.`; action='Renewal is clearly worth it.'; }
-    else if(projected>=fee){ verdict='✓ Keep it'; cls='keep'; reason=`You've captured $${captured.toFixed(0)} so far. At this rate you'll hit $${projected.toFixed(0)} by card year end — covering the $${fee} fee.`; action='On track to break even. Renewal recommended.'; }
-    else if(gap<=250){ verdict='✓ Keep it'; cls='keep'; reason=`Projecting $${projected.toFixed(0)} by year end vs $${fee} fee. You'll be $${gap.toFixed(0)} short of breaking even.`; action='Within $250 of break-even — worth keeping.'; }
-    else if(gap<=500){ verdict='⚠ Reconsider'; cls='reconsider'; reason=`Projecting $${projected.toFixed(0)} by year end vs $${fee} fee. You'll be $${gap.toFixed(0)} short.`; action='Try to use more benefits before renewal.'; }
-    else { verdict='✗ Downgrade or Cancel'; cls='cancel'; reason=`Projecting $${projected.toFixed(0)} by year end — $${gap.toFixed(0)} short of the $${fee} fee.`; action='Consider downgrading or cancelling before renewal.'; }
+    if(totalCapture>=fee){ verdict='✓ Keep it'; cls='keep'; reason=`You've already extracted $${totalCapture.toFixed(0)} in total value ($${captured.toFixed(0)} benefits + $${redeemed.toFixed(0)} redeemed) — covering the $${fee} fee with $${(totalCapture-fee).toFixed(0)} profit.`; action='Renewal is clearly worth it.'; }
+    else if(totalProjected>=fee){ verdict='✓ Keep it'; cls='keep'; reason=`You've extracted $${totalCapture.toFixed(0)} so far. At this rate you'll reach $${totalProjected.toFixed(0)} by card year end — covering the $${fee} fee.`; action='On track to break even. Renewal recommended.'; }
+    else if(gap<=250){ verdict='✓ Keep it'; cls='keep'; reason=`Projecting $${totalProjected.toFixed(0)} in total value by year end vs $${fee} fee. You'll be $${gap.toFixed(0)} short of break-even.`; action='Within $250 of break-even — worth keeping.'; }
+    else if(gap<=500){ verdict='⚠ Reconsider'; cls='reconsider'; reason=`Projecting $${totalProjected.toFixed(0)} in total value by year end vs $${fee} fee. You'll be $${gap.toFixed(0)} short.`; action='Try to use more benefits and redeem points before renewal.'; }
+    else { verdict='✗ Downgrade or Cancel'; cls='cancel'; reason=`Projecting $${totalProjected.toFixed(0)} in total value by year end — $${gap.toFixed(0)} short of the $${fee} fee.`; action='Consider downgrading or cancelling before renewal.'; }
     const days=daysUntilFee(cardKey);
     const fm2=getCardFeeMonth(cardKey),fd=getCardFeeDay(cardKey);
     const redeemedRow=redeemed>0?`<div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06)">
+      <span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);flex:1">Benefits captured</span>
+      <span style="font-size:11px;font-family:var(--mono);font-weight:600;color:var(--green)">$${captured.toFixed(2)}</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
       <span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);flex:1">Points redeemed YTD</span>
       <span style="font-size:11px;font-family:var(--mono);font-weight:600;color:var(--green)">+$${redeemed.toFixed(2)}</span>
     </div>
     <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
       <span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);flex:1">Total value extracted</span>
-      <span style="font-size:11px;font-family:var(--mono);font-weight:700;color:var(--green)">$${totalValue.toFixed(2)}</span>
+      <span style="font-size:11px;font-family:var(--mono);font-weight:700;color:var(--green)">$${totalCapture.toFixed(2)}</span>
     </div>`:
     `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06);font-size:10px;font-family:var(--mono);color:var(--text-tertiary)">No points redeemed logged · <span style="color:var(--blue);cursor:pointer" onclick="setActiveView('points-redemptions')">add redemptions →</span></div>`;
     html+=`<div style="margin-bottom:12px" data-drag-card="${cardKey}" draggable="true">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span class="drag-handle" style="font-size:14px">⠿</span><span style="font-size:11px;font-family:var(--mono);color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.06em">${CARD_LABELS[cardKey]}</span></div>
       <div class="keep-card-result ${cls}"><div class="keep-verdict ${cls}">${verdict}</div><div class="keep-reason">${reason}<br><strong>${action}</strong></div>
-      <div style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);margin-top:8px">$${captured.toFixed(0)} benefits captured · $${projected.toFixed(0)} projected · $${fee} fee<br>Next fee: ${MONTHS[fm2]} ${fd} · ${days} days away</div>
+      <div style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);margin-top:8px">$${totalCapture.toFixed(0)} total extracted · $${totalProjected.toFixed(0)} projected · $${fee} fee<br>Next fee: ${MONTHS[fm2]} ${fd} · ${days} days away</div>
       ${redeemedRow}
       </div>
     </div>`;
@@ -1523,18 +1537,22 @@ export function updateTabBadge(){
 // ── Render: fee optimizer ──────────────────────────────────────────────────
 export function renderFeeOptimizer(){
   const CARD_KEYS=getVisibleCardKeys();
-  let totalFees=0,totalProjected=0;
+  let totalFees=0,totalProjectedAllIn=0;
   const cards=CARD_KEYS.map(cardKey=>{
     const fee=getFee(cardKey,CY);
     const projected=getProjectedCapture(cardKey);
     const {captured}=calcStats(cardKey,c=>getCardYearPeriods(cardKey,c),isPCurrent);
-    totalFees+=fee; totalProjected+=projected;
-    return {cardKey,fee,projected,captured,cancelImpact:fee-projected};
+    const redeemed=getPointsRedeemedYTD(cardKey,CY);
+    const elapsed=getCardYearMonthsElapsed(cardKey);
+    const projRedeemed=elapsed>0?(redeemed/elapsed)*12:0;
+    const projAllIn=projected+projRedeemed;
+    totalFees+=fee; totalProjectedAllIn+=projAllIn;
+    return {cardKey,fee,projected,captured,redeemed,projRedeemed,projAllIn,cancelImpact:fee-projAllIn};
   });
   cards.sort((a,b)=>b.cancelImpact-a.cancelImpact);
-  const netPortfolio=totalProjected-totalFees;
+  const netPortfolio=totalProjectedAllIn-totalFees;
   const inProfit=netPortfolio>=0;
-  const coveragePct=totalFees>0?Math.min(100,Math.round(totalProjected/totalFees*100)):0;
+  const coveragePct=totalFees>0?Math.min(100,Math.round(totalProjectedAllIn/totalFees*100)):0;
   let html=`<div class="banner"><strong>Fee optimizer</strong> — net impact of canceling each card</div>`;
   html+=`<div class="netval-hero">
     <div class="netval-hero-row">
@@ -1552,12 +1570,12 @@ export function renderFeeOptimizer(){
     </div>
     <div class="netval-progress-labels">
       <span>$0</span>
-      <span style="color:${inProfit?'var(--green)':'var(--gold)'}">$${totalProjected.toFixed(0)} projected vs $${totalFees} fees</span>
+      <span style="color:${inProfit?'var(--green)':'var(--gold)'}">$${totalProjectedAllIn.toFixed(0)} projected (benefits + redemptions) vs $${totalFees} fees</span>
       <span>$${totalFees}</span>
     </div>
   </div>`;
   html+=`<div class="section-header"><span class="section-title">Cancel impact</span><span class="section-period">sorted by net gain from canceling</span></div>`;
-  cards.forEach(({cardKey,fee,projected,captured,cancelImpact})=>{
+  cards.forEach(({cardKey,fee,projected,captured,redeemed,projRedeemed,projAllIn,cancelImpact})=>{
     const saves=cancelImpact>0;
     const close=Math.abs(cancelImpact)<=75;
     const verdictColor=saves?'var(--green)':close?'var(--gold)':'var(--text-secondary)';
@@ -1566,8 +1584,8 @@ export function renderFeeOptimizer(){
       :close
       ?`Borderline — costs $${Math.abs(cancelImpact).toFixed(0)}/yr to cancel`
       :`Keep — you'd lose $${Math.abs(cancelImpact).toFixed(0)}/yr net`;
-    const capPct=fee>0?Math.min(100,Math.round(projected/fee*100)):0;
-    const barColor=projected>=fee?'var(--green)':projected>=fee*0.7?'var(--gold)':'var(--red)';
+    const capPct=fee>0?Math.min(100,Math.round(projAllIn/fee*100)):0;
+    const barColor=projAllIn>=fee?'var(--green)':projAllIn>=fee*0.7?'var(--gold)':'var(--red)';
     html+=`<div class="optimizer-card" onclick="goToCardPeriod('${cardKey}')">
       <div class="optimizer-card-header">
         <span class="optimizer-card-name">${CARD_LABELS[cardKey]}</span>
@@ -1580,9 +1598,10 @@ export function renderFeeOptimizer(){
       <div class="optimizer-card-sub">
         <span>$${fee} fee</span>
         <span style="color:var(--text-tertiary)">·</span>
-        <span style="color:var(--green)">$${captured.toFixed(0)} captured</span>
+        <span style="color:var(--green)">$${captured.toFixed(0)} benefits</span>
+        ${redeemed>0?`<span style="color:var(--text-tertiary)">·</span><span style="color:var(--green)">$${redeemed.toFixed(0)} redeemed</span>`:''}
         <span style="color:var(--text-tertiary)">·</span>
-        <span>$${projected.toFixed(0)} proj.</span>
+        <span>$${projAllIn.toFixed(0)} proj.</span>
         <span style="color:var(--text-tertiary)">·</span>
         <span style="color:${capPct>=100?'var(--green)':capPct>=70?'var(--gold)':'var(--red)'}">${capPct}% coverage</span>
       </div>
@@ -2059,11 +2078,13 @@ export function renderWrap(){
     });
   }finally{state.selectedYear=savedYear;}
 
-  const netValue=totalCaptured-totalFees;
+  const totalRedeemed=getAllPointsRedeemedYTD(CY);
+  const totalValueAllIn=totalCaptured+totalRedeemed;
+  const netValue=totalValueAllIn-totalFees;
   const inProfit=netValue>=0;
   const grade=netValue>=0?'A':netValue>=-500?'B':netValue>=-1000?'C':'D';
   const gradeColor=grade==='A'?'#4ade80':grade==='B'?'var(--blue)':grade==='C'?'var(--gold)':'#f87171';
-  const capPct=totalFees>0?Math.round(totalCaptured/totalFees*100):0;
+  const capPct=totalFees>0?Math.round(totalValueAllIn/totalFees*100):0;
   const bestMonthEntry=Object.entries(monthTotals).sort((a,b)=>b[1]-a[1])[0];
   const bestMonthName=bestMonthEntry?MONTHS[parseInt(bestMonthEntry[0])]:'—';
   const bestMonthAmt=bestMonthEntry?bestMonthEntry[1]:0;
@@ -2075,9 +2096,9 @@ export function renderWrap(){
       <div class="wrap-year">${CY} Annual Report Card · through ${MONTHS[CM]}</div>
     </div>
     <div class="wrap-hero">
-      <div class="wrap-hero-label">Total Value Captured</div>
-      <div class="wrap-hero-val">$${totalCaptured.toFixed(0)}</div>
-      <div class="wrap-hero-sub">${capPct}% of $${totalFees} in annual fees</div>
+      <div class="wrap-hero-label">Total Value Extracted</div>
+      <div class="wrap-hero-val">$${totalValueAllIn.toFixed(0)}</div>
+      <div class="wrap-hero-sub">${capPct}% of $${totalFees} in annual fees${totalRedeemed>0?` · $${totalCaptured.toFixed(0)} benefits + $${totalRedeemed.toFixed(0)} redeemed`:''}</div>
     </div>
     <div class="wrap-grid">
       <div class="wrap-stat">
@@ -2117,7 +2138,7 @@ export function renderWrap(){
     if(!btn) return;
     btn.addEventListener('click',()=>{
       const text=`My ${CY} Credit Card Report Card 🏆\n\n`+
-        `💰 Captured: $${totalCaptured.toFixed(0)}\n`+
+        `💰 Extracted: $${totalValueAllIn.toFixed(0)}${totalRedeemed>0?` ($${totalCaptured.toFixed(0)} benefits + $${totalRedeemed.toFixed(0)} redeemed)`:''}\n`+
         `📊 Net: ${inProfit?'+':''}$${netValue.toFixed(0)}\n`+
         `🏅 Grade: ${grade}\n`+
         `⭐ Top Card: ${bestCard?CARD_LABELS[bestCard]:'—'}\n`+
