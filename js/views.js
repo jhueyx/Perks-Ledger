@@ -953,10 +953,11 @@ function buildHeatmapHTML(){
     } else {
       html+=`<div style="width:${LABEL_W}px;flex-shrink:0;display:flex;align-items:center;gap:4px;padding-right:4px"><span class="drag-handle" style="font-size:14px;opacity:0.35;flex-shrink:0">⠿</span><span style="font-size:${labelFontSize}px;font-family:var(--mono);color:var(--text-tertiary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${CARD_LABELS[cardKey]}</span></div>`;
     }
-    let rowTotalClaimed=0;
+    // sum claimed across all months — annual/semi-annual benefits may be placed at a future
+    // display month even when already redeemed, so don't gate on isFut here
+    const rowTotalClaimed=monthData.reduce((s,md)=>s+md.claimed,0);
     for(let m=0;m<12;m++){
       const isFut=m>CM,{total,claimed}=monthData[m];
-      if(!isFut && total>0) rowTotalClaimed+=claimed;
       if(isFut){ html+=`<div style="width:${CELL_W}px;flex-shrink:0;height:${CELL_H}px;border-radius:4px;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:${labelFontSize}px;color:var(--text-tertiary)">–</div>`; continue; }
       if(total===0){ html+=`<div style="width:${CELL_W}px;flex-shrink:0;height:${CELL_H}px;border-radius:4px"></div>`; continue; }
       const rate=claimed/total,pct=Math.round(rate*100);
