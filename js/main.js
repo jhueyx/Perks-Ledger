@@ -1901,12 +1901,9 @@ window.toggleHeatmapDatePicker=function(cardKey,id,pk){
 
 window.setHeatmapRedemptionDate=function(cardKey,id,pk,year,month){
   setRedemptionMonth(cardKey,id,pk,year,month);
-  // update date label inline
-  const dateBtn=document.getElementById(`rdDate_${cardKey}_${id}`);
-  if(dateBtn){ dateBtn.textContent=MONTHS[month]; dateBtn.style.color='var(--text-tertiary)'; }
-  const picker=document.getElementById(`rdPicker_${cardKey}_${id}`);
-  if(picker) picker.style.display='none';
-  // refresh heatmap behind the sheet
+  // close sheet and re-render heatmap — benefit has moved to a new month cell
+  const overlay=document.getElementById('heatmapMonthOverlay');
+  if(overlay) overlay.remove();
   render();
 };
 
