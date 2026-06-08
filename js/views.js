@@ -1385,7 +1385,14 @@ export function renderKeepCard(){
 // ── Render: recap ──────────────────────────────────────────────────────────
 export function renderRecap(){
   const year=state.selectedYear;
-  const CARD_KEYS=getVisibleCardKeys();
+  // For prior years, only include cards that had actual activity — filters out cards added after that year
+  const allKeys=getVisibleCardKeys();
+  const CARD_KEYS=year<CY?allKeys.filter(k=>{
+    const s=state.selectedYear; state.selectedYear=year;
+    const {captured}=calcStats(k,c=>getYTDPeriods(c),isYTDCurrent);
+    state.selectedYear=s;
+    return captured>0||getPointsRedeemedYTD(k,year)>0;
+  }):allKeys;
   let totalCaptured=0,totalMissed=0,totalFees=0;
   let bestCard={key:'',captured:0},worstCard={key:'',missed:0};
   let biggestMiss={name:'',amt:0,card:''};
