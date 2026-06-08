@@ -1832,6 +1832,40 @@ window.toggleAchLocked=function(el){
   if(chevron)chevron.textContent=open?'▾':'▴';
 };
 
+// ── Heatmap month detail sheet ────────────────────────────────────────────
+window.showHeatmapMonthDetail=function(cardKey,month){
+  const data=window._heatmapMonthDetails&&window._heatmapMonthDetails[`${cardKey}_${month}`];
+  if(!data) return;
+  const {cardLabel,monthLabel,items,totalClaimed,totalAvailable}=data;
+  const claimed=items.filter(i=>i.claimed);
+  const unclaimed=items.filter(i=>!i.claimed);
+  const existing=document.getElementById('heatmapMonthOverlay');
+  if(existing) existing.remove();
+  const overlay=document.createElement('div');
+  overlay.id='heatmapMonthOverlay';
+  overlay.style.cssText='position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.72);display:flex;align-items:flex-end;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);animation:bdFadeIn 0.15s ease';
+  const claimedRows=claimed.length
+    ? claimed.map(i=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06)"><span style="font-size:13px;color:var(--text)">${escapeHtml(i.name)}</span><span style="font-size:13px;font-family:var(--mono);color:var(--green)">+$${i.amount.toFixed(0)}</span></div>`).join('')
+    : `<div style="font-size:12px;color:var(--text-tertiary);padding:8px 0">Nothing redeemed this month</div>`;
+  const unclaimedRows=unclaimed.length
+    ? `<div style="margin-top:12px"><div style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Missed</div>${unclaimed.map(i=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="font-size:12px;color:var(--text-tertiary)">${escapeHtml(i.name)}</span><span style="font-size:12px;font-family:var(--mono);color:var(--red)">−$${i.amount.toFixed(0)}</span></div>`).join('')}</div>`
+    : '';
+  overlay.innerHTML=`<div style="background:#111116;border:1px solid rgba(255,255,255,0.1);border-radius:20px 20px 0 0;padding:8px 24px 44px;width:100%;max-height:80vh;overflow-y:auto;animation:bdSlideUp 0.22s ease">
+    <div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:8px auto 16px"></div>
+    <div style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px">${escapeHtml(cardLabel)}</div>
+    <div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:16px">${monthLabel} Redeemed</div>
+    <div style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Redeemed</div>
+    ${claimedRows}
+    ${unclaimedRows}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1)">
+      <span style="font-size:12px;font-family:var(--mono);color:var(--text-tertiary)">Total redeemed</span>
+      <span style="font-size:16px;font-weight:700;font-family:var(--mono);color:${totalClaimed>0?'var(--green)':'var(--text-tertiary)'}">$${totalClaimed.toFixed(0)} <span style="font-size:11px;font-weight:400;color:var(--text-tertiary)">/ $${totalAvailable.toFixed(0)}</span></span>
+    </div>
+  </div>`;
+  overlay.addEventListener('click',e=>{ if(e.target===overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+};
+
 // ── More page ─────────────────────────────────────────────────────────────
 function renderMore(){
   const items=[

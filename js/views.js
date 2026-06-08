@@ -886,23 +886,33 @@ function buildHeatmapHTML(){
   const CARD_KEYS=getVisibleCardKeys();
   const isMobile=window.innerWidth<=600;
   let html='';
-  if(!isMobile) html+=`<p style="font-size:11px;color:var(--text-tertiary);font-family:var(--mono);margin:0 0 10px">drag rows to reorder</p>`;
-  const CELL_W=isMobile?22:42,CELL_H=isMobile?26:36,LABEL_W=isMobile?48:88;
-  const GAP=3,totalW=LABEL_W+(CELL_W+GAP)*12;
+  if(!isMobile) html+=`<p style="font-size:11px;color:var(--text-tertiary);font-family:var(--mono);margin:0 0 10px">drag rows to reorder · double-click a month for details</p>`;
+  else html+=`<p style="font-size:10px;color:var(--text-tertiary);font-family:var(--mono);margin:0 0 8px">double-tap a month cell for details</p>`;
+  const CELL_W=isMobile?22:42,CELL_H=isMobile?26:36,LABEL_W=isMobile?48:88,TOTAL_W=isMobile?34:58;
+  const GAP=3,totalW=LABEL_W+(CELL_W+GAP)*12+GAP+TOTAL_W;
   const wrapStyle=isMobile?`width:100%;box-sizing:border-box`:`overflow-x:auto;-webkit-overflow-scrolling:touch`;
   html+=`<div style="${wrapStyle}"><div style="min-width:${totalW}px">`;
   // header row
   html+=`<div style="display:flex;align-items:center;gap:${GAP}px;margin-bottom:3px">`;
   html+=`<div style="width:${LABEL_W}px;flex-shrink:0"></div>`;
   for(let m=0;m<12;m++) html+=`<div style="width:${CELL_W}px;flex-shrink:0;text-align:center;font-size:${isMobile?8:10}px;font-family:var(--mono);color:var(--text-tertiary);padding:4px 0">${isMobile?MONTHS[m].slice(0,1):MONTHS[m]}</div>`;
+  html+=`<div style="width:${TOTAL_W}px;flex-shrink:0;text-align:center;font-size:${isMobile?8:10}px;font-family:var(--mono);color:var(--text-tertiary);padding:4px 0;border-left:1px solid var(--border);margin-left:${GAP}px">Total</div>`;
   html+=`</div>`;
+  window._heatmapMonthDetails={};
   CARD_KEYS.forEach(cardKey=>{
     const card=CARDS[cardKey];
     const {year:fy,month:fm}=getCardYearStart(cardKey,CY);
-    const monthData=Array.from({length:12},()=>({total:0,claimed:0}));
+    const monthData=Array.from({length:12},()=>({total:0,claimed:0,items:[]}));
     card.sections.forEach(s=>{
       const cadence=s.cadence||'monthly';
-      const addAmt=(displayM,b,pk)=>{ if(isMonthSnoozed(cardKey,b.id,CY,displayM)) return; const amt=b.amount||0; monthData[displayM].total+=amt; if(isUsed(cardKey,b.id,pk)) monthData[displayM].claimed+=amt; };
+      const addAmt=(displayM,b,pk)=>{
+        if(isMonthSnoozed(cardKey,b.id,CY,displayM)) return;
+        const amt=b.amount||0;
+        const used=isUsed(cardKey,b.id,pk);
+        monthData[displayM].total+=amt;
+        if(used) monthData[displayM].claimed+=amt;
+        monthData[displayM].items.push({name:b.name||b.label||'Benefit',amount:amt,claimed:used});
+      };
       if(cadence==='monthly'){
         for(let m=0;m<12;m++){ const pk=`${CY}-m${m}`; s.benefits.forEach(b=>{ if(isBNotAvailable(b,CY)||isBExpired(b,{calY:CY,calM:m,m})) return; addAmt(m,b,pk); }); }
       } else if(cadence==='quarterly'){
@@ -923,6 +933,16 @@ function buildHeatmapHTML(){
         s.benefits.forEach(b=>{ if(isBNotAvailable(b,CY)) return; addAmt(11,b,pk); });
       }
     });
+    // store detail data for double-click handler
+    for(let m=0;m<=CM;m++){
+      window._heatmapMonthDetails[`${cardKey}_${m}`]={
+        cardLabel:CARD_LABELS[cardKey],
+        monthLabel:MONTHS[m],
+        items:monthData[m].items,
+        totalClaimed:monthData[m].claimed,
+        totalAvailable:monthData[m].total
+      };
+    }
     // each card is a row (draggable on desktop only)
     const rowAttrs=isMobile?'':`data-drag-card="${cardKey}" draggable="true"`;
     const rowCursor=isMobile?'':'cursor:grab;';
@@ -933,15 +953,20 @@ function buildHeatmapHTML(){
     } else {
       html+=`<div style="width:${LABEL_W}px;flex-shrink:0;display:flex;align-items:center;gap:4px;padding-right:4px"><span class="drag-handle" style="font-size:14px;opacity:0.35;flex-shrink:0">⠿</span><span style="font-size:${labelFontSize}px;font-family:var(--mono);color:var(--text-tertiary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${CARD_LABELS[cardKey]}</span></div>`;
     }
+    let rowTotalClaimed=0;
     for(let m=0;m<12;m++){
       const isFut=m>CM,{total,claimed}=monthData[m];
+      if(!isFut && total>0) rowTotalClaimed+=claimed;
       if(isFut){ html+=`<div style="width:${CELL_W}px;flex-shrink:0;height:${CELL_H}px;border-radius:4px;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:${labelFontSize}px;color:var(--text-tertiary)">–</div>`; continue; }
       if(total===0){ html+=`<div style="width:${CELL_W}px;flex-shrink:0;height:${CELL_H}px;border-radius:4px"></div>`; continue; }
       const rate=claimed/total,pct=Math.round(rate*100);
       const bg=rate===0?'var(--border-light)':rate<0.5?'rgba(220,60,60,0.6)':rate<0.9?'rgba(210,160,0,0.5)':rate<1?'rgba(210,160,0,0.85)':'#2a9b6a';
       const fg=rate>=1?'#fff':rate>0&&rate<0.5?'#fff':'var(--text)';
-      html+=`<div style="width:${CELL_W}px;flex-shrink:0;height:${CELL_H}px;border-radius:4px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:${labelFontSize}px;font-family:var(--mono);color:${fg}">${pct}%</div>`;
+      html+=`<div ondblclick="showHeatmapMonthDetail('${cardKey}',${m})" title="Double-click for details" style="width:${CELL_W}px;flex-shrink:0;height:${CELL_H}px;border-radius:4px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:${labelFontSize}px;font-family:var(--mono);color:${fg};cursor:zoom-in">${pct}%</div>`;
     }
+    // grand total cell
+    const totalFmt=rowTotalClaimed>0?`$${rowTotalClaimed.toFixed(0)}`:'—';
+    html+=`<div style="width:${TOTAL_W}px;flex-shrink:0;height:${CELL_H}px;border-radius:4px;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:${labelFontSize}px;font-family:var(--mono);color:${rowTotalClaimed>0?'var(--green)':'var(--text-tertiary)'};border-left:1px solid var(--border);margin-left:${GAP}px">${totalFmt}</div>`;
     html+=`</div>`;
   });
   html+=`</div></div>`;
