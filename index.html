@@ -184,12 +184,19 @@
     <button class="menu-btn" id="menuBtn" title="More">☰</button>
     <div class="app-title"><img src="icon-192.png" style="width:22px;height:22px;border-radius:5px;vertical-align:middle;margin-right:7px;flex-shrink:0">Perks Ledger</div>
   </div>
-  <div style="display:flex;align-items:center;gap:10px">
+  <div style="display:flex;align-items:center;gap:12px">
+    <div class="save-status" id="saveStatus"></div>
     <button class="dark-toggle" id="darkToggle" onclick="toggleDark()">
       <span id="darkIcon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>
       <span class="dark-toggle-label" id="darkLabel">Dark</span>
     </button>
-    <div class="save-status" id="saveStatus"></div>
+    <div class="header-user" id="headerUser">
+      <div class="header-user-info">
+        <div class="header-user-name" id="headerGreeting"></div>
+        <div class="header-user-email" id="headerUserEmail"></div>
+      </div>
+      <button class="header-signout-btn" onclick="signOut()">Sign Out</button>
+    </div>
   </div>
 </div>
 

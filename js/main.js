@@ -120,6 +120,12 @@ function updateDrawerGreeting(){
   const emailEl=document.getElementById('drawerUserEmail');
   if(greetEl) greetEl.textContent=name?`Hi, ${name}`:'';
   if(emailEl) emailEl.textContent=user.email||'';
+  const hGreet=document.getElementById('headerGreeting');
+  const hEmail=document.getElementById('headerUserEmail');
+  if(hGreet) hGreet.textContent=name?`Hi, ${name}`:(user.email||'');
+  if(hEmail) hEmail.textContent=user.email||'';
+  const headerUser=document.getElementById('headerUser');
+  if(headerUser) headerUser.style.display='';
 }
 
 // ── Email digest cache ────────────────────────────────────────────────────

@@ -594,6 +594,20 @@
   /* Remove bottom padding since no bottom bar */
   .container { padding-bottom: 24px; }
 
+  /* Header user info — hidden until populated, only shown on desktop */
+  .header-user { display: none; align-items: center; gap: 14px; }
+  .header-user-info { text-align: right; line-height: 1.2; }
+  .header-user-name { font-size: 13px; font-weight: 600; color: var(--text); font-family: var(--font); }
+  .header-user-email { font-size: 10px; color: var(--text-tertiary); font-family: var(--mono); margin-top: 2px; }
+  .header-signout-btn {
+    font-size: 11px; font-family: var(--mono);
+    color: var(--text-tertiary); background: none;
+    border: 1px solid var(--border); border-radius: 20px;
+    padding: 5px 12px; cursor: pointer;
+    transition: all 0.15s; white-space: nowrap;
+  }
+  .header-signout-btn:hover { color: var(--red); border-color: var(--red); }
+
   /* ── Bottom tab bar (mobile only) ─────────────────────────────────── */
   .bottom-tab-bar { display: none; }
   .bottom-sheet-overlay { display: none; }
@@ -1469,18 +1483,20 @@
     .left-drawer {
       transform: none !important;
       box-shadow: 1px 0 0 var(--border);
-      width: 240px;
+      width: 260px;
     }
-    .drawer-header { display: none; }
-    .drawer-overlay { display: none !important; }
+    .drawer-header { display: flex; padding: 14px 14px 10px; }
     .drawer-close { display: none; }
+    .drawer-overlay { display: none !important; }
     .menu-btn { display: none !important; }
-    .app-header { margin-left: 240px; }
-    .container { margin-left: 240px; max-width: none; }
-    .drawer-items { padding: 6px 8px; }
-    .drawer-item { padding: 6px 10px; min-height: 32px; font-size: 13px; margin-bottom: 1px; }
+    .app-title { display: none; }
+    .app-header { margin-left: 260px; }
+    .container { margin-left: 260px; max-width: none; }
+    .drawer-items { padding: 4px 8px; }
+    .drawer-item { padding: 6px 10px; min-height: 32px; font-size: 13px; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .drawer-section-label { padding-top: 8px !important; padding-bottom: 3px !important; }
-    .drawer-bottom { padding: 8px 10px !important; }
+    .drawer-bottom { display: none; }
+    .header-user { display: flex; align-items: center; gap: 14px; }
   }
   @media (min-width: 1024px) {
     .card-selector .card-btn { flex: 1 0 200px; max-width: 275px; }
