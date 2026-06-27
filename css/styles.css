@@ -1469,17 +1469,18 @@
     .left-drawer {
       transform: none !important;
       box-shadow: 1px 0 0 var(--border);
+      width: 240px;
     }
     .drawer-header { display: none; }
     .drawer-overlay { display: none !important; }
     .drawer-close { display: none; }
     .menu-btn { display: none !important; }
-    .app-header { margin-left: 260px; }
-    .container { margin-left: 260px; }
-    .drawer-items { padding: 4px 8px; }
+    .app-header { margin-left: 240px; }
+    .container { margin-left: 240px; max-width: none; }
+    .drawer-items { padding: 6px 8px; }
     .drawer-item { padding: 6px 10px; min-height: 32px; font-size: 13px; margin-bottom: 1px; }
-    .drawer-section-label { padding-top: 6px !important; padding-bottom: 3px !important; }
-    .drawer-bottom { padding: 8px 12px !important; }
+    .drawer-section-label { padding-top: 8px !important; padding-bottom: 3px !important; }
+    .drawer-bottom { padding: 8px 10px !important; }
   }
   @media (min-width: 1024px) {
     .card-selector .card-btn { flex: 1 0 200px; max-width: 275px; }
