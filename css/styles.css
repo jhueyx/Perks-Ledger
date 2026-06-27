@@ -1464,6 +1464,17 @@
     .nav-primary-btn { padding: 12px 16px; font-size: 13px; }
     .nav-primary-btn .nav-icon { margin-bottom: 4px; }
     .comparison-grid { grid-template-columns: repeat(3,1fr); }
+
+    /* ── Desktop persistent sidebar ── */
+    .left-drawer {
+      transform: none !important;
+      box-shadow: 1px 0 0 var(--border);
+    }
+    .drawer-overlay { display: none !important; }
+    .drawer-close { display: none; }
+    .menu-btn { display: none !important; }
+    .app-header { margin-left: 260px; }
+    .container { margin-left: 260px; }
   }
   @media (min-width: 1024px) {
     .card-selector .card-btn { flex: 1 0 200px; max-width: 275px; }
