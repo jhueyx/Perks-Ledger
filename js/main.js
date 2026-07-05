@@ -191,7 +191,7 @@ async function onSignedIn(user,isNew){
 }
 
 async function signOut(){
-  await sb.auth.signOut();
+  await sb.auth.signOut({ scope: 'local' });
   state._sessionHandled=false; state.currentUser=null; state.userCards=null;
   state.DATA=freshDATA();
   document.getElementById('splash').classList.remove('hidden');
