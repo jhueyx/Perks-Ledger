@@ -65,8 +65,13 @@ export const CARDS={
     ]},
   ]},
   chase_sapphire_pref:{name:'Chase Sapphire Preferred',fee:95,historicalFees:{2025:95},feeMonth:0,feeDay:1,sections:[
+    {label:'Monthly',cadence:'monthly',benefits:[
+      {id:'csp_dashpass',name:'DashPass Promo Credit',desc:'$10/mo for groceries, retail, and more via DoorDash (through Dec 2027)',amount:10,startsFrom:2026},
+    ]},
     {label:'Annual',cadence:'annual',benefits:[
-      {id:'csp_hotel',name:'Hotel Credit',desc:'$50 statement credit on hotel stays booked through Chase Travel',amount:50},
+      {id:'csp_hotel',name:'Hotel Credit',desc:'Statement credit on hotel stays booked through Chase Travel',amount:100},
+      {id:'csp_apple',name:'Apple TV+',desc:'Complimentary annual subscription — activate once via Chase (through Dec 2026)',amount:156,startsFrom:2026},
+      {id:'csp_ge',name:'Global Entry / TSA PreCheck / NEXUS',desc:'Statement credit every 4 years',amount:120,startsFrom:2026},
     ]},
   ]},
   amex_green:{name:'AMEX Green',fee:150,historicalFees:{2025:150},feeMonth:0,feeDay:1,sections:[
@@ -215,7 +220,7 @@ export const BENEFIT_CATEGORIES={
   c_travel:'travel', c_edit1:'travel', c_edit2:'travel', c_ge:'travel', c_selecthotel:'travel',
   c_apple:'entertainment',
   jmr_dining:'dining', jmr_travel:'travel', jmr_ge:'travel',
-  csp_hotel:'travel',
+  csp_hotel:'travel', csp_dashpass:'shopping', csp_apple:'entertainment', csp_ge:'travel',
   ag_clear:'travel', ag_lounge:'travel',
   ah_resort:'travel', ah_airline:'travel', ah_freenight:'travel', ah_ge:'travel',
   amb_dining:'dining', amb_freenight:'travel', amb_propcredit:'travel', amb_ge:'travel',
