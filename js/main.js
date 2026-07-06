@@ -1,6 +1,6 @@
 import { CARDS, CARD_LABELS, PREMIUM_CARD_CATALOG, POINTS_MULTIPLIERS, TRANSFER_PARTNERS } from './cards.js';
 const DEPLOY_DATE='2026-07-05 23:00';
-import { state, CY, CM, MONTHS, MONTHS_FULL, sb, freshDATA, STORAGE_KEY, escapeHtml, SUPABASE_URL, SUPABASE_KEY } from './state.js';
+import { state, CY, CM, NOW, MONTHS, MONTHS_FULL, sb, freshDATA, STORAGE_KEY, escapeHtml, SUPABASE_URL, SUPABASE_KEY } from './state.js';
 import {
   toggle, scheduleSave, setSave, syncFromSupabase,
   loadRedemptionMonths, setRedemptionMonth,
@@ -2125,6 +2125,19 @@ if('serviceWorker' in navigator&&location.hostname!=='www.claudeusercontent.com'
     if(!_swRefreshing){ _swRefreshing=true; window.location.reload(); }
   });
 }
+
+// ── Day-rollover guard ────────────────────────────────────────────────────
+// CY/CM/CD (and every period/streak/badge calculation built on them) are
+// computed once at module load. If the app is left open across midnight,
+// they'd silently keep using yesterday's date until a manual reload —
+// e.g. marking a benefit "used" right after midnight would record it under
+// the wrong month. Reloading on the actual date change is far lower-risk
+// than threading a live clock through every one of the ~300 call sites.
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'&&new Date().toDateString()!==NOW.toDateString()){
+    window.location.reload();
+  }
+});
 
 // ── iOS PWA standalone mode ──────────────────────────────────────────────
 if(window.navigator.standalone===true||window.matchMedia('(display-mode:standalone)').matches){
