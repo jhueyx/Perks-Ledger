@@ -17,8 +17,8 @@ export const BADGE_DEFS = [
   // ── Portfolio size ───────────────────────────────────────────────────
   { id:'collector',       tier:'bronze',    name:'Collector',                desc:'Tracking 3 or more cards' },
   { id:'portfolio_pro',   tier:'silver',    name:'Portfolio Pro',            desc:'Tracking 5 or more cards' },
-  { id:'card_shark',      tier:'silver',    name:'Card Shark',               desc:'Tracking 7 or more cards' },
-  { id:'whale',           tier:'gold',      name:'Whale',                    desc:'Tracking 10 or more cards' },
+  { id:'card_shark',      tier:'silver',    name:'Card Shark',               desc:'Tracking 7 or more cards', minCards:7 },
+  { id:'whale',           tier:'gold',      name:'Whale',                    desc:'Tracking 10 or more cards', minCards:10 },
 
   // ── Value captured — single card ─────────────────────────────────────
   { id:'big_win',         tier:'silver',    name:'Big Win',                  desc:'$1,000+ captured on a single card' },
@@ -31,7 +31,7 @@ export const BADGE_DEFS = [
   { id:'high_achiever',   tier:'silver',    name:'High Achiever',            desc:'$1,000+ total value captured' },
   { id:'power_user',      tier:'silver',    name:'Power User',               desc:'$2,500+ total value captured' },
   { id:'maximizer',       tier:'platinum',  name:'Maximizer',                desc:'$5,000+ total value captured' },
-  { id:'true_maximizer',  tier:'legendary', name:'True Maximizer',           desc:'$10,000+ total value captured — a rare achievement' },
+  { id:'true_maximizer',  tier:'legendary', name:'True Maximizer',           desc:'$10,000+ total value captured — a rare achievement', minDollar:10000 },
 
   // ── Fee mastery ──────────────────────────────────────────────────────
   { id:'first_profit',    tier:'gold',      name:'Fee Slayer',               desc:'Offset a card\'s full annual fee' },
@@ -75,8 +75,8 @@ export const BADGE_DEFS = [
   { id:'early_adopter',   tier:'silver',    name:'Early Adopter',            desc:'Using Perks Ledger since 2024 or earlier' },
 
   // ── Brand & bank loyalty ─────────────────────────────────────────────
-  { id:'amex_loyalist',   tier:'gold',      name:'Amex Loyalist',            desc:'Tracking 3+ American Express cards',                       cards:['platinum','gold','amex_green','amex_biz_plat','amex_biz_gold','amex_hilton_honors','amex_marriott_brill'] },
-  { id:'chase_loyalist',  tier:'gold',      name:'Chase Loyalist',           desc:'Tracking 3+ Chase cards',                                  cards:['csr','chase_sapphire_pref','chase_world_of_hyatt','chase_united_quest','chase_united_club'] },
+  { id:'amex_loyalist',   tier:'gold',      name:'Amex Loyalist',            desc:'Tracking 3+ American Express cards',                       cards:['platinum','gold','amex_green','amex_biz_plat','amex_biz_gold','amex_hilton_honors','amex_marriott_brill'], minIssuer:{name:'American Express',count:3} },
+  { id:'chase_loyalist',  tier:'gold',      name:'Chase Loyalist',           desc:'Tracking 3+ Chase cards',                                  cards:['csr','chase_sapphire_pref','chase_world_of_hyatt','chase_united_quest','chase_united_club'], minIssuer:{name:'Chase',count:3} },
   { id:'cap1_loyalist',   tier:'silver',    name:'Capital One Fan',          desc:'Tracking a Capital One card',                              cards:['cap1_venture_x'] },
   { id:'citi_loyalist',   tier:'bronze',    name:'Citi Cardmember',          desc:'Tracking any Citi card',                                   cards:['citi_strata_prem'] },
   { id:'wf_loyalist',     tier:'bronze',    name:'Wells Fargo Cardholder',   desc:'Tracking any Wells Fargo card',                            cards:['wf_premier_autograph'] },
@@ -132,7 +132,7 @@ export const BADGE_DEFS = [
   // ── Dollar milestones ─────────────────────────────────────────────────
   { id:'silver_bullet',   tier:'bronze',    name:'Silver Bullet',            desc:'$750+ captured on a single card' },
   { id:'gold_mine',       tier:'silver',    name:'Gold Mine',                desc:'$3,000+ total value captured' },
-  { id:'platinum_tier',   tier:'gold',      name:'Platinum Tier',            desc:'$7,000+ total value captured' },
+  { id:'platinum_tier',   tier:'gold',      name:'Platinum Tier',            desc:'$7,000+ total value captured', minDollar:7000 },
 
   // ── High-volume claims ───────────────────────────────────────────────
   { id:'claim_addict',    tier:'bronze',    name:'Claim Addict',             desc:'150+ total benefit claims across all cards' },
@@ -199,9 +199,33 @@ export const BADGE_DEFS = [
   { id:'obsessive',       tier:'legendary', name:'Obsessive',                desc:'Tracks, optimizes, and agonizes over every single benefit', special:true },
 ];
 
+// Cadence -> occurrences per year, used to project each held card's max
+// possible annual capture (for gating dollar-milestone badges that would
+// otherwise sit permanently stuck below the portfolio's actual ceiling).
+const ANNUAL_MULT={monthly:12,quarterly:4,'semi-annual':2,'cal-semi-annual':2};
+
 export function getApplicableBadgeDefs(){
   const cardKeys=new Set(getVisibleCardKeys());
-  return BADGE_DEFS.filter(def=>!def.cards||def.cards.some(k=>cardKeys.has(k)));
+
+  const issuerMap=Object.fromEntries(PREMIUM_CARD_CATALOG.map(c=>[c.id,c.issuer]));
+  const issuerCounts={};
+  cardKeys.forEach(ck=>{ const iss=issuerMap[ck]; if(iss) issuerCounts[iss]=(issuerCounts[iss]||0)+1; });
+
+  const maxAnnual=[...cardKeys].reduce((sum,ck)=>{
+    const card=CARDS[ck];
+    if(!card) return sum;
+    return sum+card.sections.reduce((s,sec)=>
+      s+sec.benefits.reduce((bs,b)=>bs+b.amount*(ANNUAL_MULT[sec.cadence]??1),0)
+    ,0);
+  },0);
+
+  return BADGE_DEFS.filter(def=>{
+    if(def.cards&&!def.cards.some(k=>cardKeys.has(k))) return false;
+    if(def.minCards&&cardKeys.size<def.minCards) return false;
+    if(def.minIssuer&&(issuerCounts[def.minIssuer.name]||0)<def.minIssuer.count) return false;
+    if(def.minDollar&&maxAnnual<def.minDollar) return false;
+    return true;
+  });
 }
 
 export const TIER_COLORS = {
