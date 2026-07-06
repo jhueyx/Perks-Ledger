@@ -1473,13 +1473,13 @@ export function renderRecap(){
   </div>
   <div class="export-report">
     <div class="export-head"><h2>Benefits Report — ${year}</h2><p>Perks Ledger · generated ${new Date().toLocaleDateString()}</p></div>
-    <table class="export-table">
+    <div class="export-table-wrap"><table class="export-table">
       <thead><tr><th>Card</th><th>Annual Fee</th><th>Captured</th>${hasRedeemed?'<th>Redeemed</th>':''}<th>Missed</th><th>Net vs Fee</th></tr></thead>
       <tbody>
         ${exportRows.map(r=>`<tr><td>${r.label}</td><td>$${r.fee.toLocaleString()}</td><td>$${r.captured.toFixed(0)}</td>${hasRedeemed?`<td>${r.redeemed>0?'$'+r.redeemed.toFixed(0):'—'}</td>`:''}<td>$${r.missed.toFixed(0)}</td><td class="${r.net>=0?'pos':'neg'}">${r.net>=0?'+':'−'}$${Math.abs(r.net).toFixed(0)}</td></tr>`).join('')}
         <tr class="export-total"><td>Total</td><td>$${totEx.fee.toLocaleString()}</td><td>$${totEx.captured.toFixed(0)}</td>${hasRedeemed?`<td>$${totEx.redeemed.toFixed(0)}</td>`:''}<td>$${totEx.missed.toFixed(0)}</td><td class="${totEx.net>=0?'pos':'neg'}">${totEx.net>=0?'+':'−'}$${Math.abs(totEx.net).toFixed(0)}</td></tr>
       </tbody>
-    </table>
+    </table></div>
     <p class="export-foot">Net vs Fee = benefits captured + points redeemed − annual fee.</p>
   </div>`;
   set(html);
@@ -2006,13 +2006,13 @@ export function renderExport(){
   </div>
   <div class="export-report">
     <div class="export-head"><h2>Benefits Report — ${year}</h2><p>Perks Ledger · generated ${new Date().toLocaleDateString()}</p></div>
-    <table class="export-table">
+    <div class="export-table-wrap"><table class="export-table">
       <thead><tr><th>Card</th><th>Annual Fee</th><th>Captured</th><th>Missed</th><th>Net vs Fee</th><th>Capture</th><th>ROI</th></tr></thead>
       <tbody>
         ${rows.map(r=>`<tr>${cell(r)}</tr>`).join('')}
         <tr class="export-total"><td>Total</td><td>$${tot.fee.toLocaleString()}</td><td>$${tot.captured.toFixed(0)}</td><td>$${tot.missed.toFixed(0)}</td><td class="${tot.net>=0?'pos':'neg'}">${tot.net>=0?'+':'−'}$${Math.abs(tot.net).toFixed(0)}</td><td>${totPct}%</td><td></td></tr>
       </tbody>
-    </table>
+    </table></div>
     <p class="export-foot">Captured and Missed reflect calendar-year-to-date. Net vs Fee = captured − annual fee. ROI grade is the projected full-card-year capture vs fee.</p>
   </div>`;
   set(html);
