@@ -950,10 +950,6 @@
   }
   .grand-total-label { font-size: 13px; font-weight: 600; color: var(--bg); }
   .grand-total-amt { font-size: 22px; font-weight: 600; font-family: var(--mono); color: #4AE09A; letter-spacing: -0.02em; }
-    display: flex; align-items: center; justify-content: center;
-    gap: 10px; padding: 48px;
-    color: var(--text-tertiary); font-size: 13px;
-  }
   .spinner {
     width: 16px; height: 16px;
     border: 2px solid var(--border);
@@ -1478,8 +1474,11 @@
     .nav-primary-btn { padding: 12px 16px; font-size: 13px; }
     .nav-primary-btn .nav-icon { margin-bottom: 4px; }
     .comparison-grid { grid-template-columns: repeat(3,1fr); }
-
-    /* ── Desktop persistent sidebar ── */
+  }
+  /* Desktop persistent sidebar — gated on pointer:fine so a wide-viewport
+     touch device (e.g. a phone in landscape, which can exceed 768px) keeps
+     the collapsible mobile nav instead of forcing the full sidebar open. */
+  @media (min-width: 768px) and (pointer: fine) {
     .left-drawer {
       transform: none !important;
       box-shadow: 1px 0 0 var(--border);
