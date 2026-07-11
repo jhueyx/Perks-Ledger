@@ -1,4 +1,4 @@
-import { CARDS, MONTHS, MONTHS_FULL, CARD_LABELS, CARD_SHORT_LABELS, CARD_CLS, BENEFIT_CATEGORIES, POINTS_MULTIPLIERS, POINTS_PROGRAMS } from './cards.js';
+import { CARDS, MONTHS, MONTHS_FULL, CARD_LABELS, CARD_SHORT_LABELS, CARD_CLS, BENEFIT_CATEGORIES, POINTS_PROGRAMS } from './cards.js';
 import { state, CY, CM, escapeHtml } from './state.js';
 import { isUsed, isCredited, toggleCredited, getEffectiveAmount, getNote, getPartialUsed, loadNotes, saveNotes, getNoteKey, isSkipped, isGloballySnoozed, isMonthSnoozed, getSnoozedUntil, getCardFeeMonth, getCardFeeDay, countSkipped, clearAllSkipped, loadSkipped, loadPointsRedeemed, getPointsRedeemedYTD, getAllPointsRedeemedYTD } from './storage.js';
 import {
@@ -630,33 +630,6 @@ function buildPriorityQueue(){
   return items.sort((a,b)=>b.score-a.score);
 }
 
-// ── Card back ──────────────────────────────────────────────────────────────
-export function buildCardBack(cardKey){
-  const card=CARDS[cardKey];
-  const benefits=[];
-  card.sections.forEach(s=>{
-    const pk=getCurrentPK(cardKey,s.cadence);
-    s.benefits.forEach(b=>{
-      if(isBNotAvailable(b,CY,{calM:CM,calY:CY})||isBExpired(b,{calY:CY,calM:CM,m:CM})||isGloballySnoozed(cardKey,b.id)) return;
-      const used=isUsed(cardKey,b.id,pk);
-      benefits.push({name:b.name,amt:getBAmount(b,{m:CM}),used,partialAmt:!used&&b.partial?getPartialUsed(cardKey,b.id,pk):0});
-    });
-  });
-  const total=benefits.reduce((s,b)=>s+b.amt,0);
-  const captured=benefits.reduce((s,b)=>s+(b.used?b.amt:b.partialAmt),0);
-  const multipliers=POINTS_MULTIPLIERS[cardKey]||[];
-  return `<div class="card-back">
-    <div>
-      <div class="card-back-title">${card.name}</div>
-      <div style="font-size:10px;font-family:var(--mono);color:var(--green);margin-top:1px">$${captured.toFixed(0)}/$${total.toFixed(0)} captured</div>
-    </div>
-    <div style="overflow:hidden;flex:1;margin:6px 0">
-      <div style="font-size:8px;font-family:var(--mono);color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Points multipliers</div>
-      ${multipliers.map(m=>`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:3px 0;border-bottom:0.5px solid rgba(255,255,255,0.08);gap:6px"><span style="font-size:8px;opacity:0.75;line-height:1.3;flex:1">${m.cat}</span><span style="font-size:11px;font-weight:700;font-family:var(--mono);color:var(--green);flex-shrink:0">${m.pts}</span></div>`).join('')}
-    </div>
-  </div>`;
-}
-
 // ── Render: this period ────────────────────────────────────────────────────
 export function renderCurrent(){
   const card=CARDS[state.activeCard];
@@ -1020,42 +993,6 @@ export function renderHeatmap(){
   set(html);
 }
 
-// ── Render: ROI ────────────────────────────────────────────────────────────
-export function renderROI(){
-  const CARD_KEYS=getVisibleCardKeys();
-  let html=`<div class="banner"><strong>Card ROI scores</strong> — graded on annual fee coverage</div>`;
-  html+=`<p style="font-size:11px;color:var(--text-tertiary);font-family:var(--mono);margin:0 0 10px">drag cards to reorder</p>`;
-  html+=`<div class="comparison-grid">`;
-  CARD_KEYS.forEach(cardKey=>{
-    const fee=getFee(cardKey,CY);
-    const {captured}=calcStats(cardKey,c=>getCardYearPeriods(cardKey,c),isPCurrent);
-    const projected=getProjectedCapture(cardKey);
-    const elapsed=getCardYearMonthsElapsed(cardKey);
-    const grade=getROIGrade(fee,cardKey);
-    const effectiveFee=fee-captured;
-    const projRatio=fee>0?projected/fee:0;
-    const projGap=fee-projected;
-    const verdict=projGap<=0?'→ Keep: in profit'
-      :projGap<=250?`→ Keep: $${projGap.toFixed(0)} short of break-even`
-      :projGap<=500?`→ Reconsider if habits don't improve`
-      :`→ Consider canceling ($${projGap.toFixed(0)} gap)`;
-    const verdictColor=projGap<=0?'var(--green)':projGap<=250?'var(--gold)':'var(--red)';
-    const gradeDesc={A:`Projecting $${projected.toFixed(0)} — fully covering the $${fee} fee`,B:`Projecting $${projected.toFixed(0)} — $${projGap.toFixed(0)} short but within acceptable range`,C:`Projecting $${projected.toFixed(0)} — need to claim more benefits`,D:`Projecting $${projected.toFixed(0)} — well below the $${fee} fee`}[grade];
-    html+=`<div class="comparison-card ${CARD_CLS[cardKey]}" data-drag-card="${cardKey}" draggable="true">
-      <div class="drag-handle">⠿</div>
-      <div class="comp-card-name">${CARD_LABELS[cardKey]}</div>
-      <div class="roi-grade ${grade}">${grade}</div>
-      <div class="roi-label">${effectiveFee<=0?'$'+Math.abs(effectiveFee).toFixed(0)+' profit so far':'$'+captured.toFixed(0)+' of $'+fee+' captured'}</div>
-      <div class="roi-desc">${gradeDesc}</div>
-      <div style="font-size:11px;font-family:var(--mono);font-weight:600;color:${verdictColor};margin:6px 0 2px">${verdict}</div>
-      <div class="comp-divider"></div>
-      <div style="font-size:11px;font-family:var(--mono);color:var(--text-tertiary)">Month ${elapsed} of 12 · $${projected.toFixed(0)} projected</div>
-    </div>`;
-  });
-  html+=`</div>`;
-  set(html);
-}
-
 // ── Render: performance (ROI + Trends combined) ───────────────────────────
 export function renderPerformance(){
   const tab=state._performanceTab||'roi';
@@ -1154,179 +1091,6 @@ export function renderPerformance(){
   set(tabs+html);
 }
 
-// ── Render: insights ──────────────────────────────────────────────────────
-export function renderInsights(){
-  const notifEnabled=localStorage.getItem('perks-notif')==='1';
-  const notifSupported='Notification' in window;
-  const notifGranted=notifSupported&&Notification.permission==='granted';
-  let html=`<div class="banner"><strong>Insights</strong> — projections, heatmap, and ROI scores</div>`;
-  if(notifSupported){
-    if(!notifGranted){
-      html+=`<div class="notif-banner"><div style="flex:1"><strong>Enable notifications</strong> — get reminded when monthly benefits are about to expire</div><button class="notif-btn" onclick="requestNotifications()">Enable</button></div>`;
-    } else {
-      html+=`<div class="notif-banner" style="background:rgba(42,155,106,0.1);border-color:rgba(42,155,106,0.3);color:var(--green)">✓ Notifications enabled — you'll be reminded in the last 3 days of each month</div>`;
-    }
-  }
-  html+=`<div class="section-header"><span class="section-title">Year-end projections</span></div>`;
-  getVisibleCardKeys().forEach(ck=>{ html+=buildProjection(ck)||''; });
-  html+=`<div class="section-header" style="margin-top:16px"><span class="section-title">ROI scores</span><span class="section-period">tap for details</span></div>`;
-  const CARD_KEYS=getVisibleCardKeys();
-  html+=`<div class="comparison-grid" style="margin-bottom:16px">`;
-  CARD_KEYS.forEach(cardKey=>{
-    const fee=getFee(cardKey,CY);
-    const {captured}=calcStats(cardKey,c=>getCardYearPeriods(cardKey,c),isPCurrent);
-    const grade=getROIGrade(fee,cardKey);
-    const projected=getProjectedCapture(cardKey);
-    const ratio=fee>0?Math.round(projected/fee*100):0;
-    html+=`<div class="comparison-card ${CARD_CLS[cardKey]}"><div class="comp-card-name">${CARD_LABELS[cardKey]}</div><div class="roi-grade ${grade}" style="font-size:36px">${grade}</div><div class="roi-label">${ratio}% of fee covered</div></div>`;
-  });
-  html+=`</div>`;
-  html+=`<div class="section-header" style="margin-top:16px"><span class="section-title">Missed money heatmap</span></div>`;
-  html+=buildHeatmapHTML();
-  set(html);
-}
-
-// ── Render: trends ─────────────────────────────────────────────────────────
-export function renderTrends(){
-  const CARD_KEYS=getVisibleCardKeys();
-  const years=[CY-1,CY];
-  const yearRange=years.length>1?`${years[0]}–${years[years.length-1]}`:`${years[0]}`;
-  let html=`<div class="banner"><strong>Multi-year trends</strong> — ${yearRange} comparison</div>`;
-  function capturedForYear(cardKey,y){
-    const card=CARDS[cardKey];
-    const openedYear=state.cardMeta?.[cardKey]?.openedYear??card.openedYear;
-    if(openedYear&&y<openedYear) return 0;
-    let total=0;
-    const lastMonth=y<CY?11:CM;
-    card.sections.forEach(s=>{
-      const periods=[];
-      if(s.cadence==='monthly'){
-        for(let m=0;m<=lastMonth;m++) periods.push({pk:`${y}-m${m}`,m,calY:y,calM:m});
-      } else if(s.cadence==='quarterly'){
-        const seen=new Set();
-        for(let m=0;m<=lastMonth;m++){ const pk=`${y}-q${Math.floor(m/3)}`; if(!seen.has(pk)){seen.add(pk);periods.push({pk,m,calY:y,calM:m});} }
-      } else if(s.cadence==='cal-semi-annual'){
-        periods.push({pk:`${y}-h0`,m:0,calY:y,calM:0,endM:5,endY:y});
-        if(lastMonth>=6) periods.push({pk:`${y}-h1`,m:6,calY:y,calM:6,endM:11,endY:y});
-      } else if(s.cadence==='cal-annual'||s.cadence==='cal-annual-overlap'){
-        periods.push({pk:`${y}-annual`,m:0,calY:y,calM:0});
-      } else if(s.cadence==='semi-annual'){
-        const fm=getCardFeeMonth(cardKey);
-        periods.push({pk:`cy-${y}-${fm}-h1`,m:fm,calY:y,calM:fm,endM:(fm+5)%12,endY:fm+5>=12?y+1:y});
-        periods.push({pk:`cy-${y}-${fm}-h2`,m:(fm+6)%12,calY:y,calM:(fm+6)%12,endM:(fm+11)%12,endY:fm+11>=12?y+1:y});
-      } else if(s.cadence==='annual'){
-        const fm=getCardFeeMonth(cardKey);
-        periods.push({pk:`cy-${y}-${fm}-annual`,m:fm,calY:y,calM:fm});
-      } else if(s.cadence==='feb-annual'){
-        periods.push({pk:`feb-${y}`,m:1,calY:y,calM:1,endM:0,endY:y+1});
-      }
-      s.benefits.forEach(b=>{
-        if(isBNotAvailable(b,y)) return;
-        periods.forEach(p=>{
-          if(isBExpired(b,p)) return;
-          if(isUsed(cardKey,b.id,p.pk)) total+=getBAmount(b,p);
-          else if(b.partial){ const partial=getPartialUsed(cardKey,b.id,p.pk); if(partial>0) total+=partial; }
-        });
-      });
-    });
-    return total;
-  }
-  html+=`<p style="font-size:11px;color:var(--text-tertiary);font-family:var(--mono);margin:0 0 10px">drag cards to reorder</p>`;
-  CARD_KEYS.forEach(cardKey=>{
-    html+=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px;cursor:grab" data-drag-card="${cardKey}" draggable="true">`;
-    html+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span class="drag-handle" style="font-size:16px">⠿</span><span style="font-size:11px;font-family:var(--mono);color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.06em">${CARD_LABELS[cardKey]}</span></div>`;
-    const vals=years.map(y=>({y,captured:capturedForYear(cardKey,y),fee:getFee(cardKey,y)}));
-    vals.forEach(({y,captured,fee})=>{
-      const barPct=Math.min(100,Math.round(captured/fee*100));
-      const isCurrent=y===CY,profit=captured-fee;
-      const label=isCurrent?`${y} YTD`:String(y);
-      html+=`<div class="trend-row"><div class="trend-year" style="color:${isCurrent?'var(--text)':'var(--text-tertiary)'}">${label}</div><div style="flex:1;position:relative"><div class="trend-bar-wrap"><div class="trend-bar-fill" style="width:${barPct}%;background:${captured>fee?'var(--blue)':captured>=fee?'var(--green)':'var(--gold)'}"></div></div></div><div class="trend-val" style="color:${profit>0?'var(--blue)':profit===0?'var(--green)':'var(--text-secondary)'}">$${captured.toFixed(0)}<span style="font-size:9px;color:var(--text-tertiary)"> / $${fee}</span></div></div>`;
-    });
-    html+=`</div>`;
-  });
-  set(html);
-}
-
-// ── Render: priority queue ─────────────────────────────────────────────────
-export function renderPriorityQueue(){
-  const items=buildPriorityQueue();
-  const eomDays=daysUntilEOM();
-  const skippedCount=countSkipped();
-  const dismissedBar=skippedCount>0?`<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;margin-bottom:10px"><span style="font-size:12px;color:var(--text-secondary)">${skippedCount} benefit${skippedCount===1?'':'s'} hidden</span><button onclick="clearAllSkipped()" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--blue);padding:0;font-family:var(--mono)">Show all</button></div>`:'';
-  let html=`<div class="banner"><strong>Use it now</strong> — ranked by urgency × value</div>${dismissedBar}`;
-  if(!items.length){
-    html+=`<div style="text-align:center;padding:32px;color:var(--green);font-size:14px">All current benefits claimed!</div>`;
-    set(html); return;
-  }
-  if(eomDays<=5) html+=`<div class="eom-warning">Only ${eomDays} day${eomDays===1?'':'s'} left — monthly benefits reset soon!</div>`;
-  html+=`<div style="margin-bottom:8px;font-size:11px;font-family:var(--mono);color:var(--text-tertiary)">${items.length} unclaimed benefits · sorted by urgency</div>`;
-  items.forEach((item,i)=>{
-    const rankCls=i===0?'urgent':i<3?'high':'normal';
-    html+=`<div class="priority-row">
-      <div class="priority-rank ${rankCls}" onclick="goToCardPeriod('${item.cardKey}')">${i+1}</div>
-      <div style="flex:1;cursor:pointer" onclick="goToCardPeriod('${item.cardKey}')"><div style="font-size:13px;font-weight:500;color:var(--text)">${item.name}</div><div style="font-size:10px;color:var(--text-tertiary);font-family:var(--mono)">${item.card}</div></div>
-      <div style="text-align:right;cursor:pointer" onclick="goToCardPeriod('${item.cardKey}')"><div style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--green)">$${item.amt}</div><span class="priority-urgency ${item.urgencyCls}">${item.urgencyLabel}</span></div>
-      <button onclick="skipBenefit('${item.cardKey}','${item.benefitId}','${item.pk}')" title="Dismiss" style="margin-left:10px;background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:16px;padding:4px;line-height:1;opacity:0.5" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.5'">×</button>
-    </div>`;
-  });
-  set(html);
-}
-
-// ── Render: streaks ────────────────────────────────────────────────────────
-export function renderStreaks(){
-  const CARD_KEYS=getVisibleCardKeys();
-  const milestones=[
-    {n:24,id:'streak_24',label:'Diamond',tier:'legendary'},
-    {n:18,id:'streak_18',label:'Iron',tier:'platinum'},
-    {n:12,id:'streak_12',label:'12 mo',tier:'gold'},
-    {n:6,id:'streak_6',label:'6 mo',tier:'silver'},
-    {n:3,id:'streak_3',label:'3 mo',tier:'bronze'},
-  ];
-  const nextMilestone=best=>[3,6,12,18,24].find(n=>best<n);
-  const badgeFor=best=>milestones.find(m=>best>=m.n);
-  const allStreaks=[];
-  CARD_KEYS.forEach(cardKey=>{
-    CARDS[cardKey].sections.forEach(s=>{
-      if(s.cadence!=='monthly') return;
-      s.benefits.forEach(b=>{
-        if(isBNotAvailable(b,CY)) return;
-        const current=getStreak(cardKey,b.id);
-        const best=getLongestStreak(cardKey,b.id);
-        allStreaks.push({name:b.name,card:CARD_LABELS[cardKey],current,best,badge:badgeFor(best),next:nextMilestone(best)});
-      });
-    });
-  });
-  allStreaks.sort((a,b)=>b.best-a.best||b.current-a.current);
-  let html=`<div class="banner"><strong>Streak achievements</strong> — best consecutive monthly claims unlock badges</div>`;
-  if(!allStreaks.length){ html+=`<div style="text-align:center;padding:32px;color:var(--text-tertiary);font-size:13px">No streaks yet — start claiming your monthly benefits!</div>`; }
-  else {
-    html+=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">`;
-    const ordinal=n=>n===1?'1st':n===2?'2nd':n===3?'3rd':`${n}th`;
-    let rank=1;
-    allStreaks.forEach((s,i)=>{
-      if(i>0&&allStreaks[i-1].best!==s.best) rank=i+1;
-      const medal=ordinal(rank);
-      const badge=s.badge?`<span class="streak-achievement ${s.badge.tier}">${s.badge.label} badge</span>`:`<span class="streak-next">next: ${s.next} mo</span>`;
-      const next=s.next?`<span class="streak-next">${s.best}/${s.next}</span>`:'<span class="streak-next">max tier</span>';
-      html+=`<div class="streak-row">
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:6px;min-width:0">
-            <span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);width:28px;flex-shrink:0">${medal}</span>
-            <span style="color:var(--text);font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.name}</span>
-          </div>
-          <div class="streak-meta">${s.card}</div>
-          <div class="streak-achievements">${badge}${s.badge?next:''}</div>
-        </div>
-        <div style="text-align:right;white-space:nowrap;padding-left:12px">
-          <div class="streak-count">${s.best} mo</div>
-          <div class="streak-current">${s.current} current</div>
-        </div>
-      </div>`;
-    });
-    html+=`</div>`;
-  }
-  set(html);
-}
 
 // ── Render: comparison ─────────────────────────────────────────────────────
 export function renderComparison(){
@@ -1354,45 +1118,6 @@ export function renderComparison(){
     </div>`;
   });
   html+=`</div>`;
-  set(html);
-}
-
-// ── Render: keep / cancel ─────────────────────────────────────────────────
-export function renderKeepCard(){
-  const CARD_KEYS=getVisibleCardKeys();
-  let html=`<div class="banner"><strong>Should I keep this card?</strong> — renewal verdict based on fee coverage</div>`;
-  html+=`<p style="font-size:11px;color:var(--text-tertiary);font-family:var(--mono);margin:0 0 10px">drag cards to reorder</p>`;
-  CARD_KEYS.forEach(cardKey=>{
-    const fee=getFee(cardKey,CY);
-    const {repeating,oneTime}=calcCapturedByType(cardKey);
-    const captured=repeating+oneTime;
-    const projected=getProjectedCapture(cardKey);
-    const redeemed=getPointsRedeemedYTD(cardKey,CY);
-    const totalCapture=captured+redeemed;
-    const totalProjected=projected+redeemed;
-    const gap=fee-totalProjected;
-    let verdict,cls,reason,action;
-    if(totalCapture>=fee){ verdict='✓ Keep it'; cls='keep'; reason=`You've already extracted $${totalCapture.toFixed(0)} in total value${redeemed>0?` ($${captured.toFixed(0)} benefits + $${redeemed.toFixed(0)} redeemed)`:''} — covering the $${fee} fee with $${(totalCapture-fee).toFixed(0)} profit.`; action='Renewal is clearly worth it.'; }
-    else if(totalProjected>=fee){ verdict='✓ Keep it'; cls='keep'; reason=`You've extracted $${totalCapture.toFixed(0)} so far. Projected benefits + redemptions reach $${totalProjected.toFixed(0)} by card year end — covering the $${fee} fee.`; action='On track to break even. Renewal recommended.'; }
-    else if(gap<=250){ verdict='✓ Keep it'; cls='keep'; reason=`Projecting $${totalProjected.toFixed(0)} in total value by year end vs $${fee} fee. You'll be $${gap.toFixed(0)} short of break-even.`; action='Within $250 of break-even — worth keeping.'; }
-    else if(gap<=500){ verdict='⚠ Reconsider'; cls='reconsider'; reason=`Projecting $${totalProjected.toFixed(0)} in total value by year end vs $${fee} fee. You'll be $${gap.toFixed(0)} short.`; action='Try to use more benefits and redeem points before renewal.'; }
-    else { verdict='✗ Downgrade or Cancel'; cls='cancel'; reason=`Projecting $${totalProjected.toFixed(0)} in total value by year end — $${gap.toFixed(0)} short of the $${fee} fee.`; action='Consider downgrading or cancelling before renewal.'; }
-    const days=daysUntilFee(cardKey);
-    const fm2=getCardFeeMonth(cardKey),fd=getCardFeeDay(cardKey);
-    const redeemedRow=redeemed>0?`<div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06)">
-      <span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);flex:1">Total extracted</span>
-      <span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary)">$${captured.toFixed(0)} benefits + $${redeemed.toFixed(0)} pts</span>
-      <span style="font-size:11px;font-family:var(--mono);font-weight:700;color:var(--green);margin-left:4px">$${totalCapture.toFixed(2)}</span>
-    </div>`:
-    `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06);font-size:10px;font-family:var(--mono);color:var(--text-tertiary)">No points redeemed logged · <span style="color:var(--blue);cursor:pointer" onclick="setActiveView('points-redemptions')">add redemptions →</span></div>`;
-    html+=`<div style="margin-bottom:12px" data-drag-card="${cardKey}" draggable="true">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span class="drag-handle" style="font-size:14px">⠿</span><span style="font-size:11px;font-family:var(--mono);color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.06em">${CARD_LABELS[cardKey]}</span></div>
-      <div class="keep-card-result ${cls}"><div class="keep-verdict ${cls}">${verdict}</div><div class="keep-reason">${reason}<br><strong>${action}</strong></div>
-      <div style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);margin-top:8px">Next fee: ${MONTHS[fm2]} ${fd} · ${days} days away</div>
-      ${redeemedRow}
-      </div>
-    </div>`;
-  });
   set(html);
 }
 
@@ -1997,40 +1722,7 @@ export function renderRenewalCalendar(){
   set(html);
 }
 
-// ── Render: year-end export report ─────────────────────────────────────────
 function csvCell(v){ const s=String(v); return /[",\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s; }
-export function renderExport(){
-  const keys=getVisibleCardKeys();
-  const year=CY;
-  const saved=state.selectedYear; state.selectedYear=year;
-  const rows=keys.map(ck=>{
-    const fee=getFee(ck,year);
-    const {captured,missed,total}=calcStats(ck,c=>getYTDPeriods(c),isYTDCurrent);
-    return {ck,label:CARD_LABELS[ck],fee,captured,missed,total,net:captured-fee,grade:getROIGrade(fee,ck)};
-  });
-  state.selectedYear=saved;
-  const tot=rows.reduce((a,r)=>({fee:a.fee+r.fee,captured:a.captured+r.captured,missed:a.missed+r.missed,total:a.total+r.total,net:a.net+r.net}),{fee:0,captured:0,missed:0,total:0,net:0});
-  state._exportRows=rows; state._exportYear=year;
-  const cell=(r)=>{ const pct=r.total>0?Math.round(r.captured/r.total*100):0;
-    return `<td>${r.label}</td><td>$${r.fee.toLocaleString()}</td><td>$${r.captured.toFixed(0)}</td><td>$${r.missed.toFixed(0)}</td><td class="${r.net>=0?'pos':'neg'}">${r.net>=0?'+':'−'}$${Math.abs(r.net).toFixed(0)}</td><td>${pct}%</td><td>${r.grade}</td>`; };
-  const totPct=tot.total>0?Math.round(tot.captured/tot.total*100):0;
-  let html=`<div class="export-actions">
-    <button class="settings-btn settings-btn-primary" onclick="downloadBenefitsCSV()">Download CSV</button>
-    <button class="settings-btn" onclick="window.print()">Print / Save as PDF</button>
-  </div>
-  <div class="export-report">
-    <div class="export-head"><h2>Benefits Report — ${year}</h2><p>Perks Ledger · generated ${new Date().toLocaleDateString()}</p></div>
-    <div class="export-table-wrap"><table class="export-table">
-      <thead><tr><th>Card</th><th>Annual Fee</th><th>Captured</th><th>Missed</th><th>Net vs Fee</th><th>Capture</th><th>ROI</th></tr></thead>
-      <tbody>
-        ${rows.map(r=>`<tr>${cell(r)}</tr>`).join('')}
-        <tr class="export-total"><td>Total</td><td>$${tot.fee.toLocaleString()}</td><td>$${tot.captured.toFixed(0)}</td><td>$${tot.missed.toFixed(0)}</td><td class="${tot.net>=0?'pos':'neg'}">${tot.net>=0?'+':'−'}$${Math.abs(tot.net).toFixed(0)}</td><td>${totPct}%</td><td></td></tr>
-      </tbody>
-    </table></div>
-    <p class="export-foot">Captured and Missed reflect calendar-year-to-date. Net vs Fee = captured − annual fee. ROI grade is the projected full-card-year capture vs fee.</p>
-  </div>`;
-  set(html);
-}
 window.downloadBenefitsCSV=function(){
   const rows=state._exportRows||[], year=state._exportYear||CY;
   const lines=[['Card','Annual Fee','Captured','Missed','Net vs Fee','Capture %','ROI Grade'].join(',')];
