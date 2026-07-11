@@ -1,4 +1,4 @@
-import { CARDS, MONTHS, MONTHS_FULL, CARD_LABELS, CARD_SHORT_LABELS, CARD_CLS, BENEFIT_CATEGORIES, POINTS_PROGRAMS } from './cards.js';
+import { CARDS, MONTHS, MONTHS_FULL, CARD_LABELS, CARD_SHORT_LABELS, CARD_CLS, BENEFIT_CATEGORIES, POINTS_PROGRAMS, PREMIUM_CARD_CATALOG, POINTS_MULTIPLIERS } from './cards.js';
 import { state, CY, CM, escapeHtml } from './state.js';
 import { isUsed, isCredited, toggleCredited, getEffectiveAmount, getNote, getPartialUsed, loadNotes, saveNotes, getNoteKey, isSkipped, isGloballySnoozed, isMonthSnoozed, getSnoozedUntil, getCardFeeMonth, getCardFeeDay, countSkipped, clearAllSkipped, loadSkipped, loadPointsRedeemed, getPointsRedeemedYTD, getAllPointsRedeemedYTD } from './storage.js';
 import {
@@ -2019,7 +2019,49 @@ export function buildAdvisorContext(){
   return lines.join('\n');
 }
 
+export function buildCardChooserContext(spend){
+  const owned=new Set(getVisibleCardKeys());
+  const lines=[];
+  lines.push(`Today: ${MONTHS[CM]} ${new Date().getDate()}, ${CY}`);
+  lines.push(`Cards I already have: ${[...owned].map(k=>CARD_LABELS[k]).join(', ')||'none'}`);
+  lines.push('');
+
+  if(spend&&Object.values(spend).some(v=>v>0)){
+    lines.push('My rough monthly spending by category:');
+    Object.entries(spend).forEach(([cat,amt])=>{ if(amt>0) lines.push(`- ${cat}: $${amt}/mo`); });
+    lines.push('');
+  }
+
+  // maxCardYearValue reads state.selectedYear — pin to the current year so
+  // candidate-card estimates aren't skewed by a past year selected elsewhere in the app.
+  const savedYear=state.selectedYear;
+  state.selectedYear=CY;
+  try{
+    lines.push('Candidate premium cards (annual fee, max annual credit value if every credit is fully used, top earn-rate categories, point valuation):');
+    PREMIUM_CARD_CATALOG.filter(c=>c.supported&&CARDS[c.id]).forEach(c=>{
+      const already=owned.has(c.id);
+      const maxVal=Math.round(maxCardYearValue(c.id));
+      const mult=POINTS_MULTIPLIERS[c.id];
+      const multStr=mult?mult.slice(0,3).map(m=>`${m.pts} ${m.cat}`).join('; '):'';
+      const prog=Object.values(POINTS_PROGRAMS).find(p=>p.cards.includes(c.id));
+      const ptVal=prog?`${prog.name} @ ~${prog.centsPerPt}¢/pt`:'';
+      lines.push(`- ${c.name} (${c.issuer})${already?' [ALREADY OWNED]':''}: $${c.fee}/yr fee, up to $${maxVal}/yr in credits. Earns: ${multStr}. ${ptVal}`);
+    });
+  }finally{
+    state.selectedYear=savedYear;
+  }
+  lines.push('');
+  lines.push('Note: "up to $X/yr in credits" assumes disciplined use of every single credit — realistic captured value is usually much lower. Weigh credits against how well they actually match my spending/lifestyle, not face value, and do a simple breakeven (fee vs. realistic credit capture + extra points earned from my spending).');
+  return lines.join('\n');
+}
+
 export function renderAIAdvisor(){
+  const mode=state._advisorMode||'optimize';
+  const modeTabBtn=(key,label)=>`<button onclick="switchAdvisorMode('${key}')" style="padding:4px 16px;border-radius:20px;border:1px solid ${key===mode?'var(--blue)':'var(--border)'};background:${key===mode?'var(--blue)':'transparent'};color:${key===mode?'#fff':'var(--text-secondary)'};font-size:12px;font-family:var(--mono);cursor:pointer;transition:all 0.15s">${label}</button>`;
+  const modeTabs=`<div style="display:flex;gap:6px;padding:0 0 14px">${modeTabBtn('optimize','Optimize My Cards')}${modeTabBtn('choose','Choose a New Card')}</div>`;
+
+  if(mode==='choose'){ renderCardChooser(modeTabs); return; }
+
   const history=state._advisorHistory||[];
   const loading=state._advisorLoading||false;
 
@@ -2043,7 +2085,7 @@ export function renderAIAdvisor(){
     responseHtml=`<div class="adv-placeholder">Ask anything about your benefits — or tap a quick question above.</div>`;
   }
 
-  set(`<div class="banner"><strong>AI Advisor</strong> — powered by Claude</div>
+  set(`${modeTabs}<div class="banner"><strong>AI Advisor</strong> — powered by Claude</div>
     <div class="adv-quick-row">${quickBtns}</div>
     <div class="adv-input-row">
       <input type="text" id="adv-input" class="adv-input" placeholder="Ask about your benefits…">
@@ -2060,6 +2102,74 @@ export function renderAIAdvisor(){
     const inp=document.getElementById('adv-input');
     if(inp){
       inp.addEventListener('keydown',e=>{ if(e.key==='Enter') window.sendAdvisor(); });
+      inp.focus();
+    }
+  });
+}
+
+function renderCardChooser(modeTabsHtml){
+  if(!state._chooserSpend) state._chooserSpend={};
+  const spend=state._chooserSpend;
+  const history=state._chooserHistory||[];
+  const loading=state._chooserLoading||false;
+
+  const spendFields=[
+    ['dining','Dining'],['travel','Travel'],['groceries','Groceries'],
+    ['gas','Gas'],['streaming','Streaming/Ent.'],['other','Everything else'],
+  ];
+  const spendInputs=spendFields.map(([key,label])=>`
+    <label style="display:flex;flex-direction:column;gap:2px;font-size:10px;font-family:var(--mono);color:var(--text-tertiary)">
+      ${label}
+      <input type="number" min="0" step="1" class="adv-input" style="padding:6px 8px" data-spend="${key}" value="${spend[key]||''}" placeholder="$/mo">
+    </label>
+  `).join('');
+
+  const quickQs=[
+    "Is any card worth getting for me?",
+    'Compare my options for travel.',
+    "What's the best card for dining?",
+  ];
+  const quickBtns=quickQs.map(q=>`<button class="adv-quick" data-q="${escapeHtml(q)}">${q}</button>`).join('');
+
+  let responseHtml='';
+  if(loading){
+    responseHtml=`<div class="adv-loading"><span class="adv-dot"></span><span class="adv-dot"></span><span class="adv-dot"></span></div>`;
+  } else if(history.length){
+    responseHtml=history.map(({q,a})=>`
+      <div class="adv-q">${escapeHtml(q)}</div>
+      <div class="adv-a">${formatAdvisorMarkdown(a)}</div>
+    `).join('');
+  } else {
+    responseHtml=`<div class="adv-placeholder">Optionally add your monthly spending below, then ask which card (if any) is worth getting.</div>`;
+  }
+
+  set(`${modeTabsHtml}<div class="banner"><strong>Choose a New Card</strong> — powered by Claude</div>
+    <details style="margin-bottom:12px">
+      <summary style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;list-style:none;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)">+ Add my monthly spending (optional, improves the recommendation)</summary>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin-top:10px">${spendInputs}</div>
+    </details>
+    <div class="adv-quick-row">${quickBtns}</div>
+    <div class="adv-input-row">
+      <input type="text" id="chooser-input" class="adv-input" placeholder="Ask which card is worth getting…">
+      <button class="adv-send" id="chooser-send-btn">→</button>
+    </div>
+    <div class="adv-response" id="chooser-response">${responseHtml}</div>
+    <div style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);text-align:center;margin-top:8px;padding-bottom:8px">Claude compares candidate cards against your data · estimates only, not financial advice</div>
+  `, ()=>{
+    document.querySelectorAll('[data-spend]').forEach(inp=>{
+      inp.addEventListener('input',()=>{
+        const v=parseFloat(inp.value);
+        state._chooserSpend[inp.dataset.spend]=isNaN(v)?0:v;
+      });
+    });
+    document.querySelectorAll('.adv-quick').forEach(btn=>{
+      btn.addEventListener('click',()=>window.askCardChooser(btn.dataset.q));
+    });
+    const sendBtn=document.getElementById('chooser-send-btn');
+    if(sendBtn) sendBtn.addEventListener('click',()=>window.sendCardChooser());
+    const inp=document.getElementById('chooser-input');
+    if(inp){
+      inp.addEventListener('keydown',e=>{ if(e.key==='Enter') window.sendCardChooser(); });
       inp.focus();
     }
   });

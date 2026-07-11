@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { question, context } = await req.json();
+    const { question, context, mode } = await req.json();
     if (!question?.trim() || !context?.trim()) {
       return new Response(JSON.stringify({ error: 'Missing question or context' }), {
         status: 400,
@@ -56,6 +56,10 @@ Deno.serve(async (req) => {
       });
     }
 
+    const systemPrompt = mode === 'choose'
+      ? 'You are a credit card recommendation advisor. The user is deciding whether to get a NEW premium card, not optimizing one they already have. You are given the cards they already own, a catalog of candidate cards (annual fee, max possible annual credit value, top earn-rate categories, point valuation), and possibly their monthly spending by category. Do a realistic breakeven: fee vs. credits they would actually use (not the theoretical max) plus the extra point value earned from their spending on that card versus what they earn today. Call out overlap with cards they already own. If no candidate card clears its fee for this person, say so plainly. Use bullet points for comparisons. Be direct and specific with numbers. No disclaimers.'
+      : 'You are a concise credit card perks advisor. The user tracks their credit card benefits in the Perks Ledger app. Give practical, specific advice based on their actual data. Use bullet points for lists. Be direct and actionable. No disclaimers.';
+
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -66,7 +70,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 600,
-        system: 'You are a concise credit card perks advisor. The user tracks their credit card benefits in the Perks Ledger app. Give practical, specific advice based on their actual data. Use bullet points for lists. Be direct and actionable. No disclaimers.',
+        system: systemPrompt,
         messages: [
           {
             role: 'user',

@@ -14,7 +14,7 @@ import {
   loadCardMeta, setCardOpenedDate,
   setPointsRedeemed
 } from './storage.js';
-import { render, getVisibleCardKeys, renderCurrent, renderRecap, haptic, checkAllClaimed, animateCounters, renderFeeOptimizer, buildAdvisorContext, formatAdvisorMarkdown, computeAlerts, renderPointsRedemptions } from './views.js';
+import { render, getVisibleCardKeys, renderCurrent, renderRecap, haptic, checkAllClaimed, animateCounters, renderFeeOptimizer, buildAdvisorContext, buildCardChooserContext, formatAdvisorMarkdown, computeAlerts, renderPointsRedemptions } from './views.js';
 import { checkBadges, getEarnedBadges, getEarnedAt, getUnseenBadges, markAllSeen, BADGE_DEFS, getApplicableBadgeDefs, TIER_COLORS, backfill2025Badges, unlockReviewedBadges } from './badges.js';
 import { calcStats, getCardYearPeriods, isPCurrent, getFee, getBAmount, getCurrentPK, isBExpired, isBNotAvailable } from './periods.js';
 
@@ -2304,4 +2304,62 @@ window.sendAdvisor=function(){
   const q=inp.value.trim();
   inp.value='';
   window.askAdvisor(q);
+};
+
+window.switchAdvisorMode=function(m){
+  state._advisorMode=m;
+  render();
+};
+
+window.askCardChooser=async function(question){
+  if(state._chooserLoading) return;
+  if(!question?.trim()) return;
+  state._chooserLoading=true;
+  if(!state._chooserHistory) state._chooserHistory=[];
+
+  const responseEl=document.getElementById('chooser-response');
+  if(responseEl) responseEl.innerHTML='<div class="adv-loading"><span class="adv-dot"></span><span class="adv-dot"></span><span class="adv-dot"></span></div>';
+
+  try{
+    const context=buildCardChooserContext(state._chooserSpend||{});
+    const {data:sessionData}=await sb.auth.getSession();
+    const token=sessionData?.session?.access_token;
+    const resp=await fetch(`${SUPABASE_URL}/functions/v1/ask-perks-advisor`,{
+      method:'POST',
+      headers:{
+        'Authorization':`Bearer ${token}`,
+        'Content-Type':'application/json',
+        'apikey':SUPABASE_KEY,
+      },
+      body:JSON.stringify({question,context,mode:'choose'}),
+    });
+    if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const result=await resp.json();
+    if(result.error) throw new Error(result.error);
+    const answer=result.answer||'No response received.';
+    state._chooserHistory.push({q:question,a:answer});
+  }catch(e){
+    state._chooserHistory.push({q:question,a:`Error: ${e.message||'Could not reach AI advisor.'}`});
+  }finally{
+    state._chooserLoading=false;
+  }
+
+  if(state.activeView==='ai-advisor'&&state._advisorMode==='choose'){
+    const el=document.getElementById('chooser-response');
+    if(el){
+      el.innerHTML=state._chooserHistory.map(({q,a})=>`
+        <div class="adv-q">${escapeHtml(q)}</div>
+        <div class="adv-a">${formatAdvisorMarkdown(a)}</div>
+      `).join('');
+      el.scrollTop=el.scrollHeight;
+    }
+  }
+};
+
+window.sendCardChooser=function(){
+  const inp=document.getElementById('chooser-input');
+  if(!inp||!inp.value.trim()) return;
+  const q=inp.value.trim();
+  inp.value='';
+  window.askCardChooser(q);
 };
