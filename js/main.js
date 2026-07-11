@@ -5,7 +5,7 @@ import {
   toggle, scheduleSave, setSave, syncFromSupabase,
   loadRedemptionMonths, setRedemptionMonth,
   loadCustomAmounts, saveCustomAmounts, setCustomAmount,
-  loadPartial, savePartial, setPartialUsed,
+  loadPartial, savePartial, setPartialUsed, getBenefitTotal,
   loadNotes, saveNotes, getNoteKey,
   loadCredited, saveCredited, toggleCredited,
   loadSkipped, saveSkipped, isSkipped, skipBenefit, unskipBenefit, clearAllSkipped, countSkipped,
@@ -1225,7 +1225,20 @@ document.getElementById('main').addEventListener('click',e=>{
   const checkBtn=e.target.closest('.check-btn');
   if(checkBtn){
     e.stopPropagation();
-    toggle(state.activeCard,checkBtn.dataset.id,checkBtn.dataset.pk);
+    const benefitId=checkBtn.dataset.id, pk=checkBtn.dataset.pk;
+    let benefit=null;
+    CARDS[state.activeCard].sections.forEach(s=>s.benefits.forEach(b=>{ if(b.id===benefitId) benefit=b; }));
+    if(benefit?.partial){
+      // Partial benefits track a dollar amount separately from the
+      // used flag — a blind toggle() here would mark it fully "used"
+      // (or clear it) regardless of what amount was actually logged.
+      // Checking the box sets the amount to the full total (and back
+      // to 0 when unchecking), keeping both in sync.
+      const nowUsed=isUsed(state.activeCard,benefitId,pk);
+      setPartialUsed(state.activeCard,benefitId,pk,nowUsed?0:getBenefitTotal(state.activeCard,benefitId));
+    } else {
+      toggle(state.activeCard,benefitId,pk);
+    }
     haptic('light');
     checkBtn.classList.add('pop');
     setTimeout(()=>checkBtn.classList.remove('pop'),300);

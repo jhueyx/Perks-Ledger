@@ -103,15 +103,35 @@ export function loadPartial(){ try{ return JSON.parse(localStorage.getItem(PARTI
 export function savePartial(d){ localStorage.setItem(PARTIAL_KEY,JSON.stringify(d)); }
 export function getPartialKey(cardKey,benefitId,pk){ return `${cardKey}__${benefitId}__${pk}`; }
 export function getPartialUsed(cardKey,benefitId,pk){ return loadPartial()[getPartialKey(cardKey,benefitId,pk)]||0; }
+export function getBenefitTotal(cardKey,benefitId){
+  const card=CARDS[cardKey];
+  let totalAmt=0;
+  card.sections.forEach(s=>s.benefits.forEach(b=>{ if(b.id===benefitId) totalAmt=b.amount; }));
+  return totalAmt;
+}
+// Sets the partial-use dollar amount and derives isUsed from amount vs the
+// benefit's full total. Mirrors toggle()'s side effects (redemption-month
+// tracking, benefit_log activity entry) whenever the derived used-state
+// actually changes, so partial benefits keep the same history/streak/
+// achievement behavior as fully-toggled ones.
 export function setPartialUsed(cardKey,benefitId,pk,amount){
   const d=loadPartial();
   d[getPartialKey(cardKey,benefitId,pk)]=amount;
   savePartial(d);
-  const card=CARDS[cardKey];
-  let totalAmt=0;
-  card.sections.forEach(s=>s.benefits.forEach(b=>{ if(b.id===benefitId) totalAmt=b.amount; }));
+  const totalAmt=getBenefitTotal(cardKey,benefitId);
+  const wasUsed=isUsed(cardKey,benefitId,pk);
+  const nowUsed=totalAmt>0&&amount>=totalAmt;
   if(!state.DATA[cardKey]) state.DATA[cardKey]={};
-  state.DATA[cardKey][bKey(benefitId,pk)]=amount>=totalAmt;
+  state.DATA[cardKey][bKey(benefitId,pk)]=nowUsed;
+  if(nowUsed!==wasUsed){
+    const action=nowUsed?'used':'unused';
+    if(action==='used') setRedemptionMonth(cardKey,benefitId,pk,CY,CM);
+    else clearRedemptionMonth(cardKey,benefitId,pk);
+    document.dispatchEvent(new CustomEvent('perks:benefit-toggled',{detail:{cardKey,id:benefitId,pk,action}}));
+    if(sb&&state.currentUser){
+      sb.from('benefit_log').insert({user_id:state.currentUser.id,card_key:cardKey,benefit_id:benefitId,period_key:pk,action}).then(({error:e})=>{if(e)console.error('[benefit_log]',e.message,e.code,e.details,e.hint);}).catch(e=>console.error('[benefit_log throw]',e));
+    }
+  }
   scheduleSave();
 }
 

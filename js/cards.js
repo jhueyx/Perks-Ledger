@@ -14,7 +14,7 @@ export const CARDS={
     {label:'Monthly',cadence:'monthly',benefits:[
       {id:'p_uber',name:'Uber Cash',desc:'$15/mo · $35 in December',amount:15,decAmount:35},
       {id:'p_digital',name:'Digital Entertainment',desc:'Disney+, Hulu, ESPN+, Peacock, Paramount+, NYT, WSJ, YouTube',amount:25},
-      {id:'p_walmart',name:'Walmart+ Credit',desc:'Covers monthly Walmart+ membership',amount:12.95},
+      {id:'p_walmart',name:'Walmart+ Credit',desc:'Covers monthly Walmart+ membership (incl. tax)',amount:14.07},
     ]},
     {label:'Quarterly',cadence:'quarterly',benefits:[
       {id:'p_resy',name:'Resy Dining Credit',desc:'At eligible U.S. Resy restaurants',amount:100,startsFrom:2025,partial:true},
