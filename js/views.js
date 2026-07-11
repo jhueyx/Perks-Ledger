@@ -2182,9 +2182,13 @@ export function formatAdvisorMarkdown(text){
   let inList=false;
   const out=[];
   for(const line of lines){
+    const heading=/^#{1,4}\s+(.*)/.exec(line);
     if(/^[-•]\s/.test(line)){
       if(!inList){out.push('<ul class="adv-list">');inList=true;}
       out.push(`<li>${line.replace(/^[-•]\s/,'')}</li>`);
+    } else if(heading){
+      if(inList){out.push('</ul>');inList=false;}
+      out.push(`<p class="adv-p"><strong>${heading[1]}</strong></p>`);
     } else {
       if(inList){out.push('</ul>');inList=false;}
       if(line.trim()) out.push(`<p class="adv-p">${line}</p>`);
