@@ -5,7 +5,7 @@ import {
   toggle, scheduleSave, setSave, syncFromSupabase,
   loadRedemptionMonths, setRedemptionMonth,
   loadCustomAmounts, saveCustomAmounts, setCustomAmount,
-  loadPartial, savePartial, setPartialUsed, getBenefitTotal,
+  loadPartial, savePartial, setPartialUsed, getBenefitTotal, getPartialUsed,
   loadNotes, saveNotes, getNoteKey,
   loadCredited, saveCredited, toggleCredited,
   loadSkipped, saveSkipped, isSkipped, skipBenefit, unskipBenefit, clearAllSkipped, countSkipped,
@@ -917,7 +917,11 @@ function scheduleMonthlyReminder(){
       CARDS[ck].sections.forEach(s=>{
         if(!cadences.includes(s.cadence)) return;
         const pk=pkFn(s.cadence);
-        s.benefits.forEach(b=>{ if(!state.DATA[ck]?.[`${b.id}__${pk}`]) t+=b.amount||0; });
+        s.benefits.forEach(b=>{
+          if(state.DATA[ck]?.[`${b.id}__${pk}`]) return;
+          if(isSkipped(ck,b.id,pk)||isGloballySnoozed(ck,b.id)) return;
+          t+=b.partial?Math.max(0,(b.amount||0)-getPartialUsed(ck,b.id,pk)):(b.amount||0);
+        });
       });
     });
     return t;
@@ -975,7 +979,8 @@ function firePerBenefitReminders(){
     const dkey=`notifb-${ck}-${b.id}-${pk}`;
     if(localStorage.getItem(dkey)) continue;
     const when=daysLeft<=0?'expires today':`${daysLeft} day${daysLeft===1?'':'s'} left`;
-    new Notification('Perks Ledger',{body:`$${b.amount||0} ${b.name} (${CARD_LABELS[ck]}) — ${when}`,icon:'apple-touch-icon.png'});
+    const remaining=b.partial?Math.max(0,(b.amount||0)-getPartialUsed(ck,b.id,pk)):(b.amount||0);
+    new Notification('Perks Ledger',{body:`$${remaining} ${b.name} (${CARD_LABELS[ck]}) — ${when}`,icon:'apple-touch-icon.png'});
     localStorage.setItem(dkey,'1');
     fired++;
   }

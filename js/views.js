@@ -638,11 +638,12 @@ export function buildCardBack(cardKey){
     const pk=getCurrentPK(cardKey,s.cadence);
     s.benefits.forEach(b=>{
       if(isBNotAvailable(b,CY,{calM:CM,calY:CY})||isBExpired(b,{calY:CY,calM:CM,m:CM})||isGloballySnoozed(cardKey,b.id)) return;
-      benefits.push({name:b.name,amt:getBAmount(b,{m:CM}),used:isUsed(cardKey,b.id,pk)});
+      const used=isUsed(cardKey,b.id,pk);
+      benefits.push({name:b.name,amt:getBAmount(b,{m:CM}),used,partialAmt:!used&&b.partial?getPartialUsed(cardKey,b.id,pk):0});
     });
   });
   const total=benefits.reduce((s,b)=>s+b.amt,0);
-  const captured=benefits.filter(b=>b.used).reduce((s,b)=>s+b.amt,0);
+  const captured=benefits.reduce((s,b)=>s+(b.used?b.amt:b.partialAmt),0);
   const multipliers=POINTS_MULTIPLIERS[cardKey]||[];
   return `<div class="card-back">
     <div>
