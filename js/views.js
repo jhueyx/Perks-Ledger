@@ -713,7 +713,11 @@ export function renderCurrent(){
         const note=getNote(state.activeCard,b.id,pk);
         const periodLabel=isMonthly?`${MONTHS_FULL[viewM]} ${viewY}`:lbl;
         const noteHTML=note?`<div class="benefit-note" data-id="${b.id}" data-pk="${pk}" data-name="${b.name}" data-period="${periodLabel}"><span class="note-dot"></span>${escapeHtml(note)}</div>`:`<div class="add-note" data-id="${b.id}" data-pk="${pk}" data-name="${b.name}" data-period="${periodLabel}">+ add note</div>`;
-        const partialHTML=b.partial&&used?buildPartialBar(state.activeCard,b.id,pk,effectiveAmt):'';
+        // Always show the partial bar for partial-eligible benefits, not just
+        // once fully used -- otherwise logging an amount below the total
+        // hides the input the moment it drops below 100%, with no way back
+        // to it short of re-checking the box (which re-marks it fully used).
+        const partialHTML=b.partial?buildPartialBar(state.activeCard,b.id,pk,effectiveAmt):'';
         const creditedHTML=used?`<div style="margin-top:4px;font-size:10px;font-family:var(--mono)"><span style="color:${credited?'var(--green)':'var(--text-tertiary)'};cursor:pointer" data-credit-id="${b.id}" data-credit-pk="${pk}">${credited?'✓ Credit posted':'○ Credit pending'}</span></div>`:'';
         const snoozedBadge=snoozed?`<span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);margin-top:3px;display:block">⏸︎ snoozed until ${snoozedUntil} · <span style="cursor:pointer;text-decoration:underline" data-unsnooze="${b.id}" data-unsnooze-card="${state.activeCard}">resume</span></span>`:'';
         const snoozeBtn=!snoozed?`<button class="snooze-btn" data-snooze-id="${b.id}" data-snooze-card="${state.activeCard}" data-snooze-name="${b.name}" title="Snooze this benefit — hide from all calculations until a chosen month" style="background:none;border:none;cursor:pointer;font-size:12px;padding:2px 5px;color:var(--text-tertiary);opacity:0.25;transition:opacity 0.15s;line-height:1;border-radius:3px;flex-shrink:0" aria-label="Snooze benefit">⏸︎</button>`:'';
