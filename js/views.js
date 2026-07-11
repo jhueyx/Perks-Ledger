@@ -331,7 +331,7 @@ export function renderDigest(){
       s.benefits.forEach(b=>{
         if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(cardKey,b.id)) return;
         if(isUsed(cardKey,b.id,pk)||isSkipped(cardKey,b.id,pk)) return;
-        bucket.items.push({cardKey,cardLabel:CARD_LABELS[cardKey],name:b.name,amt:getBAmount(b,{m:CM}),pk,benefitId:b.id});
+        bucket.items.push({cardKey,cardLabel:CARD_LABELS[cardKey],name:b.name,amt:getRemainingAmt(cardKey,b,{m:CM},pk),pk,benefitId:b.id});
       });
     });
   });
@@ -574,6 +574,15 @@ export function renderNetValue(){
 }
 
 // ── Priority queue ─────────────────────────────────────────────────────────
+// Full benefit amount minus whatever's already been logged as partially
+// used, so "unclaimed" views (digest, priority queue) show what's actually
+// still available rather than the full total regardless of progress.
+function getRemainingAmt(cardKey,b,p,pk){
+  const full=getBAmount(b,p);
+  if(!b.partial) return full;
+  return Math.max(0,full-getPartialUsed(cardKey,b.id,pk));
+}
+
 function buildPriorityQueue(){
   const eomDays=daysUntilEOM();
   const items=[];
@@ -587,7 +596,7 @@ function buildPriorityQueue(){
         if(isUsed(cardKey,b.id,pk)) return;
         if(isSkipped(cardKey,b.id,pk)) return;
         if(isGloballySnoozed(cardKey,b.id)) return;
-        const amt=getBAmount(b,{m:CM});
+        const amt=getRemainingAmt(cardKey,b,{m:CM},pk);
         let urgency=0,urgencyLabel='Anytime',urgencyCls='urgency-ok',tier=1;
         if(s.cadence==='monthly'){
           urgency=40+(1-eomDays/31)*55;
