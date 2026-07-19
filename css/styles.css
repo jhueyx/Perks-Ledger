@@ -26,6 +26,9 @@
     --hilton: #00205B;
     --hilton-bg: #E6EAF2;
     --hilton-text: #00113A;
+    --freedom: #1B63C4;
+    --freedom-bg: #E9F1FB;
+    --freedom-text: #0D3A75;
     --marriott: #8B1A4A;
     --marriott-bg: #F5E9EE;
     --marriott-text: #5C0D2E;
@@ -308,6 +311,7 @@
   .card-btn.active-gold .card-visual { box-shadow: 0 8px 24px rgba(200,146,42,0.35); }
   .card-btn.active-platinum .card-visual { box-shadow: 0 8px 24px rgba(74,127,165,0.35); }
   .card-btn.active-csr .card-visual { box-shadow: 0 8px 24px rgba(74,138,90,0.35); }
+  .card-btn.active-freedom .card-visual { box-shadow: 0 8px 24px rgba(27,99,196,0.35); }
 
   /* Card notification badge */
   .card-notif-badge {
@@ -445,6 +449,7 @@
   .card-btn.active-gold .card-label { color: var(--gold-text); }
   .card-btn.active-platinum .card-label { color: var(--plat-text); }
   .card-btn.active-csr .card-label { color: var(--csr-text); }
+  .card-btn.active-freedom .card-label { color: var(--freedom-text); }
   .card-btn.active-cap1_venture_x .card-label { color: var(--venturex-text); }
   .card-btn.active-jp_morgan_reserve .card-label { color: var(--jmr-text); }
   .card-btn.active-chase_sapphire_pref .card-label { color: var(--csp-text); }
@@ -474,6 +479,7 @@
   .card-btn.active-gold .active-ring { border: 2px solid var(--gold); opacity: 1; }
   .card-btn.active-platinum .active-ring { border: 2px solid var(--plat); opacity: 1; }
   .card-btn.active-csr .active-ring { border: 2px solid var(--csr); opacity: 1; }
+  .card-btn.active-freedom .active-ring { border: 2px solid var(--freedom); opacity: 1; }
   .card-btn.active-cap1_venture_x .active-ring { border: 2px solid var(--venturex); opacity: 1; }
   .card-btn.active-jp_morgan_reserve .active-ring { border: 2px solid var(--jmr); opacity: 1; }
   .card-btn.active-chase_sapphire_pref .active-ring { border: 2px solid var(--csp); opacity: 1; }
@@ -908,6 +914,7 @@
   .all-cards-card-name.gold { color: var(--gold); }
   .all-cards-card-name.platinum { color: var(--plat); }
   .all-cards-card-name.csr { color: var(--csr); }
+  .all-cards-card-name.freedom { color: var(--freedom); }
   .all-cards-card-name.venturex { color: var(--venturex); }
   .all-cards-card-name.jmr { color: var(--jmr); }
   .all-cards-card-name.csp { color: var(--csp); }
@@ -1183,6 +1190,7 @@
   .card-btn.active-gold .card-back { border-color: var(--gold); }
   .card-btn.active-platinum .card-back { border-color: var(--plat); }
   .card-btn.active-csr .card-back { border-color: var(--csr); }
+  .card-btn.active-freedom .card-back { border-color: var(--freedom); }
 
   /* Partial use progress */
   .partial-bar { margin-top: 6px; }
@@ -1650,6 +1658,7 @@
   .comparison-card.gold { border-top: 3px solid var(--gold); }
   .comparison-card.platinum { border-top: 3px solid var(--plat); }
   .comparison-card.csr { border-top: 3px solid var(--csr); }
+  .comparison-card.freedom { border-top: 3px solid var(--freedom); }
   .comparison-card.venturex { border-top: 3px solid var(--venturex); }
   .comparison-card.jmr { border-top: 3px solid var(--jmr); }
   .comparison-card.csp { border-top: 3px solid var(--csp); }
