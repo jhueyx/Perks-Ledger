@@ -4,7 +4,11 @@ import { isUsed, isGloballySnoozed, isMonthSnoozed, scheduleSave } from './stora
 import { calcStats, getCardYearPeriods, isPCurrent, getFee, getLongestStreak, getCurrentPK, isBExpired, isBNotAvailable } from './periods.js';
 import { getVisibleCardKeys } from './views.js';
 
-const BADGES_KEY = 'perks-badges';
+// Scoped per-user (matching STORAGE_KEY's pattern in storage.js) — this was
+// previously a bare global key, so switching between accounts on the same
+// browser leaked one account's badges into whichever account was logged in
+// next, and a save could push that borrowed state into the wrong user's row.
+function badgesKey(){ return 'perks-badges'+(state.currentUser?'-'+state.currentUser.id:''); }
 
 // "Perfect Month" defs are generated per-year (rather than hardcoded) so they
 // keep working past the year they were first written in.
@@ -238,8 +242,8 @@ export const TIER_COLORS = {
   legendary:'#9B59B6',
 };
 
-function loadState(){ try{ const s=JSON.parse(localStorage.getItem(BADGES_KEY)||'{}'); return {earned:s.earned||[],seen:s.seen||[],earnedAt:s.earnedAt||{}}; }catch(e){ return {earned:[],seen:[],earnedAt:{}}; } }
-function saveState(s){ localStorage.setItem(BADGES_KEY,JSON.stringify(s)); scheduleSave(); }
+function loadState(){ try{ const s=JSON.parse(localStorage.getItem(badgesKey())||'{}'); return {earned:s.earned||[],seen:s.seen||[],earnedAt:s.earnedAt||{}}; }catch(e){ return {earned:[],seen:[],earnedAt:{}}; } }
+function saveState(s){ localStorage.setItem(badgesKey(),JSON.stringify(s)); scheduleSave(); }
 
 export function getEarnedBadges(){ return loadState().earned; }
 export function getEarnedAt(){ return loadState().earnedAt; }

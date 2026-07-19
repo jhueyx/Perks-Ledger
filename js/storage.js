@@ -155,9 +155,11 @@ export function toggleCredited(cardKey,id,pk){
 }
 
 // ── Badges ────────────────────────────────────────────────────────────────
-const BADGES_KEY='perks-badges';
-export function loadBadges(){ try{ return JSON.parse(localStorage.getItem(BADGES_KEY)||'{}'); }catch(e){ return {}; } }
-export function saveBadges(d){ localStorage.setItem(BADGES_KEY,JSON.stringify(d)); }
+// Scoped per-user, same as STORAGE_KEY above — this was previously a bare
+// global key shared by every account on the same browser (see badges.js).
+function badgesKey(){ return 'perks-badges'+(state.currentUser?'-'+state.currentUser.id:''); }
+export function loadBadges(){ try{ return JSON.parse(localStorage.getItem(badgesKey())||'{}'); }catch(e){ return {}; } }
+export function saveBadges(d){ localStorage.setItem(badgesKey(),JSON.stringify(d)); }
 
 // ── Skipped ────────────────────────────────────────────────────────────────
 const SKIPPED_KEY='perks-skipped';
