@@ -15,7 +15,7 @@ import {
   setPointsRedeemed
 } from './storage.js';
 import { render, getVisibleCardKeys, renderCurrent, renderRecap, haptic, checkAllClaimed, animateCounters, renderFeeOptimizer, buildAdvisorContext, buildCardChooserContext, formatAdvisorMarkdown, computeAlerts, renderPointsRedemptions } from './views.js';
-import { checkBadges, getEarnedBadges, getEarnedAt, getUnseenBadges, markAllSeen, BADGE_DEFS, getApplicableBadgeDefs, TIER_COLORS, backfill2025Badges, unlockReviewedBadges } from './badges.js';
+import { checkBadges, getEarnedBadges, getEarnedAt, getUnseenBadges, markAllSeen, BADGE_DEFS, getApplicableBadgeDefs, TIER_COLORS } from './badges.js';
 import { calcStats, getCardYearPeriods, isPCurrent, getFee, getBAmount, getCurrentPK, isBExpired, isBNotAvailable } from './periods.js';
 
 // Web Push: paste the base64url VAPID PUBLIC key here (same one set as the
@@ -221,8 +221,7 @@ function doUnlock(){
   state.redemptionDates=loadRedemptionMonths();
   setTimeout(saveDigestCache,3000);
   setTimeout(()=>{
-    checkBadges();
-    const newOnes=[...backfill2025Badges(),...unlockReviewedBadges()];
+    const newOnes=checkBadges();
     if(newOnes.length>1){
       const toast=document.getElementById('badgeToast');
       const inner=document.getElementById('badgeToastInner');
@@ -2169,7 +2168,6 @@ window.closeFeeDateModal=closeFeeDateModal;
 window.goToCardPeriod=goToCardPeriod;
 window.skipBenefit=skipBenefit;
 window.unskipBenefit=unskipBenefit;
-window.backfill2025Badges=()=>{ localStorage.removeItem('perks-badges-2025-backfill'); localStorage.removeItem('perks-badges-2025-backfill-v2'); checkBadges(); backfill2025Badges(); renderBadgesView(); };
 window.clearAllSkipped=clearAllSkipped;
 window.requestNotifications=requestNotifications;
 window.setSelectedYear=(y)=>{ state.selectedYear=y; };

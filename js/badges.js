@@ -262,64 +262,6 @@ export function awardBadges(ids, approxDates){
   return ids.filter(id=>!new Set(loadState().seen).has(id));
 }
 
-export function backfill2025Badges(){
-  const FLAG='perks-badges-2025-backfill-v2';
-  if(localStorage.getItem(FLAG)) return [];
-  const approx={
-    getting_started: new Date('2025-02-01').getTime(),
-    gaining_ground:  new Date('2025-04-01').getTime(),
-    collector:       new Date('2025-03-01').getTime(),
-    portfolio_pro:   new Date('2025-06-01').getTime(),
-    streak_3:        new Date('2025-04-01').getTime(),
-    streak_6:        new Date('2025-07-01').getTime(),
-    streak_12:       new Date('2026-01-01').getTime(),
-    first_profit:    new Date('2025-06-01').getTime(),
-    big_win:         new Date('2025-12-01').getTime(),
-    high_achiever:   new Date('2025-09-01').getTime(),
-    uber_loyalist:   new Date('2025-07-01').getTime(),
-    dining_devotee:  new Date('2025-07-01').getTime(),
-    yr_2025:         new Date('2026-01-01').getTime(),
-    yr_2026:         new Date('2026-01-15').getTime(),
-    multi_year:      new Date('2026-01-15').getTime(),
-    founder:         new Date('2025-01-01').getTime(),
-    hacker:          new Date('2025-01-01').getTime(),
-    obsessive:       new Date('2025-01-01').getTime(),
-  };
-  const newOnes=awardBadges(Object.keys(approx), approx);
-  localStorage.setItem(FLAG,'1');
-  return newOnes;
-}
-
-export function unlockReviewedBadges(){
-  const FLAG='perks-badges-reviewed-unlock-2026-05-24';
-  if(localStorage.getItem(FLAG)) return [];
-  const ids=[
-    'streak_3','streak_6','streak_12','streak_18','streak_24',
-    'collector',
-    'big_win','high_roller','elite_earner',
-    'getting_started','gaining_ground','high_achiever','power_user','gold_mine','silver_bullet',
-    'first_profit','double_dipper','gold_master','plat_master',
-    'benefit_ninja','benefit_machine','century','claim_addict',
-    'all_in',
-    'uber_loyalist','doordash_devotee','dining_devotee',
-    'fitness_fan','clear_member','jet_setter',
-    'yr_2024','yr_2025','yr_2026','multi_year','early_adopter',
-    'saks_shopper','lulu_fan','oura_owner','uber_one_club','equinox_devotee','resy_regular',
-    'digital_devotee','dunkin_addict','uber_vip','doordash_pro',
-    'wellness_stack',
-    'food_combo','commuter_pack','dining_trifecta',
-    'stubhub_fan','csr_traveler','exclusive_tables','apple_insider',
-    'gold_sweep','dunkin_power',
-    'chase_amex_duo','both_resy','uber_double_month',
-    'badge_20','badge_35','badge_50',
-  ];
-  const now=Date.now();
-  const approx=Object.fromEntries(ids.map(id=>[id,now]));
-  const newOnes=awardBadges(ids, approx);
-  localStorage.setItem(FLAG,'1');
-  return newOnes;
-}
-
 // Check if a benefit ID was ever claimed on a given card (any period)
 function everUsed(cardKey, benefitId){
   const d=state.DATA[cardKey]||{};
