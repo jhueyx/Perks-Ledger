@@ -143,24 +143,6 @@ export const CARDS={
       {id:'abizp_chatgpt',name:'ChatGPT Business Credit',desc:'Statement credit on U.S. ChatGPT Business purchases',amount:300},
     ]},
   ]},
-  chase_freedom:{name:'Chase Freedom',fee:0,feeMonth:0,feeDay:1,sections:[
-    {label:'Quarterly',cadence:'quarterly',benefits:[
-      {id:'cf_activate',name:'5% Category Activation',desc:"Activate each quarter for 5% cash back (up to $1,500 combined spend, then 1%) on that quarter's rotating bonus categories",amount:75},
-    ]},
-  ]},
-  chase_freedom_unlimited:{name:'Chase Freedom Unlimited',fee:0,feeMonth:0,feeDay:1,sections:[]},
-  chase_ink_cash:{name:'Chase Ink Business Cash',fee:0,feeMonth:0,feeDay:1,sections:[]},
-  amex_hilton_honors_nofee:{name:'Hilton Honors (No Annual Fee)',fee:0,feeMonth:0,feeDay:1,sections:[]},
-  citi_costco_anywhere:{name:'Costco Anywhere Visa',fee:0,feeMonth:0,feeDay:1,sections:[
-    {label:'Annual (calendar year)',cadence:'cal-annual',benefits:[
-      {id:'cca_certificate',name:'Annual Cash Back Certificate',desc:'Cash back earned on the card, issued as a reward certificate when your February billing statement closes — amount varies by spend',amount:200,partial:true},
-    ]},
-  ]},
-  wf_active_cash:{name:'Wells Fargo Active Cash',fee:0,feeMonth:0,feeDay:1,sections:[
-    {label:'Annual',cadence:'annual',benefits:[
-      {id:'wfac_cellphone',name:'Cell Phone Protection',desc:'Up to $600 per claim ($25 deductible, $1,200/yr max) if your monthly cell phone bill is paid with this card',amount:600,partial:true},
-    ]},
-  ]},
 };
 
 // ── Premium card catalog ──────────────────────────────────────────────────
@@ -174,15 +156,11 @@ export const PREMIUM_CARD_CATALOG = [
   {id:'amex_delta_reserve',issuer:'American Express',name:'Delta SkyMiles Reserve',fee:650,supported:false},
   {id:'amex_delta_plat',issuer:'American Express',name:'Delta SkyMiles Platinum',fee:350,supported:false},
   {id:'amex_hilton_honors',issuer:'American Express',name:'Hilton Honors Aspire',fee:550,supported:true},
-  {id:'amex_hilton_honors_nofee',issuer:'American Express',name:'Hilton Honors (No Annual Fee)',fee:0,supported:true},
   {id:'amex_marriott_brill',issuer:'American Express',name:'Marriott Bonvoy Brilliant',fee:650,supported:true},
   {id:'amex_marriott_biz',issuer:'American Express',name:'Marriott Bonvoy Business',fee:125,supported:false},
   // Chase
   {id:'csr',issuer:'Chase',name:'Chase Sapphire Reserve',fee:550,supported:true},
   {id:'chase_sapphire_pref',issuer:'Chase',name:'Chase Sapphire Preferred',fee:95,supported:true},
-  {id:'chase_freedom',issuer:'Chase',name:'Chase Freedom',fee:0,supported:true},
-  {id:'chase_freedom_unlimited',issuer:'Chase',name:'Chase Freedom Unlimited',fee:0,supported:true},
-  {id:'chase_ink_cash',issuer:'Chase',name:'Chase Ink Business Cash',fee:0,supported:true},
   {id:'chase_ink_pref',issuer:'Chase',name:'Chase Ink Business Preferred',fee:95,supported:false},
   {id:'chase_world_of_hyatt',issuer:'Chase',name:'World of Hyatt',fee:95,supported:true},
   {id:'chase_united_quest',issuer:'Chase',name:'United Quest',fee:250,supported:true},
@@ -195,13 +173,11 @@ export const PREMIUM_CARD_CATALOG = [
   {id:'cap1_savor',issuer:'Capital One',name:'Savor Cash Rewards',fee:95,supported:false},
   // Citi
   {id:'citi_strata_prem',issuer:'Citi',name:'Citi Strata Premier',fee:95,supported:true},
-  {id:'citi_costco_anywhere',issuer:'Citi',name:'Costco Anywhere Visa',fee:0,supported:true},
   {id:'citi_prestige',issuer:'Citi',name:'Citi Prestige',fee:495,supported:false},
   {id:'citi_aa_exec',issuer:'Citi',name:'AAdvantage Executive World Elite',fee:595,supported:false},
   {id:'citi_aa_plat',issuer:'Citi',name:'AAdvantage Platinum Select',fee:99,supported:false},
   // Wells Fargo
   {id:'wf_premier_autograph',issuer:'Wells Fargo',name:'Premier Autograph Visa Infinite',fee:95,supported:true},
-  {id:'wf_active_cash',issuer:'Wells Fargo',name:'Active Cash',fee:0,supported:true},
   // Bank of America
   {id:'boa_premium',issuer:'Bank of America',name:'Premium Rewards Elite',fee:550,supported:false},
   {id:'boa_alaska_sig',issuer:'Bank of America',name:'Alaska Airlines Signature',fee:95,supported:false},
@@ -228,9 +204,9 @@ export const TRANSFER_PARTNERS={
 export const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 export const MONTHS_FULL=['January','February','March','April','May','June','July','August','September','October','November','December'];
 export const CAT_COLORS={dining:'#C86428',travel:'#6366f1',shopping:'var(--gold)',fitness:'var(--green)',entertainment:'#9333ea'};
-export const CARD_LABELS={gold:'AMEX Gold',platinum:'AMEX Platinum',csr:'Chase Sapphire Reserve',cap1_venture_x:'Capital One Venture X',chase_sapphire_pref:'Sapphire Preferred',amex_green:'AMEX Green',amex_hilton_honors:'Hilton Honors Aspire',amex_marriott_brill:'Marriott Bonvoy Brilliant',chase_world_of_hyatt:'World of Hyatt',chase_united_quest:'United Quest',chase_united_club:'United Club Infinite',citi_strata_prem:'Citi Strata Premier',wf_premier_autograph:'WF Premier Autograph',amex_biz_gold:'AMEX Biz Gold',amex_biz_plat:'AMEX Biz Platinum',chase_freedom:'Chase Freedom',chase_freedom_unlimited:'Chase Freedom Unlimited',chase_ink_cash:'Chase Ink Business Cash',amex_hilton_honors_nofee:'Hilton Honors (No Fee)',citi_costco_anywhere:'Costco Anywhere Visa',wf_active_cash:'Wells Fargo Active Cash'};
-export const CARD_SHORT_LABELS={gold:'Gold',platinum:'Platinum',csr:'CSR',cap1_venture_x:'Venture X',chase_sapphire_pref:'Sapphire P',amex_green:'Green',amex_hilton_honors:'Hilton',amex_marriott_brill:'Marriott',chase_world_of_hyatt:'Hyatt',chase_united_quest:'United Q',chase_united_club:'United C',citi_strata_prem:'Strata P',wf_premier_autograph:'WF Prem',amex_biz_gold:'Biz Gold',amex_biz_plat:'Biz Plat',chase_freedom:'Freedom',chase_freedom_unlimited:'Freedom Unl',chase_ink_cash:'Ink Cash',amex_hilton_honors_nofee:'Hilton NAF',citi_costco_anywhere:'Costco',wf_active_cash:'Active Cash'};
-export const CARD_CLS={gold:'gold',platinum:'platinum',csr:'csr',cap1_venture_x:'venturex',chase_sapphire_pref:'csp',amex_green:'amexgreen',amex_hilton_honors:'hilton',amex_marriott_brill:'marriott',chase_world_of_hyatt:'hyatt',chase_united_quest:'unitedq',chase_united_club:'unitedclub',citi_strata_prem:'citistrata',wf_premier_autograph:'wfpremier',amex_biz_gold:'gold',amex_biz_plat:'platinum',chase_freedom:'freedom',chase_freedom_unlimited:'freedom',chase_ink_cash:'freedom',amex_hilton_honors_nofee:'hilton',citi_costco_anywhere:'costco',wf_active_cash:'activecash'};
+export const CARD_LABELS={gold:'AMEX Gold',platinum:'AMEX Platinum',csr:'Chase Sapphire Reserve',cap1_venture_x:'Capital One Venture X',chase_sapphire_pref:'Sapphire Preferred',amex_green:'AMEX Green',amex_hilton_honors:'Hilton Honors Aspire',amex_marriott_brill:'Marriott Bonvoy Brilliant',chase_world_of_hyatt:'World of Hyatt',chase_united_quest:'United Quest',chase_united_club:'United Club Infinite',citi_strata_prem:'Citi Strata Premier',wf_premier_autograph:'WF Premier Autograph',amex_biz_gold:'AMEX Biz Gold',amex_biz_plat:'AMEX Biz Platinum'};
+export const CARD_SHORT_LABELS={gold:'Gold',platinum:'Platinum',csr:'CSR',cap1_venture_x:'Venture X',chase_sapphire_pref:'Sapphire P',amex_green:'Green',amex_hilton_honors:'Hilton',amex_marriott_brill:'Marriott',chase_world_of_hyatt:'Hyatt',chase_united_quest:'United Q',chase_united_club:'United C',citi_strata_prem:'Strata P',wf_premier_autograph:'WF Prem',amex_biz_gold:'Biz Gold',amex_biz_plat:'Biz Plat'};
+export const CARD_CLS={gold:'gold',platinum:'platinum',csr:'csr',cap1_venture_x:'venturex',chase_sapphire_pref:'csp',amex_green:'amexgreen',amex_hilton_honors:'hilton',amex_marriott_brill:'marriott',chase_world_of_hyatt:'hyatt',chase_united_quest:'unitedq',chase_united_club:'unitedclub',citi_strata_prem:'citistrata',wf_premier_autograph:'wfpremier',amex_biz_gold:'gold',amex_biz_plat:'platinum'};
 export const FEE_MONTHS=Object.fromEntries(Object.keys(CARDS).map(k=>[k,CARDS[k].feeMonth??0]));
 
 export const BENEFIT_CATEGORIES={
@@ -259,8 +235,6 @@ export const BENEFIT_CATEGORIES={
   vxb_travel:'travel', vxb_anniv:'travel', vxb_ge:'travel',
   wfpa_airline:'travel', wfpa_ge:'travel',
   abizg_chatgpt:'entertainment', abizp_chatgpt:'entertainment',
-  cf_activate:'shopping',
-  cca_certificate:'shopping', wfac_cellphone:'shopping',
 };
 
 export const POINTS_PROGRAMS={

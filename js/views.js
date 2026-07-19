@@ -1080,7 +1080,7 @@ export function renderPerformance(){
       html+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span class="drag-handle" style="font-size:16px">⠿</span><span style="font-size:11px;font-family:var(--mono);color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.06em">${CARD_LABELS[cardKey]}</span></div>`;
       const vals=years.map(y=>({y,captured:capturedForYear(cardKey,y),fee:getFee(cardKey,y)}));
       vals.forEach(({y,captured,fee})=>{
-        const barPct=fee>0?Math.min(100,Math.round(captured/fee*100)):100;
+        const barPct=Math.min(100,Math.round(captured/fee*100));
         const isCurrent=y===CY,profit=captured-fee;
         const label=isCurrent?`${y} YTD`:String(y);
         html+=`<div class="trend-row"><div class="trend-year" style="color:${isCurrent?'var(--text)':'var(--text-tertiary)'}">${label}</div><div style="flex:1;position:relative"><div class="trend-bar-wrap"><div class="trend-bar-fill" style="width:${barPct}%;background:${captured>fee?'var(--blue)':captured>=fee?'var(--green)':'var(--gold)'}"></div></div></div><div class="trend-val" style="color:${profit>0?'var(--blue)':profit===0?'var(--green)':'var(--text-secondary)'}">$${captured.toFixed(0)}<span style="font-size:9px;color:var(--text-tertiary)"> / $${fee}</span></div></div>`;
@@ -1113,8 +1113,8 @@ export function renderComparison(){
       <div class="comp-divider"></div>
       <div class="comp-metric"><div class="comp-metric-val ${projectedFee<=0?'green':''}">${projectedFee<=0?'+$'+Math.abs(projectedFee).toFixed(0):'$'+projectedFee.toFixed(0)}</div><div class="comp-metric-label">${projectedFee<=0?'projected profit':'projected vs $'+fee+' fee'}</div></div>
       <div class="comp-metric"><div class="comp-metric-val red">$${missed.toFixed(0)}</div><div class="comp-metric-label">missed so far</div></div>
-      <div class="comp-progress"><div class="comp-progress-fill" style="width:${fee?Math.min(100,projected/fee*100).toFixed(0):100}%"></div></div>
-      <div style="font-size:10px;color:var(--text-tertiary);font-family:var(--mono);margin-top:6px">${fee?Math.round(projected/fee*100)+'% of fee on pace · ':'No annual fee · '}${days}d to renewal</div>
+      <div class="comp-progress"><div class="comp-progress-fill" style="width:${Math.min(100,projected/fee*100).toFixed(0)}%"></div></div>
+      <div style="font-size:10px;color:var(--text-tertiary);font-family:var(--mono);margin-top:6px">${Math.round(projected/fee*100)}% of fee on pace · ${days}d to renewal</div>
     </div>`;
   });
   html+=`</div>`;
