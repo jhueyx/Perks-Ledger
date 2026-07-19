@@ -29,6 +29,12 @@
     --freedom: #1B63C4;
     --freedom-bg: #E9F1FB;
     --freedom-text: #0D3A75;
+    --costco: #A6192E;
+    --costco-bg: #FBEAEC;
+    --costco-text: #6E0F1E;
+    --activecash: #A0522D;
+    --activecash-bg: #F7ECE4;
+    --activecash-text: #6B3A1E;
     --marriott: #8B1A4A;
     --marriott-bg: #F5E9EE;
     --marriott-text: #5C0D2E;
@@ -119,6 +125,12 @@
     --venturexbiz-text: #7A9AE0;
     --wfpremier-bg: #200A0A;
     --wfpremier-text: #D06060;
+    --freedom-bg: #0A1830;
+    --freedom-text: #6AA0E0;
+    --costco-bg: #240A0E;
+    --costco-text: #E0708A;
+    --activecash-bg: #241408;
+    --activecash-text: #D89568;
     --green: #3ABF84;
     --blue: #4D8DF7;
     --red: #E05555;
@@ -312,6 +324,8 @@
   .card-btn.active-platinum .card-visual { box-shadow: 0 8px 24px rgba(74,127,165,0.35); }
   .card-btn.active-csr .card-visual { box-shadow: 0 8px 24px rgba(74,138,90,0.35); }
   .card-btn.active-freedom .card-visual { box-shadow: 0 8px 24px rgba(27,99,196,0.35); }
+  .card-btn.active-costco .card-visual { box-shadow: 0 8px 24px rgba(166,25,46,0.35); }
+  .card-btn.active-activecash .card-visual { box-shadow: 0 8px 24px rgba(160,82,45,0.35); }
 
   /* Card notification badge */
   .card-notif-badge {
@@ -450,6 +464,8 @@
   .card-btn.active-platinum .card-label { color: var(--plat-text); }
   .card-btn.active-csr .card-label { color: var(--csr-text); }
   .card-btn.active-freedom .card-label { color: var(--freedom-text); }
+  .card-btn.active-costco .card-label { color: var(--costco-text); }
+  .card-btn.active-activecash .card-label { color: var(--activecash-text); }
   .card-btn.active-cap1_venture_x .card-label { color: var(--venturex-text); }
   .card-btn.active-jp_morgan_reserve .card-label { color: var(--jmr-text); }
   .card-btn.active-chase_sapphire_pref .card-label { color: var(--csp-text); }
@@ -480,6 +496,8 @@
   .card-btn.active-platinum .active-ring { border: 2px solid var(--plat); opacity: 1; }
   .card-btn.active-csr .active-ring { border: 2px solid var(--csr); opacity: 1; }
   .card-btn.active-freedom .active-ring { border: 2px solid var(--freedom); opacity: 1; }
+  .card-btn.active-costco .active-ring { border: 2px solid var(--costco); opacity: 1; }
+  .card-btn.active-activecash .active-ring { border: 2px solid var(--activecash); opacity: 1; }
   .card-btn.active-cap1_venture_x .active-ring { border: 2px solid var(--venturex); opacity: 1; }
   .card-btn.active-jp_morgan_reserve .active-ring { border: 2px solid var(--jmr); opacity: 1; }
   .card-btn.active-chase_sapphire_pref .active-ring { border: 2px solid var(--csp); opacity: 1; }
@@ -915,6 +933,8 @@
   .all-cards-card-name.platinum { color: var(--plat); }
   .all-cards-card-name.csr { color: var(--csr); }
   .all-cards-card-name.freedom { color: var(--freedom); }
+  .all-cards-card-name.costco { color: var(--costco); }
+  .all-cards-card-name.activecash { color: var(--activecash); }
   .all-cards-card-name.venturex { color: var(--venturex); }
   .all-cards-card-name.jmr { color: var(--jmr); }
   .all-cards-card-name.csp { color: var(--csp); }
@@ -1191,6 +1211,8 @@
   .card-btn.active-platinum .card-back { border-color: var(--plat); }
   .card-btn.active-csr .card-back { border-color: var(--csr); }
   .card-btn.active-freedom .card-back { border-color: var(--freedom); }
+  .card-btn.active-costco .card-back { border-color: var(--costco); }
+  .card-btn.active-activecash .card-back { border-color: var(--activecash); }
 
   /* Partial use progress */
   .partial-bar { margin-top: 6px; }
@@ -1659,6 +1681,8 @@
   .comparison-card.platinum { border-top: 3px solid var(--plat); }
   .comparison-card.csr { border-top: 3px solid var(--csr); }
   .comparison-card.freedom { border-top: 3px solid var(--freedom); }
+  .comparison-card.costco { border-top: 3px solid var(--costco); }
+  .comparison-card.activecash { border-top: 3px solid var(--activecash); }
   .comparison-card.venturex { border-top: 3px solid var(--venturex); }
   .comparison-card.jmr { border-top: 3px solid var(--jmr); }
   .comparison-card.csp { border-top: 3px solid var(--csp); }
