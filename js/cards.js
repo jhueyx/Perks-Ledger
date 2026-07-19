@@ -148,7 +148,7 @@ export const CARDS={
 // ── Premium card catalog ──────────────────────────────────────────────────
 export const PREMIUM_CARD_CATALOG = [
   // American Express
-  {id:'platinum',issuer:'American Express',name:'Amex Platinum',fee:695,supported:true},
+  {id:'platinum',issuer:'American Express',name:'Amex Platinum',fee:895,supported:true},
   {id:'gold',issuer:'American Express',name:'Amex Gold',fee:325,supported:true},
   {id:'amex_green',issuer:'American Express',name:'Amex Green',fee:150,supported:true},
   {id:'amex_biz_plat',issuer:'American Express',name:'Amex Business Platinum',fee:695,supported:true},
@@ -159,7 +159,7 @@ export const PREMIUM_CARD_CATALOG = [
   {id:'amex_marriott_brill',issuer:'American Express',name:'Marriott Bonvoy Brilliant',fee:650,supported:true},
   {id:'amex_marriott_biz',issuer:'American Express',name:'Marriott Bonvoy Business',fee:125,supported:false},
   // Chase
-  {id:'csr',issuer:'Chase',name:'Chase Sapphire Reserve',fee:550,supported:true},
+  {id:'csr',issuer:'Chase',name:'Chase Sapphire Reserve',fee:795,supported:true},
   {id:'chase_sapphire_pref',issuer:'Chase',name:'Chase Sapphire Preferred',fee:95,supported:true},
   {id:'chase_ink_pref',issuer:'Chase',name:'Chase Ink Business Preferred',fee:95,supported:false},
   {id:'chase_world_of_hyatt',issuer:'Chase',name:'World of Hyatt',fee:95,supported:true},
