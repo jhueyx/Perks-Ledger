@@ -9,13 +9,14 @@
 import { CARDS, CARD_LABELS, BENEFIT_CATEGORIES, MONTHS, MONTHS_FULL } from './cards.js';
 import { state, CY, CM } from './state.js';
 import {
-  isUsed, isSkipped, isMonthSnoozed, getPartialUsed, getNote, getEffectiveAmount,
+  isUsed, isSkipped, isMonthSnoozed, getPartialUsed, getNote,
   bName, getCardFeeMonth, getCardFeeDay, loadRedemptionMonths, getPointsRedeemedYTD,
   loadCustomAmounts, loadCustomNames, loadPartial, loadNotes, loadCredited,
   loadSkipped, loadSnoozed, loadCardMeta, loadPointsRedeemed, getFeeOverrides, loadPointsSources,
+  loadBadges,
 } from './storage.js';
 import {
-  getYTDPeriods, isPFuture, isYTDCurrent, getBAmount, getFee, isBExpired, isBNotAvailable,
+  getYTDPeriods, getBAmount, getFee, isBExpired, isBNotAvailable,
 } from './periods.js';
 import {
   buildPortfolioReport, STATUS, STATUS_LABELS, fmtMoney, fmtPct, fmtSignedMoney,
@@ -189,9 +190,11 @@ export function pointsBreakdownFor(cardKey, year) {
 // ── Input snapshot ─────────────────────────────────────────────────────────
 /**
  * Walks every selected card / section / benefit / period and produces the flat
- * snapshot consumed by buildPortfolioReport(). Mirrors calcStats()'s traversal
- * (getYTDPeriods + isYTDCurrent under a temporarily-set state.selectedYear) so
- * the report agrees with the Annual Recap view.
+ * snapshot consumed by buildPortfolioReport(). Period enumeration mirrors
+ * calcStats() (getYTDPeriods under a temporarily-set state.selectedYear) so the
+ * report agrees with the Annual Recap view, but open/closed status comes from
+ * each period's real ISO bounds rather than isYTDCurrent(), which has no branch
+ * for the annual cadences.
  */
 export function buildReportInput(opts, visibleCardKeys) {
   const o = normalizeOptions(opts);
@@ -545,7 +548,10 @@ export function buildJSONBackup(report) {
       skipped: loadSkipped(),
       snoozed: loadSnoozed(),
       cardMeta: loadCardMeta(),
+      badges: loadBadges(),
+      redemptionMonths: loadRedemptionMonths(),
       pointsRedeemed: loadPointsRedeemed(),
+      pointsSources: loadPointsSources(),
       feeOverrides: getFeeOverrides(),
       cardOrder: JSON.parse(localStorage.getItem('perks-card-order') || '[]'),
     },

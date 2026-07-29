@@ -7,7 +7,7 @@ import { CARDS, CARD_LABELS } from './cards.js';
 import { state, escapeHtml, CY } from './state.js';
 import { set, getVisibleCardKeys } from './views.js';
 import {
-  DEFAULT_OPTIONS, normalizeOptions, normalizeCardSelection, getReportYears, generateReport,
+  normalizeOptions, normalizeCardSelection, getReportYears, generateReport,
   reportToMarkdown, reportToCSV, scorecardToCSV, buildJSONBackup, downloadFile,
   benefitVisible, groupBenefits, STATUS, STATUS_LABELS, fmtMoney, fmtPct, fmtSignedMoney, isoToLabel,
 } from './report.js';

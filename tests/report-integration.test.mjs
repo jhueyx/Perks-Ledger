@@ -8,6 +8,7 @@
 
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 // ── Browser stubs (must be installed before the modules are imported) ──────
 const store = new Map();
@@ -284,6 +285,22 @@ test('CSV exports are well-formed and quote embedded commas', () => {
   // Every data row must have the same column count as the header.
   const cols = s => (s.match(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/g) || []).length + 1;
   raw.slice(1).forEach((r, i) => assert.equal(cols(r), cols(raw[0]), `row ${i} column count`));
+});
+
+test('JSON backup covers every store the app syncs to the cloud', () => {
+  // The backup silently omitted the new points-source tags, so tagging a
+  // welcome bonus and then restoring would have lost it. storage.js's cloud
+  // payload is the definition of "all my data"; the backup must not fall behind.
+  freshState();
+  const storageSrc = readFileSync(new URL('../js/storage.js', import.meta.url), 'utf8');
+  const payload = storageSrc.slice(storageSrc.indexOf('const payload={...state.DATA,'));
+  const synced = [...payload.slice(0, payload.indexOf('};')).matchAll(/_([A-Za-z]+):/g)]
+    .map(m => m[1]).filter(k => k !== 'cardOrder');
+  const backup = buildJSONBackup(run()).raw;
+  const backupKeys = Object.keys(backup).map(k => k.toLowerCase());
+  const missing = synced.filter(k => !backupKeys.includes(k.toLowerCase()));
+  assert.deepEqual(missing, [], 'every synced store should appear in the JSON backup');
+  assert.ok(synced.includes('pointsSources'), 'sanity: the check is reading the real payload');
 });
 
 test('JSON backup carries both the raw records and the computed report', () => {
