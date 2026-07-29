@@ -27,10 +27,10 @@ export async function syncFromSupabase(){
       const localTs=localStorage.getItem(STORAGE_KEY+'-ts-'+state.currentUser.id);
       if(localTs&&data.updated_at&&new Date(data.updated_at)<=new Date(localTs)) return;
       const raw=data.data;
-      const remoteExtras={_customAmounts:raw._customAmounts||{},_customNames:raw._customNames||{},_partial:raw._partial||{},_notes:raw._notes||{},_credited:raw._credited||{},_skipped:raw._skipped||{},_feeOverrides:raw._feeOverrides||{},_snoozed:raw._snoozed||{},_cardOrder:raw._cardOrder||[],_cardMeta:raw._cardMeta||{},_badges:raw._badges||{},_redemptionMonths:raw._redemptionMonths||{},_pointsRedeemed:raw._pointsRedeemed||{}};
+      const remoteExtras={_customAmounts:raw._customAmounts||{},_customNames:raw._customNames||{},_partial:raw._partial||{},_notes:raw._notes||{},_credited:raw._credited||{},_skipped:raw._skipped||{},_feeOverrides:raw._feeOverrides||{},_snoozed:raw._snoozed||{},_cardOrder:raw._cardOrder||[],_cardMeta:raw._cardMeta||{},_badges:raw._badges||{},_redemptionMonths:raw._redemptionMonths||{},_pointsRedeemed:raw._pointsRedeemed||{},_pointsSources:raw._pointsSources||{}};
       const benefitData={...raw};
-      delete benefitData._customAmounts; delete benefitData._customNames; delete benefitData._partial; delete benefitData._notes; delete benefitData._credited; delete benefitData._skipped; delete benefitData._feeOverrides; delete benefitData._snoozed; delete benefitData._cardOrder; delete benefitData._cardMeta; delete benefitData._badges; delete benefitData._redemptionMonths; delete benefitData._pointsRedeemed;
-      const localExtras={_customAmounts:loadCustomAmounts(),_customNames:loadCustomNames(),_partial:loadPartial(),_notes:loadNotes(),_credited:loadCredited(),_skipped:loadSkipped(),_feeOverrides:getFeeOverrides(),_snoozed:loadSnoozed(),_cardOrder:JSON.parse(localStorage.getItem('perks-card-order')||'[]'),_cardMeta:loadCardMeta(),_badges:loadBadges(),_redemptionMonths:loadRedemptionMonths(),_pointsRedeemed:loadPointsRedeemed()};
+      delete benefitData._customAmounts; delete benefitData._customNames; delete benefitData._partial; delete benefitData._notes; delete benefitData._credited; delete benefitData._skipped; delete benefitData._feeOverrides; delete benefitData._snoozed; delete benefitData._cardOrder; delete benefitData._cardMeta; delete benefitData._badges; delete benefitData._redemptionMonths; delete benefitData._pointsRedeemed; delete benefitData._pointsSources;
+      const localExtras={_customAmounts:loadCustomAmounts(),_customNames:loadCustomNames(),_partial:loadPartial(),_notes:loadNotes(),_credited:loadCredited(),_skipped:loadSkipped(),_feeOverrides:getFeeOverrides(),_snoozed:loadSnoozed(),_cardOrder:JSON.parse(localStorage.getItem('perks-card-order')||'[]'),_cardMeta:loadCardMeta(),_badges:loadBadges(),_redemptionMonths:loadRedemptionMonths(),_pointsRedeemed:loadPointsRedeemed(),_pointsSources:loadPointsSources()};
       const changed=JSON.stringify(benefitData)!==JSON.stringify(state.DATA)||JSON.stringify(remoteExtras)!==JSON.stringify(localExtras);
       if(changed){
         state.DATA=Object.assign(freshDATA(),benefitData);
@@ -49,6 +49,7 @@ export async function syncFromSupabase(){
         if(Object.keys(remoteExtras._badges).length) saveBadges(remoteExtras._badges);
         if(Object.keys(remoteExtras._redemptionMonths).length) saveRedemptionMonths(remoteExtras._redemptionMonths);
         if(Object.keys(remoteExtras._pointsRedeemed).length) savePointsRedeemedData(remoteExtras._pointsRedeemed);
+        if(Object.keys(remoteExtras._pointsSources).length) savePointsSourcesData(remoteExtras._pointsSources);
         document.dispatchEvent(new CustomEvent('perks:rerender'));
       }
     }
@@ -65,7 +66,7 @@ export async function saveToStorage(){
     localStorage.setItem(STORAGE_KEY+'-ts-'+state.currentUser.id,ts);
   }catch(e){}
   try{
-    const payload={...state.DATA,_customAmounts:loadCustomAmounts(),_customNames:loadCustomNames(),_partial:loadPartial(),_notes:loadNotes(),_credited:loadCredited(),_skipped:loadSkipped(),_feeOverrides:getFeeOverrides(),_snoozed:loadSnoozed(),_cardOrder:JSON.parse(localStorage.getItem('perks-card-order')||'[]'),_cardMeta:loadCardMeta(),_badges:loadBadges(),_redemptionMonths:loadRedemptionMonths(),_pointsRedeemed:loadPointsRedeemed()};
+    const payload={...state.DATA,_customAmounts:loadCustomAmounts(),_customNames:loadCustomNames(),_partial:loadPartial(),_notes:loadNotes(),_credited:loadCredited(),_skipped:loadSkipped(),_feeOverrides:getFeeOverrides(),_snoozed:loadSnoozed(),_cardOrder:JSON.parse(localStorage.getItem('perks-card-order')||'[]'),_cardMeta:loadCardMeta(),_badges:loadBadges(),_redemptionMonths:loadRedemptionMonths(),_pointsRedeemed:loadPointsRedeemed(),_pointsSources:loadPointsSources()};
     const {data:updated,error:upErr}=await sb.from('tracker_data').update({data:payload,updated_at:ts}).eq('user_id',state.currentUser.id).select('user_id');
     if(upErr) throw upErr;
     if(!updated||updated.length===0){
@@ -295,6 +296,22 @@ export function setPointsRedeemed(cardKey,yearMonth,amount){
   scheduleSave();
 }
 export function getPointsRedeemed(cardKey,yearMonth){ return (loadPointsRedeemed()[cardKey]||{})[yearMonth]||0; }
+
+// ── Points redemption source ───────────────────────────────────────────────
+// Where a redemption came from — welcome bonus, ongoing spend, referral, etc.
+// User-declared only: the app has no way to know, and a first-year welcome
+// bonus must never be presented as recurring annual value. Key: cardKey__YYYY-M
+const POINTS_SOURCES_KEY='perks-points-sources';
+export function loadPointsSources(){ try{ return JSON.parse(localStorage.getItem(POINTS_SOURCES_KEY)||'{}'); }catch(e){ return {}; } }
+export function savePointsSourcesData(d){ localStorage.setItem(POINTS_SOURCES_KEY,JSON.stringify(d)); }
+export function getPointsSource(cardKey,yearMonth){ return loadPointsSources()[`${cardKey}__${yearMonth}`]||''; }
+export function setPointsSource(cardKey,yearMonth,source){
+  const d=loadPointsSources();
+  const k=`${cardKey}__${yearMonth}`;
+  if(!source) delete d[k]; else d[k]=source;
+  savePointsSourcesData(d);
+  scheduleSave();
+}
 export function getPointsRedeemedYTD(cardKey,year){
   const byMonth=loadPointsRedeemed()[cardKey]||{};
   return Object.entries(byMonth).filter(([k])=>k.startsWith(`${year}-`)).reduce((s,[,v])=>s+v,0);

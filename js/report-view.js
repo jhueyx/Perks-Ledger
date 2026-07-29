@@ -477,7 +477,11 @@ export function reportToHTML(report) {
         ${statBlock('Points redeemed', money(c.recordedPointsRedemptionValue))}
         ${statBlock('Total tracked after fee', fmtSignedMoney(c.totalTrackedValueAfterFees), c.totalTrackedValueAfterFees >= 0 ? 'rpt-pos' : 'rpt-neg')}
       </div>
-      <p class="rpt-narrative">${E(c.narrative)}</p>`);
+      <p class="rpt-narrative">${E(c.narrative)}</p>
+      ${c.hasPersonalOverrides ? `<p class="rpt-note"><b>Personal vs published value.</b>
+        Figures above use your own valuations. At published face value this card offered
+        ${money(c.faceAvailableValue)} and returned ${money(c.faceUsedValue)}, a face-value net of
+        ${E(fmtSignedMoney(c.faceNetBenefitValueAfterFees))} after its ${money(c.annualFee)} fee.</p>` : ''}`);
 
     if (o.includeActivity) {
       const visible = c.benefits.filter(b => benefitVisible(b, o));
@@ -508,12 +512,9 @@ export function reportToHTML(report) {
   H.push(`<section class="rpt-section">
     <h2>Used Benefits</h2>
     <p class="rpt-narrative">${E(report.narratives.usage)}</p>
-    ${usedBenefits.length ? tableWrap(`<table class="rpt-table rpt-table-sm">
-      <thead><tr><th>Benefit</th><th>Card</th><th>Category</th><th>Frequency</th><th class="r">Value received</th><th class="c">Periods used</th><th>Status</th></tr></thead>
-      <tbody>${usedBenefits.map(b => {
-        const card = report.cardSummaries.find(c => c.cardId === b.cardId);
-        return `<tr><td class="rpt-strong">${E(bLabel(b))}</td><td>${E(card ? card.cardName : '')}</td><td>${E(b.category)}</td><td>${E(b.frequencyLabel)}</td><td class="r rpt-pos">${money(b.usedValue)}</td><td class="c">${b.periodsUsed}</td><td>${pill(b.status)}</td></tr>`;
-      }).join('')}</tbody></table>`) : `<p class="rpt-empty">No benefits were recorded as used in this period.</p>`}
+    ${usedBenefits.length
+      ? `<p class="rpt-note">${usedBenefits.length} benefit${usedBenefits.length === 1 ? '' : 's'} contributed value this period; each is itemised in its card section above.</p>`
+      : `<p class="rpt-empty">No benefits were recorded as used in this period.</p>`}
     <div class="rpt-split">
       <div>
         <div class="rpt-group-label">Usage by category</div>
@@ -608,6 +609,16 @@ export function reportToHTML(report) {
           <td class="r">${c.breakEvenGap > 0 ? money(c.breakEvenGap) : '<span class="rpt-pos">covered</span>'}</td>
         </tr>`).join('')}</tbody>
       </table>`)}
+      ${tableWrap(`<table class="rpt-table rpt-table-sm">
+        <thead><tr><th>Valuation basis</th><th class="r">Benefit value available</th><th class="r">Benefit value redeemed</th><th class="r">Net after fees</th></tr></thead>
+        <tbody>
+          <tr><td>Published face value</td><td class="r">${money(report.faceAvailableValue)}</td><td class="r">${money(report.faceUsedValue)}</td><td class="r">${signed(report.faceNetBenefitValueAfterFees)}</td></tr>
+          <tr><td>Your personal value</td><td class="r">${money(report.totalAvailableValue)}</td><td class="r">${money(report.redeemedBenefitValue)}</td><td class="r">${signed(report.netBenefitValueAfterFees)}</td></tr>
+        </tbody>
+      </table>`)}
+      <p class="rpt-note">${report.hasPersonalOverrides
+        ? 'Face value is the amount the issuer publishes. Personal value is what you told Perks Ledger the benefit is actually worth to you. Neither replaces the other — utilization is measured against the basis shown, and both nets are reported here.'
+        : 'You have not set a personal value for any benefit, so personal value currently equals published face value and the two rows above are identical.'}</p>
       <div class="rpt-callout">
         <p><b>What these numbers do and do not include.</b> Objective statement credits and reimbursements are counted at face value once recorded. Values you overrode with your own amount are <i>estimates</i> and reflect your personal valuation. Untracked value — points and miles earned on spend, purchase and travel protections, elite status, lounge access, companion certificates, and transfer-partner value — is <b>not</b> included anywhere in this report.</p>
         <p>A card can therefore sit below break-even here and still be worth keeping. Annual fee minus statement credits is one lens, not the only valid way to evaluate a card.</p>
@@ -628,7 +639,7 @@ export function reportToHTML(report) {
   }
 
   // ── 11. Methodology ──────────────────────────────────────────────────────
-  H.push(`<section class="rpt-section rpt-method">
+  H.push(`<section class="rpt-section rpt-method rpt-page-break">
     <h2>Methodology and Assumptions</h2>
     <dl>${report.methodology.map(m => `<dt>${E(m.heading)}</dt><dd>${E(m.body)}</dd>`).join('')}</dl>
   </section>`);
@@ -639,7 +650,9 @@ export function reportToHTML(report) {
 
 /** One summary row per benefit, plus a per-period timeline when it recurs. */
 function benefitRows(b, o) {
-  const estimate = b.isEstimated ? ` <span class="rpt-est" title="Custom value you set">est.</span>` : '';
+  const estimate = b.isEstimated
+    ? ` <span class="rpt-est" title="Your personal valuation; published face value ${E(fmtMoney(b.faceAvailableValue))}">personal ${E(fmtMoney(b.availableValue))} · face ${E(fmtMoney(b.faceAvailableValue))}</span>`
+    : '';
   // Every dollar of Available is accounted for across these four columns, so a
   // row always reconciles: available = redeemed + expired + claimable (+ any
   // upcoming). Without the Expired column a partly-missed monthly credit read
@@ -660,7 +673,8 @@ function benefitRows(b, o) {
   // Chronological detail for benefits that recur — this is where a monthly
   // credit's individual misses become visible.
   const detail = b.instances.filter(i => i.status !== STATUS.NOT_YET_AVAILABLE);
-  if (detail.length > 1) {
+  const informative = b.missedValue > 0 || b.remainingValue > 0 || b.excludedValue > 0;
+  if (detail.length > 1 && informative) {
     rows.push(`<tr class="rpt-b-detail"><td colspan="10">
       <div class="rpt-timeline">${detail.map(i =>
         `<span class="rpt-tl ${STATUS_CLS[i.status] || 'mute'}" title="${E(`${i.periodLabel}: ${STATUS_LABELS[i.status]} · ${fmtMoney(i.usedValue)} of ${fmtMoney(i.amount)}`)}">${E(i.periodLabel)}<b>${money(i.usedValue)}</b></span>`).join('')}</div>
@@ -769,7 +783,9 @@ export const REPORT_CSS = `
 .rpt-list{margin:6px 0 0;padding-left:18px;} .rpt-list li{margin-bottom:4px;}
 .rpt-recs{margin:0;padding-left:20px;}
 .rpt-recs li{margin-bottom:10px;} .rpt-recs li b{display:block;} .rpt-recs li span{color:var(--rp-dim);}
-.rpt-method dt{font-weight:700;margin-top:9px;} .rpt-method dd{margin:2px 0 0;color:var(--rp-dim);}
+.rpt-method dl{columns:2;column-gap:22px;}
+.rpt-method dt{font-weight:700;margin-top:9px;break-after:avoid;}
+.rpt-method dd{break-inside:avoid;} .rpt-method dd{margin:2px 0 0;color:var(--rp-dim);}
 .rpt-foot{margin-top:26px;padding-top:12px;border-top:1px solid var(--rp-line);font-size:11px;color:var(--rp-dim);text-align:center;}
 @media (max-width:600px){
   .rpt-paper{padding:18px 14px;} .rpt-title{font-size:21px;}
@@ -787,6 +803,11 @@ body.rpt-standalone .rpt-paper{max-width:8.5in;margin:0 auto;box-shadow:0 2px 14
   .rpt-paper{border:none !important;box-shadow:none !important;border-radius:0;padding:0;margin:0;max-width:none;font-size:10.5pt;}
   /* Keep headings with their content and never orphan a table header. */
   .rpt-section h2,.rpt-section h3,.rpt-group-label{break-after:avoid;page-break-after:avoid;}
+  /* Page structure. Page 1 carries the header, summary and scorecard; each of
+     the remaining top-level sections starts on a fresh page so a card review is
+     never split from its heading. Card sections themselves may flow. */
+  .rpt-page-break{break-before:page;page-break-before:always;}
+  .rpt-section:last-of-type{break-after:avoid;page-break-after:avoid;}
   .rpt-head,.rpt-summary,.rpt-callout,.rpt-stat,.rpt-group{break-inside:avoid;page-break-inside:avoid;}
   .rpt-card{break-inside:auto;page-break-inside:auto;border-color:#c9ccd3;}
   .rpt-card-head,.rpt-card-meta,.rpt-card-stats{break-inside:avoid;page-break-inside:avoid;}
@@ -818,8 +839,12 @@ body.rpt-standalone .rpt-paper{max-width:8.5in;margin:0 auto;box-shadow:0 2px 14
   .rpt-method dt{margin-top:5pt;}
   .rpt-head{padding-bottom:8pt;margin-bottom:10pt;}
   .rpt-title{font-size:17pt;}
-  .rpt-timeline{gap:2px;padding:1px 0 3px;}
-  .rpt-tl{font-size:6.5pt;padding:0 3px;}
+  /* The bordered month chips are the single bulkiest element; in print they
+     collapse to a tight inline run that still colour-codes each period. */
+  .rpt-timeline{gap:0;padding:0 0 2px;display:block;line-height:1.35;}
+  .rpt-tl{font-size:6.5pt;padding:0;border:none !important;display:inline;white-space:nowrap;}
+  .rpt-tl::after{content:"  ";}
+  .rpt-tl b{font-weight:600;margin-left:1px;}
   .rpt-group{margin-top:6pt;}
   .rpt-foot{position:fixed;bottom:0;left:0;right:0;border-top:1px solid #d9dce3;background:#fff;margin:0;padding:2pt 0;font-size:7pt;}
   body{padding-bottom:16pt;}

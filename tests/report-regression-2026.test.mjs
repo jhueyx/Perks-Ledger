@@ -253,6 +253,25 @@ test('points source is never inferred', () => {
     'nothing is guessed from the data');
 });
 
+test('a declared welcome bonus is split out of recurring value', () => {
+  const wf = { ...card('wf_premier_autograph') };
+  wf.pointsBreakdown = { total: 1063.68, bySource: { 'welcome-bonus': 950, 'ongoing-spend': 113.68 },
+    hasDeclaredSource: true, welcomeBonusValue: 950, ongoingValue: 113.68, undeclaredValue: 0 };
+  const n = generateCardNarrative(wf);
+  assert.match(n, /\$950 was a welcome bonus and will not recur/);
+  assert.match(n, /\$113\.68 came from ongoing activity/);
+  // 170 credits + 113.68 ongoing - 95 fee = 188.68
+  assert.match(n, /recurring value alone the card returned \+\$188\.68/);
+  assert.doesNotMatch(n, /should not be assumed to recur/,
+    'once the source is declared the blanket caveat is replaced by real numbers');
+});
+
+test('an undeclared redemption keeps the non-recurrence caveat', () => {
+  const n = generateCardNarrative(card('wf_premier_autograph'));
+  assert.match(n, /should not be assumed to recur/);
+  assert.match(n, /tag each redemption/i, 'points the user at where to fix it');
+});
+
 // ── Face vs personal value ─────────────────────────────────────────────────
 test('with no overrides, personal value equals published face value', () => {
   assert.equal(report.hasPersonalOverrides, false);

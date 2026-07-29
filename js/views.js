@@ -1,6 +1,6 @@
 import { CARDS, MONTHS, MONTHS_FULL, CARD_LABELS, CARD_SHORT_LABELS, CARD_CLS, BENEFIT_CATEGORIES, POINTS_PROGRAMS, PREMIUM_CARD_CATALOG, POINTS_MULTIPLIERS } from './cards.js';
 import { state, CY, CM, escapeHtml } from './state.js';
-import { isUsed, isCredited, toggleCredited, getEffectiveAmount, bName, getNote, getPartialUsed, loadNotes, saveNotes, getNoteKey, isSkipped, isGloballySnoozed, isMonthSnoozed, getSnoozedUntil, getCardFeeMonth, getCardFeeDay, countSkipped, clearAllSkipped, loadSkipped, loadPointsRedeemed, getPointsRedeemedYTD, getAllPointsRedeemedYTD } from './storage.js';
+import { isUsed, isCredited, toggleCredited, getEffectiveAmount, bName, getNote, getPartialUsed, loadNotes, saveNotes, getNoteKey, isSkipped, isGloballySnoozed, isMonthSnoozed, getSnoozedUntil, getCardFeeMonth, getCardFeeDay, countSkipped, clearAllSkipped, loadSkipped, loadPointsRedeemed, getPointsRedeemedYTD, getAllPointsRedeemedYTD, getPointsSource } from './storage.js';
 import {
   getCardYearStart, getCardYearPeriods, getYTDPeriods, isPFuture, isPCurrent, isYTDCurrent,
   getCurrentPK, getCurrentLabel, getBAmount, getFee, isBExpired, isBNotAvailable,
@@ -2201,6 +2201,17 @@ export function formatAdvisorMarkdown(text){
 
 // ── Main render dispatcher ─────────────────────────────────────────────────
 // ── Render: points redeemed ────────────────────────────────────────────────
+// Source is user-declared only — the app cannot know where points came from,
+// and the Detailed Report must not present a first-year welcome bonus as
+// recurring annual value.
+const POINTS_SOURCE_OPTIONS=[
+  ['','Source…'],
+  ['ongoing-spend','Ongoing spend'],
+  ['welcome-bonus','Welcome bonus'],
+  ['referral','Referral'],
+  ['adjustment','Adjustment'],
+  ['unknown','Other / unknown'],
+];
 export function renderPointsRedemptions(){
   const CARD_KEYS=getVisibleCardKeys();
   const yr=window._ptsRY||CY;
@@ -2227,7 +2238,7 @@ export function renderPointsRedemptions(){
         <div class="netval-hero-label">${yr}${isPrior?' full year':' YTD'} — redeemed across all cards</div>
       </div>
     </div>
-    <div style="font-size:11px;font-family:var(--mono);color:var(--text-tertiary);margin-top:6px">Log what you actually redeemed each month — statement cash, invest with rewards, point rewards, etc.</div>
+    <div style="font-size:11px;font-family:var(--mono);color:var(--text-tertiary);margin-top:6px">Log what you actually redeemed each month, and tag where it came from. Tagging a welcome bonus keeps it out of the recurring-value figures in the Detailed Report.</div>
   </div>`;
 
   // Build months list: prior year = all 12 months; current year = 0..CM — newest first
@@ -2264,6 +2275,11 @@ export function renderPointsRedemptions(){
             style="width:90px;padding:5px 7px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-size:13px;font-family:var(--mono)">
           ${isCurrent?`<span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);margin-left:4px">this month</span>`:''}
         </div>
+        <select class="pts-source-select" data-card="${cardKey}" data-mk="${mk}"
+          title="Where did these points come from? Used by the Detailed Report to separate one-off welcome-bonus value from recurring value."
+          style="flex-shrink:0;padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:${getPointsSource(cardKey,mk)?'var(--text)':'var(--text-tertiary)'};font-size:11px;font-family:var(--mono);${amt>0?'':'opacity:0.4'}">
+          ${POINTS_SOURCE_OPTIONS.map(([v,l])=>`<option value="${v}"${getPointsSource(cardKey,mk)===v?' selected':''}>${l}</option>`).join('')}
+        </select>
         ${amt>0?`<span style="font-size:12px;font-family:var(--mono);color:var(--green);flex-shrink:0">✓</span>`:''}
       </div>`;
     });
@@ -2278,6 +2294,12 @@ export function renderPointsRedemptions(){
       inp.addEventListener('change',()=>{
         const amt=Math.max(0,parseFloat(inp.value)||0);
         window.savePointsRedeemedEntry(inp.dataset.card, inp.dataset.mk, amt);
+      });
+    });
+    document.querySelectorAll('.pts-source-select').forEach(sel=>{
+      sel.addEventListener('change',()=>{
+        window.savePointsSourceEntry(sel.dataset.card, sel.dataset.mk, sel.value);
+        sel.style.color=sel.value?'var(--text)':'var(--text-tertiary)';
       });
     });
   });

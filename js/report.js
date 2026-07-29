@@ -12,7 +12,7 @@ import {
   isUsed, isSkipped, isMonthSnoozed, getPartialUsed, getNote, getEffectiveAmount,
   bName, getCardFeeMonth, getCardFeeDay, loadRedemptionMonths, getPointsRedeemedYTD,
   loadCustomAmounts, loadCustomNames, loadPartial, loadNotes, loadCredited,
-  loadSkipped, loadSnoozed, loadCardMeta, loadPointsRedeemed, getFeeOverrides,
+  loadSkipped, loadSnoozed, loadCardMeta, loadPointsRedeemed, getFeeOverrides, loadPointsSources,
 } from './storage.js';
 import {
   getYTDPeriods, isPFuture, isYTDCurrent, getBAmount, getFee, isBExpired, isBNotAvailable,
@@ -161,13 +161,6 @@ export const POINTS_SOURCE_LABELS = {
   [POINTS_SOURCES.UNKNOWN]: 'Other / Unknown',
 };
 
-const POINTS_SOURCE_KEY = 'perks-points-sources';
-
-/** { "cardKey__YYYY-M": source }. Purely user-declared — never inferred. */
-export function loadPointsSources() {
-  try { return JSON.parse(localStorage.getItem(POINTS_SOURCE_KEY) || '{}'); } catch (e) { return {}; }
-}
-
 /**
  * Splits a card's recorded points redemptions by declared source. The app has
  * no way to know where points came from, so nothing is inferred: undeclared
@@ -177,13 +170,18 @@ export function loadPointsSources() {
 export function pointsBreakdownFor(cardKey, year) {
   const byMonth = loadPointsRedeemed()[cardKey] || {};
   const sources = loadPointsSources();
-  const out = { total: 0, bySource: {}, hasDeclaredSource: false };
+  const out = { total: 0, bySource: {}, hasDeclaredSource: false, welcomeBonusValue: 0, ongoingValue: 0, undeclaredValue: 0 };
   Object.entries(byMonth).forEach(([ym, amt]) => {
     if (!ym.startsWith(`${year}-`)) return;
-    const src = sources[`${cardKey}__${ym}`] || POINTS_SOURCES.UNKNOWN;
-    if (sources[`${cardKey}__${ym}`]) out.hasDeclaredSource = true;
+    const declared = sources[`${cardKey}__${ym}`];
+    const src = declared || POINTS_SOURCES.UNKNOWN;
+    if (declared) out.hasDeclaredSource = true;
     out.bySource[src] = r2((out.bySource[src] || 0) + amt);
     out.total = r2(out.total + amt);
+    // One-off value must be separable from value that plausibly recurs.
+    if (src === POINTS_SOURCES.WELCOME_BONUS) out.welcomeBonusValue = r2(out.welcomeBonusValue + amt);
+    else if (src === POINTS_SOURCES.ONGOING_SPEND || src === POINTS_SOURCES.REFERRAL) out.ongoingValue = r2(out.ongoingValue + amt);
+    else out.undeclaredValue = r2(out.undeclaredValue + amt);
   });
   return out;
 }

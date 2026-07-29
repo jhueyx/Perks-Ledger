@@ -12,7 +12,7 @@ import {
   getFeeOverrides, saveFeeOverridesData, getCardFeeMonth, getCardFeeDay,
   setSnoozedBenefit, isGloballySnoozed, isUsed,
   loadCardMeta, setCardOpenedDate,
-  setPointsRedeemed
+  setPointsRedeemed, setPointsSource
 } from './storage.js';
 import { render, getVisibleCardKeys, renderCurrent, renderRecap, haptic, checkAllClaimed, animateCounters, renderFeeOptimizer, buildAdvisorContext, buildCardChooserContext, formatAdvisorMarkdown, computeAlerts, renderPointsRedemptions } from './views.js';
 import { checkBadges, getEarnedBadges, getEarnedAt, getUnseenBadges, markAllSeen, BADGE_DEFS, getApplicableBadgeDefs, TIER_COLORS } from './badges.js';
@@ -2288,6 +2288,9 @@ window.savePointsValuation=function(progId,value){
   localStorage.setItem('perks-points-valuations',JSON.stringify(data));
 };
 
+window.savePointsSourceEntry=function(cardKey,monthKey,source){
+  setPointsSource(cardKey,monthKey,source);
+};
 window.savePointsRedeemedEntry=function(cardKey,monthKey,amount){
   setPointsRedeemed(cardKey,monthKey,amount);
   renderPointsRedemptions();

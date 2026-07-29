@@ -677,8 +677,11 @@ export function generateCardNarrative(card) {
     parts.push(`This card carries no annual fee, so all ${fmtMoney(card.usedValue)} of tracked benefit value is net positive.`);
   }
 
-  if (card.isFirstYear && card.recordedPointsRedemptionValue > 0) {
-    parts.push('This card was opened during the reporting period, so its points redemption value may include first-year or welcome-bonus value and should not be assumed to recur.');
+  const pb = card.pointsBreakdown;
+  if (pb && pb.welcomeBonusValue > 0) {
+    parts.push(`Of that points value, ${fmtMoney(pb.welcomeBonusValue)} was a welcome bonus and will not recur; ${fmtMoney(r2(pb.ongoingValue + pb.undeclaredValue))} came from ongoing activity. On recurring value alone the card returned ${fmtSignedMoney(r2(card.usedValue + pb.ongoingValue + pb.undeclaredValue - card.annualFee))} after its fee.`);
+  } else if (card.recordedPointsRedemptionValue > 0 && (card.isFirstYear || !pb || !pb.hasDeclaredSource)) {
+    parts.push(`${card.isFirstYear ? 'This card was opened during the reporting period, so its' : 'No source is recorded for these redemptions, so the'} points redemption value may include first-year or welcome-bonus value and should not be assumed to recur. You can tag each redemption's source in Points Redeemed.`);
   }
 
   // Only name untracked categories the card could plausibly carry — claiming
