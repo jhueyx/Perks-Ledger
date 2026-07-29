@@ -20,11 +20,19 @@ import {
 // ── Fixture builders ───────────────────────────────────────────────────────
 let seq = 0;
 
-/** One benefit-period slice. Defaults to "past period, nothing used". */
+// Every fixture is dated relative to this, because window open/closed is now
+// decided purely from periodStart/periodEnd vs reportDate.
+export const REPORT_DATE = '2026-07-28';
+const CLOSED = { periodStart: '2026-01-01', periodEnd: '2026-01-31' };   // ended
+const OPEN = { periodStart: '2026-07-01', periodEnd: '2026-07-31' };     // in progress
+const FUTURE = { periodStart: '2026-11-01', periodEnd: '2026-11-30' };   // not started
+
+/** One benefit-period slice. Defaults to "window closed, nothing used". */
 function inst(over = {}) {
   return {
     periodKey: `p${seq++}`, periodLabel: 'Jan', sortKey: 0, amount: 100,
-    used: false, partialUsed: 0, isFuture: false, isCurrent: false,
+    used: false, partialUsed: 0,
+    ...CLOSED, reportDate: REPORT_DATE,
     ...over,
   };
 }
@@ -57,12 +65,17 @@ function report(cards, options = {}) {
 const onlyBenefit = rep => rep.cardSummaries[0].benefits[0];
 
 /** Twelve monthly slices; `usedMonths` are fully used, `openFrom` stays current. */
-function monthlyInstances({ amount = 10, usedMonths = [], monthsElapsed = 12 } = {}) {
+function monthlyInstances({ amount = 10, usedMonths = [], monthsElapsed = 12, year = 2026 } = {}) {
   const M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const pad = n => String(n).padStart(2, '0');
+  const lastDay = m => new Date(year, m + 1, 0).getDate();
+  // Real calendar month windows. Against a July 28 report date this makes
+  // Jan–Jun closed, July open, and Aug onward not yet started — no flags.
   return M.slice(0, monthsElapsed).map((label, i) => inst({
-    periodKey: `2026-m${i}`, periodLabel: label, sortKey: 2026 * 12 + i, amount,
+    periodKey: `${year}-m${i}`, periodLabel: label, sortKey: year * 12 + i, amount,
     used: usedMonths.includes(i),
-    isCurrent: i === monthsElapsed - 1 && monthsElapsed < 12,
+    periodStart: `${year}-${pad(i + 1)}-01`,
+    periodEnd: `${year}-${pad(i + 1)}-${pad(lastDay(i))}`,
   }));
 }
 
@@ -80,7 +93,7 @@ test('fully used benefit counts entirely as realized value', () => {
 });
 
 test('partially used benefit in an open window splits realized vs remaining, never missed', () => {
-  const rep = report([card({ benefits: [benefit({ instances: [inst({ amount: 120, partialUsed: 70, isCurrent: true })] })] })]);
+  const rep = report([card({ benefits: [benefit({ instances: [inst({ amount: 120, partialUsed: 70, ...OPEN })] })] })]);
   const b = onlyBenefit(rep);
   assert.equal(b.status, STATUS.PARTIALLY_USED);
   assert.equal(b.usedValue, 70);
@@ -89,7 +102,7 @@ test('partially used benefit in an open window splits realized vs remaining, nev
 });
 
 test('partially used benefit in a closed window forfeits the shortfall', () => {
-  const rep = report([card({ benefits: [benefit({ instances: [inst({ amount: 120, partialUsed: 70, isCurrent: false })] })] })]);
+  const rep = report([card({ benefits: [benefit({ instances: [inst({ amount: 120, partialUsed: 70, ...CLOSED })] })] })]);
   const b = onlyBenefit(rep);
   assert.equal(b.status, STATUS.EXPIRED_PARTIALLY_USED);
   assert.equal(b.usedValue, 70);
@@ -106,7 +119,7 @@ test('unused benefit whose window closed is missed value', () => {
 });
 
 test('unused benefit that has not expired is a remaining opportunity, not a miss', () => {
-  const rep = report([card({ benefits: [benefit({ instances: [inst({ amount: 75, isCurrent: true })] })] })]);
+  const rep = report([card({ benefits: [benefit({ instances: [inst({ amount: 75, ...OPEN })] })] })]);
   const b = onlyBenefit(rep);
   assert.equal(b.status, STATUS.UNUSED);
   assert.equal(b.remainingValue, 75);
@@ -116,9 +129,9 @@ test('unused benefit that has not expired is a remaining opportunity, not a miss
 });
 
 test('future benefit is upcoming and excluded from available value and missed value', () => {
-  const rep = report([card({ benefits: [benefit({ instances: [inst({ amount: 250, isFuture: true })] })] })]);
+  const rep = report([card({ benefits: [benefit({ instances: [inst({ amount: 250, ...FUTURE })] })] })]);
   const b = onlyBenefit(rep);
-  assert.equal(b.status, STATUS.UPCOMING);
+  assert.equal(b.status, STATUS.NOT_YET_AVAILABLE);
   assert.equal(b.availableValue, 0, 'future value is not yet "available"');
   assert.equal(b.upcomingValue, 250);
   assert.equal(rep.totalMissedValue, 0);
@@ -189,7 +202,7 @@ test('monthly credit with multiple missed months counts each month once', () => 
     annualFee: 0,
     benefits: [benefit({
       benefitName: 'Monthly Dining Credit', frequency: 'monthly',
-      instances: monthlyInstances({ amount: 10, usedMonths: [0, 1, 2, 3, 4, 5, 6] }),
+      instances: monthlyInstances({ year: 2025, amount: 10, usedMonths: [0, 1, 2, 3, 4, 5, 6] }),
     })],
   })]);
   const b = onlyBenefit(rep);
@@ -207,14 +220,14 @@ test('monthly credit with the current month still open reports remaining, not mi
     annualFee: 0,
     benefits: [benefit({
       frequency: 'monthly',
-      instances: monthlyInstances({ amount: 10, usedMonths: [0, 1], monthsElapsed: 4 }),
+      instances: monthlyInstances({ amount: 10, usedMonths: [0, 1], monthsElapsed: 7 }),
     })],
   })]);
   const b = onlyBenefit(rep);
-  assert.equal(b.availableValue, 40, 'Jan–Apr only; May onward has not started');
+  assert.equal(b.availableValue, 70, 'Jan–Jul only; Aug onward has not started');
   assert.equal(b.usedValue, 20, 'Jan + Feb claimed');
-  assert.equal(b.missedValue, 10, 'March closed unused…');
-  assert.equal(b.remainingValue, 10, '…and April is open, so still claimable');
+  assert.equal(b.missedValue, 40, 'Mar–Jun closed unused…');
+  assert.equal(b.remainingValue, 10, '…and July is still open, so still claimable');
   assert.equal(b.status, STATUS.PARTIALLY_USED);
   assert.equal(b.availableValue, b.usedValue + b.missedValue + b.remainingValue);
 });
@@ -227,8 +240,8 @@ test('quarterly credit tracks per-quarter status', () => {
       instances: [
         inst({ periodLabel: 'Q1', sortKey: 1, amount: 100, used: true }),
         inst({ periodLabel: 'Q2', sortKey: 2, amount: 100, partialUsed: 40 }),
-        inst({ periodLabel: 'Q3', sortKey: 3, amount: 100, isCurrent: true }),
-        inst({ periodLabel: 'Q4', sortKey: 4, amount: 100, isFuture: true }),
+        inst({ periodLabel: 'Q3', sortKey: 3, amount: 100, ...OPEN }),
+        inst({ periodLabel: 'Q4', sortKey: 4, amount: 100, ...FUTURE }),
       ],
     })],
   })]);
@@ -239,7 +252,7 @@ test('quarterly credit tracks per-quarter status', () => {
   assert.equal(b.remainingValue, 100);
   assert.equal(b.upcomingValue, 100);
   assert.deepEqual(b.instances.map(i => i.status), [
-    STATUS.FULLY_USED, STATUS.EXPIRED_PARTIALLY_USED, STATUS.UNUSED, STATUS.UPCOMING,
+    STATUS.FULLY_USED, STATUS.EXPIRED_PARTIALLY_USED, STATUS.UNUSED, STATUS.NOT_YET_AVAILABLE,
   ]);
 });
 
@@ -249,8 +262,8 @@ test('semi-annual credit reports the closed half as missed and the open half as 
     benefits: [benefit({
       benefitName: 'Saks Credit', frequency: 'cal-semi-annual',
       instances: [
-        inst({ periodLabel: 'Jan–Jun', sortKey: 1, amount: 50, expirationDate: 'Jun 30, 2026' }),
-        inst({ periodLabel: 'Jul–Dec', sortKey: 2, amount: 50, isCurrent: true, expirationDate: 'Dec 31, 2026' }),
+        inst({ periodLabel: 'Jan–Jun', sortKey: 1, amount: 50, periodStart: '2026-01-01', periodEnd: '2026-06-30' }),
+        inst({ periodLabel: 'Jul–Dec', sortKey: 2, amount: 50, periodStart: '2026-07-01', periodEnd: '2026-12-31' }),
       ],
     })],
   })]);
@@ -258,7 +271,7 @@ test('semi-annual credit reports the closed half as missed and the open half as 
   assert.equal(b.missedValue, 50);
   assert.equal(b.remainingValue, 50);
   assert.equal(b.status, STATUS.EXPIRED_UNUSED, 'nothing used yet, and value was already forfeited');
-  assert.equal(b.nextExpiration, 'Dec 31, 2026');
+  assert.equal(b.nextExpiration, '2026-12-31');
 });
 
 test('anniversary-year and Feb–Jan cadences roll up like any other single-period benefit', () => {
@@ -279,7 +292,7 @@ test('anniversary-year and Feb–Jan cadences roll up like any other single-peri
 // Card ownership edges
 // ══════════════════════════════════════════════════════════════════════════
 test('card opened midyear does not count pre-ownership months as missed', () => {
-  const all = monthlyInstances({ amount: 10, usedMonths: [6, 7, 8, 9, 10, 11] });
+  const all = monthlyInstances({ year: 2025, amount: 10, usedMonths: [6, 7, 8, 9, 10, 11] });
   all.slice(0, 6).forEach(i => { i.isOutsideCardOwnership = true; });
   const rep = report([card({ annualFee: 0, benefits: [benefit({ frequency: 'monthly', instances: all })] })]);
   const b = onlyBenefit(rep);
@@ -291,7 +304,7 @@ test('card opened midyear does not count pre-ownership months as missed', () => 
 });
 
 test('card closed midyear does not count post-closure months as missed', () => {
-  const all = monthlyInstances({ amount: 10, usedMonths: [0, 1, 2] });
+  const all = monthlyInstances({ year: 2025, amount: 10, usedMonths: [0, 1, 2] });
   all.slice(3).forEach(i => { i.isOutsideCardOwnership = true; });
   const rep = report([card({ annualFee: 0, benefits: [benefit({ frequency: 'monthly', instances: all })] })]);
   const b = onlyBenefit(rep);
@@ -332,7 +345,7 @@ test('card and portfolio totals aggregate consistently', () => {
       cardId: 'csr', cardName: 'Chase Sapphire Reserve', annualFee: 795, pointsRedeemed: 0,
       benefits: [
         benefit({ benefitName: 'Travel Credit', category: 'travel', instances: [inst({ amount: 300, used: true })] }),
-        benefit({ benefitName: 'Dining Credit', category: 'dining', frequency: 'monthly', instances: monthlyInstances({ amount: 10, usedMonths: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] }) }),
+        benefit({ benefitName: 'Dining Credit', category: 'dining', frequency: 'monthly', instances: monthlyInstances({ year: 2025, amount: 10, usedMonths: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] }) }),
       ],
     }),
     card({
@@ -347,13 +360,17 @@ test('card and portfolio totals aggregate consistently', () => {
   assert.equal(csr.missedValue, 10);
   assert.equal(csr.netTrackedValue, 410 - 795);
   assert.equal(csr.breakEvenGap, 385);
-  assert.equal(plat.netTrackedValue, 0 + 50 - 895);
+  assert.equal(plat.netBenefitValueAfterFees, 0 - 895, 'benefit value only');
+  assert.equal(plat.totalTrackedValueAfterFees, 0 + 50 - 895, 'points counted separately, on top');
 
   assert.equal(rep.totalAnnualFees, 1690);
   assert.equal(rep.totalAvailableValue, 520);
   assert.equal(rep.totalUsedValue, 410);
   assert.equal(rep.totalMissedValue, 110);
-  assert.equal(rep.netTrackedValue, 410 + 50 - 1690);
+  assert.equal(rep.netBenefitValueAfterFees, 410 - 1690, 'credits vs fees, points excluded');
+  assert.equal(rep.totalTrackedValueAfterFees, 410 + 50 - 1690, 'credits + points vs fees');
+  assert.equal(rep.redeemedBenefitValue, 410);
+  assert.equal(rep.recordedPointsRedemptionValue, 50);
   assert.equal(rep.cardCount, 2);
 
   // Sums must reconcile: available = used + missed + remaining.
@@ -370,14 +387,14 @@ test('card and portfolio totals aggregate consistently', () => {
 });
 
 test('assessment ladder reflects net tracked value and utilization', () => {
-  const base = { availableValue: 1000, usedValue: 500, upcomingValue: 0, utilizationRate: 0.5, annualFee: 100 };
-  assert.equal(assessCard({ ...base, netTrackedValue: 400 }), ASSESSMENTS.EXCELLENT);
-  assert.equal(assessCard({ ...base, netTrackedValue: 10 }), ASSESSMENTS.POSITIVE);
-  assert.equal(assessCard({ ...base, netTrackedValue: -5 }), ASSESSMENTS.BREAK_EVEN);
-  assert.equal(assessCard({ ...base, netTrackedValue: -60, utilizationRate: 0.3 }), ASSESSMENTS.REVIEW);
-  assert.equal(assessCard({ ...base, netTrackedValue: -60, utilizationRate: 0.8 }), ASSESSMENTS.UNDERUSED);
-  assert.equal(assessCard({ ...base, annualFee: 0, netTrackedValue: 500 }), ASSESSMENTS.EXCELLENT);
-  assert.equal(assessCard({ availableValue: 0, usedValue: 0, upcomingValue: 0, utilizationRate: 0, annualFee: 0, netTrackedValue: 0 }), ASSESSMENTS.NO_DATA);
+  const base = { availableValue: 1000, usedValue: 500, upcomingValue: 0, utilizationRate: 0.5, missedValue: 0, annualFee: 100 };
+  assert.equal(assessCard({ ...base, netBenefitValueAfterFees: 400 }), ASSESSMENTS.EXCELLENT);
+  assert.equal(assessCard({ ...base, netBenefitValueAfterFees: 10 }), ASSESSMENTS.POSITIVE);
+  assert.equal(assessCard({ ...base, netBenefitValueAfterFees: -5 }), ASSESSMENTS.BREAK_EVEN);
+  assert.equal(assessCard({ ...base, netBenefitValueAfterFees: -60, utilizationRate: 0.3, missedValue: 400 }), ASSESSMENTS.UNDERUSED);
+  assert.equal(assessCard({ ...base, netBenefitValueAfterFees: -60, utilizationRate: 0.8 }), ASSESSMENTS.REVIEW);
+  assert.equal(assessCard({ ...base, annualFee: 0, netBenefitValueAfterFees: 500 }), ASSESSMENTS.EXCELLENT);
+  assert.equal(assessCard({ availableValue: 0, usedValue: 0, upcomingValue: 0, utilizationRate: 0, missedValue: 0, annualFee: 0, netBenefitValueAfterFees: 0 }), ASSESSMENTS.NO_DATA);
 });
 
 test('missing annual fee is treated as zero rather than NaN', () => {
@@ -385,12 +402,12 @@ test('missing annual fee is treated as zero rather than NaN', () => {
   const c = rep.cardSummaries[0];
   assert.equal(c.annualFee, 0);
   assert.equal(c.feeIsKnown, false);
-  assert.equal(c.netTrackedValue, 100);
+  assert.equal(c.netBenefitValueAfterFees, 100);
   assert.equal(rep.totalAnnualFees, 0);
 });
 
 test('missing expiration date does not break the opportunity list', () => {
-  const rep = report([card({ benefits: [benefit({ instances: [inst({ amount: 60, isCurrent: true, expirationDate: undefined })] })] })]);
+  const rep = report([card({ benefits: [benefit({ instances: [inst({ amount: 60, periodStart: null, periodEnd: null })] })] })]);
   assert.equal(onlyBenefit(rep).nextExpiration, null);
   assert.doesNotThrow(() => generateOpportunityNarrative(rep));
   assert.doesNotThrow(() => generateRecommendations(rep));
@@ -433,7 +450,7 @@ test('portfolio summary names real cards and reconciles with the totals', () => 
   assert.match(s, /2 cards/);
   assert.match(s, /strongest-performing card was the Chase Sapphire Reserve/);
   assert.match(s, /AMEX Platinum had the highest amount of unused value/);
-  assert.match(s, /fall \$1,190 short/, '$1,690 in fees less $500 realized');
+  assert.match(s, /\$1,190 short of the fees/, '$1,690 in fees less $500 realized');
   assert.match(s, /lounge access/, 'untracked-value caveat is always present');
   assert.doesNotMatch(s, /undefined|NaN|\$NaN/);
 });
@@ -465,9 +482,10 @@ test('card narrative never claims profit the numbers do not support', () => {
     benefits: [benefit({ instances: [inst({ amount: 300, used: true })] })],
   })]).cardSummaries[0];
   const n = generateCardNarrative(c);
-  assert.match(n, /\$595 below break-even/);
+  assert.match(n, /\$595 short of covering it/);
   assert.doesNotMatch(n, /net of \+/);
-  assert.match(n, /not included unless explicitly tracked/);
+  assert.match(n, /Value not captured here/, 'untracked-value caveat is always present');
+  assert.doesNotMatch(n, /lounge/i, 'never claims a lounge benefit the card may not have');
 });
 
 test('card narrative reports both wins and misses with correct grammar', () => {
@@ -489,7 +507,7 @@ test('missed-value narrative attributes share by card and flags repeat offenders
     cardName: 'AMEX Gold', annualFee: 325,
     benefits: [benefit({
       benefitName: 'Dunkin Credit', category: 'dining', frequency: 'monthly',
-      instances: monthlyInstances({ amount: 7, usedMonths: [0] }),
+      instances: monthlyInstances({ year: 2025, amount: 7, usedMonths: [0] }),
     })],
   })]);
   const n = generateMissedValueNarrative(rep);
@@ -503,8 +521,8 @@ test('recommendations are specific, evidence-based, and hedged', () => {
   const rep = report([card({
     cardId: 'plat', cardName: 'AMEX Platinum', annualFee: 895,
     benefits: [
-      benefit({ benefitName: 'Hotel Credit', instances: [inst({ amount: 300, isCurrent: true, expirationDate: 'Dec 31, 2026' })] }),
-      benefit({ benefitName: 'Digital Entertainment', category: 'entertainment', frequency: 'monthly', instances: monthlyInstances({ amount: 25, usedMonths: [0, 1] }) }),
+      benefit({ benefitName: 'Hotel Credit', instances: [inst({ amount: 300, ...OPEN, expirationDate: 'Dec 31, 2026' })] }),
+      benefit({ benefitName: 'Digital Entertainment', category: 'entertainment', frequency: 'monthly', instances: monthlyInstances({ year: 2025, amount: 25, usedMonths: [0, 1] }) }),
     ],
   })]);
   const recs = generateRecommendations(rep);
@@ -515,8 +533,9 @@ test('recommendations are specific, evidence-based, and hedged', () => {
   assert.ok(titles.some(t => /Review the AMEX Platinum/.test(t)));
 
   const review = recs.find(r => /Review the AMEX Platinum/.test(r.title));
-  assert.match(review.detail, /You used \d+% of its tracked benefits/);
-  assert.match(review.detail, /may still be worthwhile/, 'hedged, not definitive advice');
+  assert.ok(review, 'a card below break-even should prompt a renewal review');
+  assert.match(review.detail, /You used \d+% of its available credits/);
+  assert.match(review.detail, /\b(consider|may|review)\b/i, 'hedged, not definitive advice');
   recs.forEach(r => assert.doesNotMatch(`${r.title} ${r.detail}`, /undefined|NaN/));
 });
 
@@ -534,7 +553,11 @@ test('methodology explains every classification rule the report relies on', () =
   const m = generateMethodology(report([card()]));
   const headings = m.map(x => x.heading);
   ['Available value', 'Used value', 'Partial usage', 'Recurring credits', 'Missed value',
-    'Excluded benefits', 'Annual fees', 'Estimated values', 'What is excluded']
+    'Still claimable', 'Benefit value vs points value', 'Face value vs personal value',
+    'Card status', 'Excluded benefits', 'Annual fees', 'Points redemption sources',
+    'Estimated values', 'What is excluded']
     .forEach(h => assert.ok(headings.includes(h), `methodology should cover "${h}"`));
-  assert.match(m.find(x => x.heading === 'Missed value').body, /never counted as missed/);
+  assert.match(m.find(x => x.heading === 'Missed value').body, /can never show a future expiry/);
+  assert.match(m.find(x => x.heading === 'Still claimable').body, /never as missed/);
+  assert.match(m.find(x => x.heading === 'Card status').body, /Utilization and break-even are assessed separately/);
 });

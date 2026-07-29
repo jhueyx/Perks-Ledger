@@ -9,7 +9,7 @@ import { set, getVisibleCardKeys } from './views.js';
 import {
   DEFAULT_OPTIONS, normalizeOptions, normalizeCardSelection, getReportYears, generateReport,
   reportToMarkdown, reportToCSV, scorecardToCSV, buildJSONBackup, downloadFile,
-  benefitVisible, groupBenefits, STATUS, STATUS_LABELS, fmtMoney, fmtPct, fmtSignedMoney,
+  benefitVisible, groupBenefits, STATUS, STATUS_LABELS, fmtMoney, fmtPct, fmtSignedMoney, isoToLabel,
 } from './report.js';
 
 const E = escapeHtml;
@@ -358,6 +358,9 @@ function pill(status) {
 
 function money(n) { return E(fmtMoney(n)); }
 function plural(n, word) { return `${n} ${word}${n === 1 ? '' : 's'}`; }
+function bLabel(b) { return b.displayName || b.benefitName; }
+// Window bounds are stored as ISO so they can be compared; humanised at render.
+function dateLabel(iso) { return isoToLabel(iso) || '—'; }
 function signed(n) { return `<span class="${n >= 0 ? 'rpt-pos' : 'rpt-neg'}">${E(fmtSignedMoney(n))}</span>`; }
 
 function statBlock(label, value, cls = '') {
@@ -381,10 +384,17 @@ export function reportToHTML(report) {
       ${statBlock('Active cards', String(report.cardCount))}
       ${statBlock('Total annual fees', money(report.totalAnnualFees))}
       ${statBlock('Available benefit value', money(report.totalAvailableValue))}
-      ${statBlock('Redeemed value', money(report.totalUsedValue), 'rpt-pos')}
-      ${statBlock('Unused / expired value', money(report.totalMissedValue), report.totalMissedValue > 0 ? 'rpt-neg' : '')}
-      ${statBlock('Net value after fees', fmtSignedMoney(report.netTrackedValue), report.netTrackedValue >= 0 ? 'rpt-pos' : 'rpt-neg')}
+      ${statBlock('Redeemed benefit value', money(report.redeemedBenefitValue), 'rpt-pos')}
+      ${statBlock('Expired benefit value', money(report.totalMissedValue), report.totalMissedValue > 0 ? 'rpt-neg' : '')}
+      ${statBlock('Still claimable', money(report.totalRemainingAvailableValue))}
+      ${statBlock('Recorded points redemption value', money(report.recordedPointsRedemptionValue))}
+      ${statBlock('Net benefit value after fees', fmtSignedMoney(report.netBenefitValueAfterFees), report.netBenefitValueAfterFees >= 0 ? 'rpt-pos' : 'rpt-neg')}
+      ${statBlock('Total tracked value after fees', fmtSignedMoney(report.totalTrackedValueAfterFees), report.totalTrackedValueAfterFees >= 0 ? 'rpt-pos' : 'rpt-neg')}
     </div>
+    <p class="rpt-head-note"><b>Benefit value and points value are counted separately.</b>
+      Net benefit value after fees is ${money(report.redeemedBenefitValue)} in statement credits and reimbursements
+      less ${money(report.totalAnnualFees)} in annual fees. Total tracked value after fees adds the
+      ${money(report.recordedPointsRedemptionValue)} you recorded in points and miles redemptions on top.</p>
   </header>`);
 
   // ── 2. Executive summary ─────────────────────────────────────────────────
@@ -398,9 +408,10 @@ export function reportToHTML(report) {
     <h2>Portfolio Scorecard</h2>
     ${tableWrap(`<table class="rpt-table">
       <thead><tr>
-        <th>Card</th><th class="r">Annual Fee</th><th class="r">Available</th><th class="r">Used</th>
-        <th class="r">Missed</th><th class="r">Utilization</th><th class="r">Net Value</th>
-        <th class="c">Used / Missed</th><th>Status</th>
+        <th>Card</th><th class="r">Annual Fee</th><th class="r">Available</th><th class="r">Redeemed</th>
+        <th class="r">Expired</th><th class="r">Still Claimable</th><th class="r">Points</th>
+        <th class="r">Net Benefit</th><th class="r">Total Tracked</th>
+        <th class="r">Utilization</th><th>Status</th>
       </tr></thead>
       <tbody>
         ${report.cardSummaries.map(c => `<tr>
@@ -409,23 +420,31 @@ export function reportToHTML(report) {
           <td class="r">${money(c.availableValue)}</td>
           <td class="r">${money(c.usedValue)}</td>
           <td class="r">${money(c.missedValue)}</td>
+          <td class="r">${money(c.remainingAvailableValue)}</td>
+          <td class="r">${money(c.recordedPointsRedemptionValue)}</td>
+          <td class="r">${signed(c.netBenefitValueAfterFees)}</td>
+          <td class="r">${signed(c.totalTrackedValueAfterFees)}</td>
           <td class="r">${E(fmtPct(c.utilizationRate))}</td>
-          <td class="r">${signed(c.netTrackedValue)}</td>
-          <td class="c">${c.benefitsUsed} / ${c.benefitsMissed}</td>
           <td><span class="rpt-pill ${ASSESS_CLS[c.assessment] || 'mute'}">${E(c.assessment)}</span></td>
         </tr>`).join('')}
         <tr class="rpt-total">
           <td>Total</td>
           <td class="r">${money(report.totalAnnualFees)}</td>
           <td class="r">${money(report.totalAvailableValue)}</td>
-          <td class="r">${money(report.totalUsedValue)}</td>
+          <td class="r">${money(report.redeemedBenefitValue)}</td>
           <td class="r">${money(report.totalMissedValue)}</td>
+          <td class="r">${money(report.totalRemainingAvailableValue)}</td>
+          <td class="r">${money(report.recordedPointsRedemptionValue)}</td>
+          <td class="r">${signed(report.netBenefitValueAfterFees)}</td>
+          <td class="r">${signed(report.totalTrackedValueAfterFees)}</td>
           <td class="r">${E(fmtPct(report.utilizationRate))}</td>
-          <td class="r">${signed(report.netTrackedValue)}</td>
-          <td class="c">—</td><td></td>
+          <td></td>
         </tr>
       </tbody>
     </table>`)}
+    ${report.hasPersonalOverrides
+      ? `<p class="rpt-note">Totals use your personal valuations where you set one. At published face value the same benefits total ${money(report.faceAvailableValue)} available and ${money(report.faceUsedValue)} redeemed, for a face-value net of ${E(fmtSignedMoney(report.faceNetBenefitValueAfterFees))} after fees.</p>`
+      : `<p class="rpt-note">You have not overridden any benefit values, so personal value currently equals published face value throughout this report.</p>`}
   </section>`);
 
   // ── 4 & 5. Card-by-card narrative + benefit activity timeline ────────────
@@ -454,7 +473,9 @@ export function reportToHTML(report) {
         ${statBlock('Unused / expired', money(c.missedValue), c.missedValue > 0 ? 'rpt-neg' : '')}
         ${statBlock('Still available', money(c.remainingAvailableValue))}
         ${statBlock('Utilization', E(fmtPct(c.utilizationRate)))}
-        ${statBlock('Net after fee', fmtSignedMoney(c.netTrackedValue), c.netTrackedValue >= 0 ? 'rpt-pos' : 'rpt-neg')}
+        ${statBlock('Net benefit after fee', fmtSignedMoney(c.netBenefitValueAfterFees), c.netBenefitValueAfterFees >= 0 ? 'rpt-pos' : 'rpt-neg')}
+        ${statBlock('Points redeemed', money(c.recordedPointsRedemptionValue))}
+        ${statBlock('Total tracked after fee', fmtSignedMoney(c.totalTrackedValueAfterFees), c.totalTrackedValueAfterFees >= 0 ? 'rpt-pos' : 'rpt-neg')}
       </div>
       <p class="rpt-narrative">${E(c.narrative)}</p>`);
 
@@ -490,7 +511,7 @@ export function reportToHTML(report) {
       <thead><tr><th>Benefit</th><th>Card</th><th>Category</th><th>Frequency</th><th class="r">Value received</th><th class="c">Periods used</th><th>Status</th></tr></thead>
       <tbody>${usedBenefits.map(b => {
         const card = report.cardSummaries.find(c => c.cardId === b.cardId);
-        return `<tr><td class="rpt-strong">${E(b.benefitName)}</td><td>${E(card ? card.cardName : '')}</td><td>${E(b.category)}</td><td>${E(b.frequencyLabel)}</td><td class="r rpt-pos">${money(b.usedValue)}</td><td class="c">${b.periodsUsed}</td><td>${pill(b.status)}</td></tr>`;
+        return `<tr><td class="rpt-strong">${E(bLabel(b))}</td><td>${E(card ? card.cardName : '')}</td><td>${E(b.category)}</td><td>${E(b.frequencyLabel)}</td><td class="r rpt-pos">${money(b.usedValue)}</td><td class="c">${b.periodsUsed}</td><td>${pill(b.status)}</td></tr>`;
       }).join('')}</tbody></table>`) : `<p class="rpt-empty">No benefits were recorded as used in this period.</p>`}
     <div class="rpt-split">
       <div>
@@ -508,8 +529,8 @@ export function reportToHTML(report) {
         </table>`)}
       </div>
     </div>
-    ${report.consistentRecurring.length ? `<p class="rpt-note"><b>Recurring benefits used consistently:</b> ${E(report.consistentRecurring.map(b => `${b.benefitName} (${b.periodsUsed} periods)`).join(', '))}.</p>` : ''}
-    ${report.oneTimeRedeemed.length ? `<p class="rpt-note"><b>One-time benefits redeemed in full:</b> ${E(report.oneTimeRedeemed.map(b => b.benefitName).join(', '))}.</p>` : ''}
+    ${report.consistentRecurring.length ? `<p class="rpt-note"><b>Recurring benefits used consistently:</b> ${E(report.consistentRecurring.map(b => `${bLabel(b)} (${b.periodsUsed} periods)`).join(', '))}.</p>` : ''}
+    ${report.oneTimeRedeemed.length ? `<p class="rpt-note"><b>One-time benefits redeemed in full:</b> ${E(report.oneTimeRedeemed.map(b => bLabel(b)).join(', '))}.</p>` : ''}
   </section>`);
 
   // ── 7. Missed and unused ─────────────────────────────────────────────────
@@ -528,7 +549,7 @@ export function reportToHTML(report) {
       <thead><tr><th>Benefit</th><th>Card</th><th>Category</th><th class="r">Missed</th><th class="c">Periods missed</th><th>Missed in</th><th>Status</th></tr></thead>
       <tbody>${missedBenefits.map(b => {
         const card = report.cardSummaries.find(c => c.cardId === b.cardId);
-        return `<tr><td class="rpt-strong">${E(b.benefitName)}</td><td>${E(card ? card.cardName : '')}</td><td>${E(b.category)}</td><td class="r rpt-neg">${money(b.missedValue)}</td><td class="c">${b.periodsMissed}</td><td class="rpt-dim">${E(b.missedPeriodLabels.join(', '))}</td><td>${pill(b.status)}</td></tr>`;
+        return `<tr><td class="rpt-strong">${E(bLabel(b))}</td><td>${E(card ? card.cardName : '')}</td><td>${E(b.category)}</td><td class="r rpt-neg">${money(b.missedValue)}</td><td class="c">${b.periodsMissed}</td><td class="rpt-dim">${E(b.missedPeriodLabels.join(', '))}</td><td>${pill(b.status)}</td></tr>`;
       }).join('')}</tbody></table>`) : `<p class="rpt-empty">Nothing expired unused in this period.</p>`}
     <div class="rpt-split">
       <div>
@@ -561,7 +582,7 @@ export function reportToHTML(report) {
       <thead><tr><th>Benefit</th><th>Card</th><th>Frequency</th><th class="r">Remaining</th><th>Expires</th></tr></thead>
       <tbody>${report.openOpportunities.map(b => {
         const card = report.cardSummaries.find(c => c.cardId === b.cardId);
-        return `<tr><td class="rpt-strong">${E(b.benefitName)}</td><td>${E(card ? card.cardName : '')}</td><td>${E(b.frequencyLabel)}</td><td class="r">${money(b.remainingValue)}</td><td>${E(b.nextExpiration || '—')}</td></tr>`;
+        return `<tr><td class="rpt-strong">${E(bLabel(b))}</td><td>${E(card ? card.cardName : '')}</td><td>${E(b.frequencyLabel)}</td><td class="r">${money(b.remainingValue)}</td><td>${E(dateLabel(b.nextExpiration))}</td></tr>`;
       }).join('')}</tbody></table>`) : `<p class="rpt-empty">No benefits currently carry a claimable balance.</p>`}
     ${tableWrap(`<table class="rpt-table rpt-table-sm">
       <thead><tr><th>Card</th><th>Next renewal / anniversary</th><th class="r">Annual fee</th><th class="r">Still claimable</th></tr></thead>
@@ -578,8 +599,10 @@ export function reportToHTML(report) {
         <tbody>${report.cardSummaries.map(c => `<tr>
           <td class="rpt-strong">${E(c.cardName)}</td>
           <td class="r">${money(c.annualFee)}</td>
-          <td class="r">${money(c.usedValue + c.pointsRedeemed)}</td>
-          <td class="r">${signed(c.netTrackedValue)}</td>
+          <td class="r">${money(c.usedValue)}</td>
+          <td class="r">${money(c.recordedPointsRedemptionValue)}</td>
+          <td class="r">${signed(c.netBenefitValueAfterFees)}</td>
+          <td class="r">${signed(c.totalTrackedValueAfterFees)}</td>
           <td class="r">${money(c.remainingAvailableValue)}</td>
           <td class="r">${c.breakEvenGap > 0 ? money(c.breakEvenGap) : '<span class="rpt-pos">covered</span>'}</td>
         </tr>`).join('')}</tbody>
@@ -617,14 +640,14 @@ export function reportToHTML(report) {
 function benefitRows(b, o) {
   const estimate = b.isEstimated ? ` <span class="rpt-est" title="Custom value you set">est.</span>` : '';
   const rows = [`<tr class="rpt-b-row">
-    <td class="rpt-strong">${E(b.benefitName)}${estimate}</td>
+    <td class="rpt-strong">${E(bLabel(b))}${estimate}</td>
     <td class="rpt-dim">${E(b.category)}</td>
     <td class="r">${money(b.availableValue)}</td>
     <td class="r">${money(b.usedValue)}</td>
     <td class="r">${money(b.remainingValue)}</td>
     <td>${pill(b.status)}</td>
     <td class="rpt-dim">${E(b.usageDates.join(', ') || '—')}</td>
-    <td class="rpt-dim">${E(b.nextExpiration || b.expirationDate || '—')}</td>
+    <td class="rpt-dim">${E(dateLabel(b.statusExpiration || b.nextExpiration || b.expirationDate))}</td>
   </tr>`];
 
   // Chronological detail for benefits that recur — this is where a monthly
@@ -767,13 +790,32 @@ body.rpt-standalone .rpt-paper{max-width:8.5in;margin:0 auto;box-shadow:0 2px 14
   thead{display:table-header-group;}
   tfoot{display:table-footer-group;}
   .rpt-table-wrap{overflow:visible !important;}
-  .rpt-table,.rpt-table-sm{min-width:0 !important;width:100% !important;font-size:8.5pt;}
-  .rpt-table th,.rpt-table td{padding:4px 5px;}
+  .rpt-table,.rpt-table-sm{min-width:0 !important;width:100% !important;font-size:8pt;}
+  .rpt-table th,.rpt-table td{padding:2.5px 4px;}
   /* Minimal ink: drop tinted fills, keep hairline rules. */
   .rpt-stat,.rpt-total td,.rpt-callout,.rpt-summary .rpt-lede{background:transparent !important;}
-  .rpt-section{margin:16pt 0;}
-  .rpt-foot{position:fixed;bottom:0;left:0;right:0;border-top:1px solid #d9dce3;background:#fff;margin:0;padding:4pt 0;font-size:8pt;}
-  body{padding-bottom:26pt;}
+  /* Density: the first draft ran to 12 pages, most of it whitespace. */
+  .rpt-section{margin:9pt 0;}
+  .rpt-section h2{font-size:11pt;margin-bottom:5pt;padding-bottom:3pt;}
+  .rpt-section h3{font-size:10.5pt;}
+  .rpt-card{padding:7pt;margin:7pt 0;}
+  .rpt-card-stats{gap:4px;margin:6pt 0;}
+  .rpt-stat{padding:4px 6px;}
+  .rpt-stat-val{font-size:10pt;margin-top:1px;}
+  .rpt-stat-label{font-size:6.5pt;}
+  .rpt-narrative,.rpt-lede{margin:5pt 0;line-height:1.45;}
+  .rpt-summary .rpt-lede{padding:6pt 8pt;}
+  .rpt-callout{padding:6pt 8pt;margin-top:7pt;}
+  .rpt-split{gap:10pt;margin-top:7pt;}
+  .rpt-recs li{margin-bottom:5pt;}
+  .rpt-method dt{margin-top:5pt;}
+  .rpt-head{padding-bottom:8pt;margin-bottom:10pt;}
+  .rpt-title{font-size:17pt;}
+  .rpt-timeline{gap:2px;padding:1px 0 3px;}
+  .rpt-tl{font-size:6.5pt;padding:0 3px;}
+  .rpt-group{margin-top:6pt;}
+  .rpt-foot{position:fixed;bottom:0;left:0;right:0;border-top:1px solid #d9dce3;background:#fff;margin:0;padding:2pt 0;font-size:7pt;}
+  body{padding-bottom:16pt;}
 }`;
 
 /** Injects REPORT_CSS into the app document once, for the in-app preview. */

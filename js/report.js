@@ -21,10 +21,10 @@ import {
   buildPortfolioReport, STATUS, STATUS_LABELS, fmtMoney, fmtPct, fmtSignedMoney,
   generatePortfolioSummary, generateCardNarrative, generateUsagePatternNarrative,
   generateMissedValueNarrative, generateOpportunityNarrative, generateRecommendations,
-  generateMethodology, frequencyLabelFor,
+  generateMethodology, frequencyLabelFor, disambiguateBenefitNames, r2,
 } from './report-model.js';
 
-export { STATUS, STATUS_LABELS, fmtMoney, fmtPct, fmtSignedMoney };
+export { STATUS, STATUS_LABELS, fmtMoney, fmtPct, fmtSignedMoney, disambiguateBenefitNames };
 
 // ── Options ────────────────────────────────────────────────────────────────
 export const DEFAULT_OPTIONS = {
@@ -90,10 +90,25 @@ function periodEndAbs(cadence, p) {
   return p.calY * 12 + 11;
 }
 
-function absToDateLabel(abs) {
+const pad = n => String(n).padStart(2, '0');
+
+/** ISO date of the first day of an absolute month index. */
+function absToISOStart(abs) {
+  return `${Math.floor(abs / 12)}-${pad((abs % 12) + 1)}-01`;
+}
+/** ISO date of the last day of an absolute month index. */
+function absToISOEnd(abs) {
   const y = Math.floor(abs / 12), m = abs % 12;
-  const lastDay = new Date(y, m + 1, 0).getDate();
-  return `${MONTHS[m]} ${lastDay}, ${y}`;
+  return `${y}-${pad(m + 1)}-${pad(new Date(y, m + 1, 0).getDate())}`;
+}
+/** Human label for an ISO date, e.g. 'Dec 31, 2026'. */
+export function isoToLabel(iso) {
+  if (!iso) return null;
+  const [y, m, d] = iso.split('-').map(Number);
+  return `${MONTHS[m - 1]} ${d}, ${y}`;
+}
+function toISODate(d) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 function monthLabel(y, m) { return `${MONTHS[m]} ${y}`; }
@@ -119,6 +134,60 @@ function renewalDateLabel(cardKey) {
   return `${MONTHS[fm]} ${fd}, ${year}`;
 }
 
+// ── Personal value ─────────────────────────────────────────────────────────
+// The app already stores per-card+benefit amount overrides ("custom amounts").
+// Those are exactly a personal valuation, so the report reuses them rather than
+// introducing a second, competing field — no migration required. Face value
+// always remains the issuer-published amount from cards.js.
+export function getPersonalValue(cardKey, benefitId) {
+  const v = loadCustomAmounts()[`${cardKey}__${benefitId}`];
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+// ── Points redemption sources ──────────────────────────────────────────────
+export const POINTS_SOURCES = {
+  WELCOME_BONUS: 'welcome-bonus',
+  ONGOING_SPEND: 'ongoing-spend',
+  REFERRAL: 'referral',
+  ADJUSTMENT: 'adjustment',
+  UNKNOWN: 'unknown',
+};
+
+export const POINTS_SOURCE_LABELS = {
+  [POINTS_SOURCES.WELCOME_BONUS]: 'Welcome Bonus',
+  [POINTS_SOURCES.ONGOING_SPEND]: 'Ongoing Spend',
+  [POINTS_SOURCES.REFERRAL]: 'Referral',
+  [POINTS_SOURCES.ADJUSTMENT]: 'Adjustment',
+  [POINTS_SOURCES.UNKNOWN]: 'Other / Unknown',
+};
+
+const POINTS_SOURCE_KEY = 'perks-points-sources';
+
+/** { "cardKey__YYYY-M": source }. Purely user-declared — never inferred. */
+export function loadPointsSources() {
+  try { return JSON.parse(localStorage.getItem(POINTS_SOURCE_KEY) || '{}'); } catch (e) { return {}; }
+}
+
+/**
+ * Splits a card's recorded points redemptions by declared source. The app has
+ * no way to know where points came from, so nothing is inferred: undeclared
+ * entries land in `unknown` and the report carries an explicit caveat rather
+ * than presenting first-year value as if it recurs.
+ */
+export function pointsBreakdownFor(cardKey, year) {
+  const byMonth = loadPointsRedeemed()[cardKey] || {};
+  const sources = loadPointsSources();
+  const out = { total: 0, bySource: {}, hasDeclaredSource: false };
+  Object.entries(byMonth).forEach(([ym, amt]) => {
+    if (!ym.startsWith(`${year}-`)) return;
+    const src = sources[`${cardKey}__${ym}`] || POINTS_SOURCES.UNKNOWN;
+    if (sources[`${cardKey}__${ym}`]) out.hasDeclaredSource = true;
+    out.bySource[src] = r2((out.bySource[src] || 0) + amt);
+    out.total = r2(out.total + amt);
+  });
+  return out;
+}
+
 // ── Input snapshot ─────────────────────────────────────────────────────────
 /**
  * Walks every selected card / section / benefit / period and produces the flat
@@ -132,6 +201,10 @@ export function buildReportInput(opts, visibleCardKeys) {
   const cardIds = (o.cardIds && o.cardIds.length ? o.cardIds : visibleCardKeys).filter(k => !!CARDS[k]);
   const redemptions = loadRedemptionMonths();
   const isCurrentYear = year === CY;
+  // A completed year is reported as of the day after it ended, so December's
+  // window reads as closed too — window bounds are inclusive, so reporting a
+  // finished year "as of Dec 31" would leave December looking still open.
+  const reportDate = isCurrentYear ? toISODate(new Date()) : `${year + 1}-01-01`;
 
   const savedYear = state.selectedYear;
   state.selectedYear = year;
@@ -147,8 +220,9 @@ export function buildReportInput(opts, visibleCardKeys) {
         const periods = getYTDPeriods(section.cadence);
         section.benefits.forEach(b => {
           const instances = periods.map(p => {
-            const rawAmount = getBAmount(b, p);
-            const amount = o.includeEstimated ? getEffectiveAmount(cardKey, b.id, rawAmount) : rawAmount;
+            const faceAmount = getBAmount(b, p);
+            const override = getPersonalValue(cardKey, b.id);
+            const amount = o.includeEstimated && override !== null ? override : faceAmount;
             const startAbs = periodStartAbs(p);
             const endAbs = periodEndAbs(section.cadence, p);
             const notOffered = isBNotAvailable(b, year, p);
@@ -161,19 +235,24 @@ export function buildReportInput(opts, visibleCardKeys) {
               periodLabel: p.lbl,
               sortKey: startAbs,
               amount,
+              faceAmount,
               used: isUsed(cardKey, b.id, p.pk),
               partialUsed: getPartialUsed(cardKey, b.id, p.pk),
-              isFuture: isPFuture(p),
-              isCurrent: isYTDCurrent(section.cadence, p),
+              // Real window bounds — the single source of open/closed truth.
+              // Clamped to the reporting period so a card-year credit spilling
+              // past Dec 31 is not reported as claimable outside the period.
+              periodStart: absToISOStart(startAbs),
+              periodEnd: absToISOEnd(endAbs),
+              reportDate,
               isNotYetAvailable: notOffered || retired,
               isOutsideCardOwnership: (openedAbs !== null && openedAbs > endAbs)
                 || (closedAbs !== null && closedAbs < startAbs),
               isExcluded: skipped || snoozed,
+              isSnoozed: snoozed && !skipped,
               excludeReason: skipped ? 'Marked skipped' : snoozed ? 'Snoozed for this period' : '',
               usageDate: rd ? monthLabel(rd.year, rd.month) : null,
-              expirationDate: absToDateLabel(endAbs),
               note: o.includeNotes ? getNote(cardKey, b.id, p.pk) : '',
-              isEstimated: amount !== rawAmount,
+              isEstimated: o.includeEstimated && override !== null,
             };
           });
 
@@ -196,7 +275,11 @@ export function buildReportInput(opts, visibleCardKeys) {
         renewalDate: renewalDateLabel(cardKey),
         openedLabel: openedAbs !== null ? monthLabel(Math.floor(openedAbs / 12), openedAbs % 12) : null,
         closedLabel: closedAbs !== null ? monthLabel(Math.floor(closedAbs / 12), closedAbs % 12) : null,
+        // A card opened inside the reporting period is in its first year, so any
+        // points value on it may be non-recurring welcome-bonus value.
+        isFirstYear: openedAbs !== null && openedAbs >= year * 12,
         pointsRedeemed: getPointsRedeemedYTD(cardKey, year),
+        pointsBreakdown: pointsBreakdownFor(cardKey, year),
         benefits,
       };
     });
@@ -239,7 +322,7 @@ export function benefitVisible(b, o) {
   if (b.status === STATUS.UNUSED && !o.includeUnused) return false;
   if ((b.status === STATUS.EXPIRED_UNUSED || b.status === STATUS.EXPIRED_PARTIALLY_USED) && !o.includeExpired) return false;
   if ((b.status === STATUS.UPCOMING || b.status === STATUS.NOT_YET_AVAILABLE) && !o.includeUpcoming) return false;
-  if (b.status === STATUS.EXCLUDED && !o.includeUnused) return false;
+  if ((b.status === STATUS.EXCLUDED || b.status === STATUS.SNOOZED) && !o.includeUnused) return false;
   return true;
 }
 
@@ -275,7 +358,7 @@ export function reportToCSV(report) {
     c.benefits.forEach(b => {
       b.instances.forEach(i => {
         lines.push([
-          csvCell(c.cardName), c.annualFee, csvCell(b.benefitName), csvCell(b.category),
+          csvCell(c.cardName), c.annualFee, csvCell(b.displayName || b.benefitName), csvCell(b.category),
           csvCell(b.frequencyLabel), csvCell(i.periodLabel),
           i.availableValue.toFixed(2), i.usedValue.toFixed(2),
           i.remainingValue.toFixed(2), i.missedValue.toFixed(2),
@@ -291,22 +374,27 @@ export function reportToCSV(report) {
 
 /** Card-level summary CSV — the portfolio scorecard as a spreadsheet. */
 export function scorecardToCSV(report) {
-  const header = ['Card', 'Annual Fee', 'Available Benefit Value', 'Used Value', 'Missed Value',
-    'Remaining Value', 'Utilization Rate', 'Net Value', 'Benefits Used', 'Benefits Missed', 'Overall Status'];
+  const header = ['Card', 'Annual Fee', 'Available Benefit Value', 'Redeemed Benefit Value',
+    'Expired Benefit Value', 'Still Claimable Value', 'Recorded Points Redemption Value',
+    'Net Benefit Value After Fees', 'Total Tracked Value After Fees',
+    'Benefit Utilization Rate', 'Benefits Used', 'Benefits Missed', 'Overall Status'];
   const lines = [header.join(',')];
   report.cardSummaries.forEach(c => {
     lines.push([
       csvCell(c.cardName), c.annualFee.toFixed(2), c.availableValue.toFixed(2),
       c.usedValue.toFixed(2), c.missedValue.toFixed(2), c.remainingAvailableValue.toFixed(2),
-      `${Math.round(c.utilizationRate * 100)}%`, c.netTrackedValue.toFixed(2),
+      c.recordedPointsRedemptionValue.toFixed(2),
+      c.netBenefitValueAfterFees.toFixed(2), c.totalTrackedValueAfterFees.toFixed(2),
+      `${Math.round(c.utilizationRate * 100)}%`,
       c.benefitsUsed, c.benefitsMissed, csvCell(c.assessment),
     ].join(','));
   });
   lines.push([
     'TOTAL', report.totalAnnualFees.toFixed(2), report.totalAvailableValue.toFixed(2),
-    report.totalUsedValue.toFixed(2), report.totalMissedValue.toFixed(2),
-    report.totalRemainingAvailableValue.toFixed(2), `${Math.round(report.utilizationRate * 100)}%`,
-    report.netTrackedValue.toFixed(2), '', '', '',
+    report.redeemedBenefitValue.toFixed(2), report.totalMissedValue.toFixed(2),
+    report.totalRemainingAvailableValue.toFixed(2), report.recordedPointsRedemptionValue.toFixed(2),
+    report.netBenefitValueAfterFees.toFixed(2), report.totalTrackedValueAfterFees.toFixed(2),
+    `${Math.round(report.utilizationRate * 100)}%`, '', '', '',
   ].join(','));
   return lines.join('\n');
 }
@@ -324,20 +412,22 @@ export function reportToMarkdown(report) {
   L.push(`| Active cards | ${report.cardCount} |`);
   L.push(`| Total annual fees | ${fmtMoney(report.totalAnnualFees)} |`);
   L.push(`| Total available benefit value | ${fmtMoney(report.totalAvailableValue)} |`);
-  L.push(`| Total redeemed value | ${fmtMoney(report.totalUsedValue)} |`);
-  L.push(`| Total unused or expired value | ${fmtMoney(report.totalMissedValue)} |`);
-  L.push(`| Still available (not expired) | ${fmtMoney(report.totalRemainingAvailableValue)} |`);
-  L.push(`| Net value after annual fees | ${fmtSignedMoney(report.netTrackedValue)} |`, '');
+  L.push(`| Redeemed benefit value | ${fmtMoney(report.redeemedBenefitValue)} |`);
+  L.push(`| Expired benefit value | ${fmtMoney(report.totalMissedValue)} |`);
+  L.push(`| Still claimable benefit value | ${fmtMoney(report.totalRemainingAvailableValue)} |`);
+  L.push(`| Recorded points redemption value | ${fmtMoney(report.recordedPointsRedemptionValue)} |`);
+  L.push(`| Net benefit value after fees | ${fmtSignedMoney(report.netBenefitValueAfterFees)} |`);
+  L.push(`| Total tracked value after fees | ${fmtSignedMoney(report.totalTrackedValueAfterFees)} |`, '');
 
   L.push('## Executive Summary', '', report.narratives.summary, '');
 
   L.push('## Portfolio Scorecard', '');
-  L.push('| Card | Annual Fee | Available | Used | Missed | Utilization | Net Value | Used / Missed | Status |');
-  L.push('|---|---:|---:|---:|---:|---:|---:|:---:|---|');
+  L.push('| Card | Annual Fee | Available | Redeemed | Expired | Still Claimable | Points | Net Benefit | Total Tracked | Utilization | Status |');
+  L.push('|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|');
   report.cardSummaries.forEach(c => {
-    L.push(`| ${c.cardName} | ${fmtMoney(c.annualFee)} | ${fmtMoney(c.availableValue)} | ${fmtMoney(c.usedValue)} | ${fmtMoney(c.missedValue)} | ${fmtPct(c.utilizationRate)} | ${fmtSignedMoney(c.netTrackedValue)} | ${c.benefitsUsed} / ${c.benefitsMissed} | ${c.assessment} |`);
+    L.push(`| ${c.cardName} | ${fmtMoney(c.annualFee)} | ${fmtMoney(c.availableValue)} | ${fmtMoney(c.usedValue)} | ${fmtMoney(c.missedValue)} | ${fmtMoney(c.remainingAvailableValue)} | ${fmtMoney(c.recordedPointsRedemptionValue)} | ${fmtSignedMoney(c.netBenefitValueAfterFees)} | ${fmtSignedMoney(c.totalTrackedValueAfterFees)} | ${fmtPct(c.utilizationRate)} | ${c.assessment} |`);
   });
-  L.push(`| **Total** | **${fmtMoney(report.totalAnnualFees)}** | **${fmtMoney(report.totalAvailableValue)}** | **${fmtMoney(report.totalUsedValue)}** | **${fmtMoney(report.totalMissedValue)}** | **${fmtPct(report.utilizationRate)}** | **${fmtSignedMoney(report.netTrackedValue)}** | | |`, '');
+  L.push(`| **Total** | **${fmtMoney(report.totalAnnualFees)}** | **${fmtMoney(report.totalAvailableValue)}** | **${fmtMoney(report.redeemedBenefitValue)}** | **${fmtMoney(report.totalMissedValue)}** | **${fmtMoney(report.totalRemainingAvailableValue)}** | **${fmtMoney(report.recordedPointsRedemptionValue)}** | **${fmtSignedMoney(report.netBenefitValueAfterFees)}** | **${fmtSignedMoney(report.totalTrackedValueAfterFees)}** | **${fmtPct(report.utilizationRate)}** | |`, '');
 
   L.push('## Card-by-Card Review', '');
   report.cardSummaries.forEach(c => {
@@ -346,10 +436,12 @@ export function reportToMarkdown(report) {
     if (c.renewalDate) L.push(`- Next renewal: ${c.renewalDate}`);
     if (c.openedLabel) L.push(`- Card opened: ${c.openedLabel}`);
     L.push(`- Available benefit value: ${fmtMoney(c.availableValue)}`);
-    L.push(`- Realized value: ${fmtMoney(c.usedValue)}${c.pointsRedeemed > 0 ? ` (+ ${fmtMoney(c.pointsRedeemed)} points redeemed)` : ''}`);
-    L.push(`- Unused / expired value: ${fmtMoney(c.missedValue)}`);
-    L.push(`- Still available: ${fmtMoney(c.remainingAvailableValue)}`);
-    L.push(`- Net value after annual fee: ${fmtSignedMoney(c.netTrackedValue)}`);
+    L.push(`- Redeemed benefit value: ${fmtMoney(c.usedValue)}`);
+    L.push(`- Expired benefit value: ${fmtMoney(c.missedValue)}`);
+    L.push(`- Still claimable benefit value: ${fmtMoney(c.remainingAvailableValue)}`);
+    L.push(`- Recorded points redemption value: ${fmtMoney(c.recordedPointsRedemptionValue)}`);
+    L.push(`- Net benefit value after fee: ${fmtSignedMoney(c.netBenefitValueAfterFees)}`);
+    L.push(`- Total tracked value after fee: ${fmtSignedMoney(c.totalTrackedValueAfterFees)}`);
     L.push(`- Utilization: ${fmtPct(c.utilizationRate)}`);
     L.push(`- Assessment: **${c.assessment}**`, '');
     L.push(c.narrative, '');
@@ -363,7 +455,7 @@ export function reportToMarkdown(report) {
           L.push('| Benefit | Category | Available | Used | Remaining | Status | Used on | Expires |');
           L.push('|---|---|---:|---:|---:|---|---|---|');
           g.items.forEach(b => {
-            L.push(`| ${b.benefitName}${b.isEstimated ? ' *(est.)*' : ''} | ${b.category} | ${fmtMoney(b.availableValue)} | ${fmtMoney(b.usedValue)} | ${fmtMoney(b.remainingValue)} | ${STATUS_LABELS[b.status]} | ${b.usageDates.join(', ') || '—'} | ${b.nextExpiration || b.expirationDate || '—'} |`);
+            L.push(`| ${(b.displayName || b.benefitName)}${b.isEstimated ? ' *(personal value)*' : ''} | ${b.category} | ${fmtMoney(b.availableValue)} | ${fmtMoney(b.usedValue)} | ${fmtMoney(b.remainingValue)} | ${STATUS_LABELS[b.status]} | ${b.usageDates.join(', ') || '—'} | ${isoToLabel(b.statusExpiration || b.nextExpiration || b.expirationDate) || '—'} |`);
           });
           L.push('');
           if (o.includeNotes) {
@@ -384,7 +476,7 @@ export function reportToMarkdown(report) {
     L.push('|---|---|---|---:|:---:|---|');
     used.sort((a, b) => b.usedValue - a.usedValue).forEach(b => {
       const card = report.cardSummaries.find(c => c.cardId === b.cardId);
-      L.push(`| ${b.benefitName} | ${card ? card.cardName : ''} | ${b.category} | ${fmtMoney(b.usedValue)} | ${b.periodsUsed} | ${STATUS_LABELS[b.status]} |`);
+      L.push(`| ${b.displayName || b.benefitName} | ${card ? card.cardName : ''} | ${b.category} | ${fmtMoney(b.usedValue)} | ${b.periodsUsed} | ${STATUS_LABELS[b.status]} |`);
     });
     L.push('');
   }
@@ -400,7 +492,7 @@ export function reportToMarkdown(report) {
     L.push('|---|---|---|---:|:---:|---|');
     missed.sort((a, b) => b.missedValue - a.missedValue).forEach(b => {
       const card = report.cardSummaries.find(c => c.cardId === b.cardId);
-      L.push(`| ${b.benefitName} | ${card ? card.cardName : ''} | ${b.category} | ${fmtMoney(b.missedValue)} | ${b.periodsMissed} | ${STATUS_LABELS[b.status]} |`);
+      L.push(`| ${b.displayName || b.benefitName} | ${card ? card.cardName : ''} | ${b.category} | ${fmtMoney(b.missedValue)} | ${b.periodsMissed} | ${STATUS_LABELS[b.status]} |`);
     });
     L.push('');
   }
@@ -410,17 +502,17 @@ export function reportToMarkdown(report) {
     L.push('| Benefit | Card | Remaining | Expires |', '|---|---|---:|---|');
     report.openOpportunities.forEach(b => {
       const card = report.cardSummaries.find(c => c.cardId === b.cardId);
-      L.push(`| ${b.benefitName} | ${card ? card.cardName : ''} | ${fmtMoney(b.remainingValue)} | ${b.nextExpiration || '—'} |`);
+      L.push(`| ${b.displayName || b.benefitName} | ${card ? card.cardName : ''} | ${fmtMoney(b.remainingValue)} | ${isoToLabel(b.nextExpiration) || '—'} |`);
     });
     L.push('');
   }
 
   if (o.includeFeeAnalysis) {
     L.push('## Annual Fee Analysis', '');
-    L.push('| Card | Annual Fee | Realized Tracked Value | Net Tracked Value | Still Claimable | Break-even Gap |');
-    L.push('|---|---:|---:|---:|---:|---:|');
+    L.push('| Card | Annual Fee | Redeemed Benefit Value | Points Redemption Value | Net Benefit After Fees | Total Tracked After Fees | Still Claimable | Break-even Gap |');
+    L.push('|---|---:|---:|---:|---:|---:|---:|---:|');
     report.cardSummaries.forEach(c => {
-      L.push(`| ${c.cardName} | ${fmtMoney(c.annualFee)} | ${fmtMoney(c.usedValue + c.pointsRedeemed)} | ${fmtSignedMoney(c.netTrackedValue)} | ${fmtMoney(c.remainingAvailableValue)} | ${c.breakEvenGap > 0 ? fmtMoney(c.breakEvenGap) : 'covered'} |`);
+      L.push(`| ${c.cardName} | ${fmtMoney(c.annualFee)} | ${fmtMoney(c.usedValue)} | ${fmtMoney(c.recordedPointsRedemptionValue)} | ${fmtSignedMoney(c.netBenefitValueAfterFees)} | ${fmtSignedMoney(c.totalTrackedValueAfterFees)} | ${fmtMoney(c.remainingAvailableValue)} | ${c.breakEvenGap > 0 ? fmtMoney(c.breakEvenGap) : 'covered'} |`);
     });
     L.push('');
     L.push('Objective statement credits and reimbursements are counted at face value. Values you overrode with a custom amount are your own estimates. Untracked value — points multipliers, purchase and travel protections, elite status, lounge access, and transfer partners — is not included, so a card below break-even here may still be worth keeping.', '');

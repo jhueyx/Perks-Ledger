@@ -19,19 +19,23 @@ export const STATUS = {
   UPCOMING: 'upcoming',
   NOT_YET_AVAILABLE: 'not-yet-available',
   EXCLUDED: 'excluded',
+  SNOOZED: 'snoozed',
+  NOT_ELIGIBLE: 'not-eligible',
   UNKNOWN: 'unknown',
 };
 
 export const STATUS_LABELS = {
   [STATUS.FULLY_USED]: 'Fully Used',
-  [STATUS.PARTIALLY_USED]: 'Partially Used',
-  [STATUS.UNUSED]: 'Unused',
-  [STATUS.EXPIRED_UNUSED]: 'Expired Unused',
-  [STATUS.EXPIRED_PARTIALLY_USED]: 'Expired Partially Used',
-  [STATUS.UPCOMING]: 'Upcoming',
+  [STATUS.PARTIALLY_USED]: 'Partially Used — Still Available',
+  [STATUS.UNUSED]: 'Available — Unused',
+  [STATUS.EXPIRED_UNUSED]: 'Expired — Unused',
+  [STATUS.EXPIRED_PARTIALLY_USED]: 'Expired — Partially Used',
+  [STATUS.UPCOMING]: 'Not Yet Available',
   [STATUS.NOT_YET_AVAILABLE]: 'Not Yet Available',
-  [STATUS.EXCLUDED]: 'Excluded',
-  [STATUS.UNKNOWN]: 'Unknown',
+  [STATUS.EXCLUDED]: 'Intentionally Excluded',
+  [STATUS.SNOOZED]: 'Snoozed',
+  [STATUS.NOT_ELIGIBLE]: 'Not Eligible',
+  [STATUS.UNKNOWN]: 'Data Missing',
 };
 
 // Statuses whose value has been definitively forfeited.
@@ -39,13 +43,34 @@ const MISSED_STATUSES = new Set([STATUS.EXPIRED_UNUSED, STATUS.EXPIRED_PARTIALLY
 // Statuses that still carry a usable balance.
 const OPEN_STATUSES = new Set([STATUS.UNUSED, STATUS.PARTIALLY_USED]);
 
+/**
+ * The single authoritative answer to "is this redemption window ahead, open, or
+ * closed?", decided purely from ISO dates.
+ *
+ * This exists because the app's isYTDCurrent() has no branch for the annual and
+ * cal-annual cadences and falls through to `return false`, which made every
+ * *unused* calendar-year credit look like a closed window — a benefit could
+ * print an expiry of Dec 31 while being labelled Expired in July. Status and
+ * expiry date now come from the same two fields, so they cannot disagree.
+ *
+ * Bounds are inclusive: on periodStart and on periodEnd the window is open.
+ * @returns {'before'|'open'|'after'}
+ */
+export function windowPhase(reportDate, periodStart, periodEnd) {
+  if (!periodStart && !periodEnd) return 'open'; // undated => treat as claimable
+  if (!reportDate) return 'open';
+  if (periodStart && reportDate < periodStart) return 'before';
+  if (periodEnd && reportDate > periodEnd) return 'after';
+  return 'open';
+}
+
 export const ASSESSMENTS = {
   EXCELLENT: 'Excellent Value',
   POSITIVE: 'Positive Value',
   BREAK_EVEN: 'Near Break-Even',
-  UNDERUSED: 'Underutilized',
-  REVIEW: 'Review Before Renewal',
-  NO_DATA: 'No Tracked Benefits',
+  REVIEW: 'Review at Renewal',
+  UNDERUSED: 'Benefits Underutilized',
+  NO_DATA: 'Insufficient Data',
 };
 
 // ── Number + string helpers ────────────────────────────────────────────────
@@ -87,6 +112,14 @@ export function joinList(items, conjunction = 'and') {
   return `${a.slice(0, -1).join(', ')}, ${conjunction} ${a[a.length - 1]}`;
 }
 
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** '2026-12-31' -> 'Dec 31, 2026'. Dates are stored ISO so they can be compared. */
+export function fmtDate(iso) {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso || '';
+  const [y, m, d] = iso.split('-').map(Number);
+  return `${MONTH_ABBR[m - 1]} ${d}, ${y}`;
+}
+
 function titleCase(s) {
   return String(s || '').replace(/(^|[\s-])([a-z])/g, (_, p, c) => p + c.toUpperCase());
 }
@@ -99,11 +132,15 @@ function titleCase(s) {
 // Input instance fields:
 //   periodKey, periodLabel, sortKey, amount,
 //   used (bool), partialUsed (number),
-//   isFuture, isCurrent            — is the redemption window ahead / still open
+//   periodStart, periodEnd         — ISO 'YYYY-MM-DD' bounds of the redemption
+//                                    window, inclusive; the ONLY source of
+//                                    open/closed truth
+//   reportDate                     — ISO 'YYYY-MM-DD' the report is run for
 //   isExcluded, excludeReason      — user skipped or snoozed this period
+//   isSnoozed                      — snoozed specifically (vs skipped)
 //   isNotYetAvailable              — benefit does not exist yet in this period
 //   isOutsideCardOwnership         — card not held during this period
-//   usageDate, expirationDate, note, isEstimated
+//   usageDate, note, isEstimated
 export function classifyInstance(inst) {
   const amount = Math.max(0, r2(inst.amount || 0));
   const base = {
@@ -118,7 +155,11 @@ export function classifyInstance(inst) {
     upcomingValue: 0,
     excludedValue: 0,
     usageDate: inst.usageDate || null,
-    expirationDate: inst.expirationDate || null,
+    periodStart: inst.periodStart || null,
+    periodEnd: inst.periodEnd || null,
+    // The expiry a reader sees is the window end — same field the status is
+    // derived from, so "expires Dec 31" can never sit next to "Expired" in July.
+    expirationDate: inst.periodEnd || null,
     note: inst.note || '',
     isEstimated: !!inst.isEstimated,
     reason: '',
@@ -136,11 +177,19 @@ export function classifyInstance(inst) {
   // User explicitly skipped or snoozed — intentional, so it is excluded from
   // both the utilization denominator and missed value.
   if (inst.isExcluded) {
-    return { ...base, status: STATUS.EXCLUDED, excludedValue: amount, reason: inst.excludeReason || 'Excluded by you' };
+    return {
+      ...base,
+      status: inst.isSnoozed ? STATUS.SNOOZED : STATUS.EXCLUDED,
+      excludedValue: amount,
+      reason: inst.excludeReason || (inst.isSnoozed ? 'Snoozed by you' : 'Skipped by you'),
+    };
   }
+
+  const phase = windowPhase(inst.reportDate, inst.periodStart, inst.periodEnd);
+
   // The window hasn't opened yet. Future credits are never counted as missed.
-  if (inst.isFuture) {
-    return { ...base, status: STATUS.UPCOMING, upcomingValue: amount };
+  if (phase === 'before') {
+    return { ...base, status: STATUS.NOT_YET_AVAILABLE, upcomingValue: amount, reason: 'Redemption window has not opened' };
   }
 
   const rawPartial = Number(inst.partialUsed) || 0;
@@ -161,7 +210,7 @@ export function classifyInstance(inst) {
 
   if (usedValue >= amount) return { ...out, status: STATUS.FULLY_USED };
 
-  if (inst.isCurrent) {
+  if (phase === 'open') {
     // Window still open — the shortfall is a remaining opportunity, not a miss.
     return {
       ...out,
@@ -179,10 +228,14 @@ export function classifyInstance(inst) {
 }
 
 // ── Benefit rollup ─────────────────────────────────────────────────────────
+// Skipped and snoozed are both deliberate passes; they never become missed value.
+export const INTENTIONAL_STATUSES = new Set([STATUS.EXCLUDED, STATUS.SNOOZED]);
+
 function rollupStatus(t, instances) {
   const considered = instances.filter(i =>
-    i.status !== STATUS.EXCLUDED && i.status !== STATUS.NOT_YET_AVAILABLE && i.status !== STATUS.UNKNOWN);
+    !INTENTIONAL_STATUSES.has(i.status) && i.status !== STATUS.NOT_YET_AVAILABLE && i.status !== STATUS.UNKNOWN);
   if (!considered.length) {
+    if (instances.some(i => i.status === STATUS.SNOOZED)) return STATUS.SNOOZED;
     if (instances.some(i => i.status === STATUS.EXCLUDED)) return STATUS.EXCLUDED;
     if (instances.some(i => i.status === STATUS.NOT_YET_AVAILABLE)) return STATUS.NOT_YET_AVAILABLE;
     return STATUS.UNKNOWN;
@@ -190,7 +243,7 @@ function rollupStatus(t, instances) {
   // A $0 / non-monetary benefit the user actually claimed still reads as used —
   // only an unclaimed one is genuinely unknown.
   if (considered.every(i => i.status === STATUS.FULLY_USED)) return STATUS.FULLY_USED;
-  if (t.availableValue === 0 && t.upcomingValue > 0) return STATUS.UPCOMING;
+  if (t.availableValue === 0 && t.upcomingValue > 0) return STATUS.NOT_YET_AVAILABLE;
   if (t.availableValue === 0 && t.usedValue === 0) return STATUS.UNKNOWN;
   if (t.usedValue > 0 && t.missedValue === 0 && t.remainingValue === 0) return STATUS.FULLY_USED;
   if (t.usedValue > 0 && t.remainingValue > 0) return STATUS.PARTIALLY_USED;
@@ -213,6 +266,16 @@ function buildBenefitItem(cardId, b) {
     t.excludedValue = r2(t.excludedValue + i.excludedValue);
   });
 
+  // Face value is what the issuer publishes; personal value is the user's own
+  // override. Both are carried so neither silently replaces the other.
+  const faceAvailable = r2(instances.reduce((a, i) =>
+    a + (i.availableValue > 0 ? (i.faceAmount ?? i.amount) : 0), 0));
+  const faceUsed = r2(instances.reduce((a, i) => {
+    if (i.usedValue <= 0) return a;
+    const face = i.faceAmount ?? i.amount;
+    return a + (i.amount > 0 ? (i.usedValue / i.amount) * face : face);
+  }, 0));
+
   const usageDates = instances.filter(i => i.usageDate && i.usedValue > 0).map(i => i.usageDate);
   const missedInstances = instances.filter(i => MISSED_STATUSES.has(i.status));
   const usedInstances = instances.filter(i => i.usedValue > 0);
@@ -227,6 +290,8 @@ function buildBenefitItem(cardId, b) {
     frequencyLabel: b.frequencyLabel || frequencyLabelFor(b.frequency),
     description: b.description || '',
     availableValue: t.availableValue,
+    faceAvailableValue: faceAvailable,
+    faceUsedValue: faceUsed,
     usedValue: t.usedValue,
     missedValue: t.missedValue,
     remainingValue: t.remainingValue,
@@ -238,6 +303,17 @@ function buildBenefitItem(cardId, b) {
     expirationDate: instances.map(i => i.expirationDate).filter(Boolean).pop() || null,
     nextExpiration: instances.filter(i => OPEN_STATUSES.has(i.status) && i.expirationDate)
       .map(i => i.expirationDate)[0] || null,
+    // The date shown next to a rolled-up status must belong to the window that
+    // status describes. A semi-annual credit whose H1 expired but whose H2 is
+    // open would otherwise print "Expired" beside H2's future end date.
+    statusExpiration: (() => {
+      const st = rollupStatus(t, instances);
+      const pick = pred => instances.filter(pred).map(i => i.expirationDate).filter(Boolean);
+      if (MISSED_STATUSES.has(st)) return pick(i => MISSED_STATUSES.has(i.status)).pop() || null;
+      if (OPEN_STATUSES.has(st)) return pick(i => OPEN_STATUSES.has(i.status))[0] || null;
+      if (st === STATUS.NOT_YET_AVAILABLE) return pick(i => i.upcomingValue > 0)[0] || null;
+      return pick(() => true).pop() || null;
+    })(),
     notes,
     isEstimated: instances.some(i => i.isEstimated),
     periodsTotal: instances.length,
@@ -246,6 +322,35 @@ function buildBenefitItem(cardId, b) {
     missedPeriodLabels: missedInstances.map(i => i.periodLabel),
     instances,
   };
+}
+
+/**
+ * Two benefits on one card can legitimately share a name — the Sapphire
+ * Reserve genuinely carries two separate $10 DoorDash grocery credits. Records
+ * are never merged; a distinguishing suffix is added so the report does not
+ * read as a duplicated row. Prefers real metadata, falls back to a sequence
+ * number only when nothing else distinguishes them.
+ */
+export function disambiguateBenefitNames(benefits) {
+  const byName = new Map();
+  benefits.forEach(b => {
+    const k = b.benefitName.toLowerCase();
+    if (!byName.has(k)) byName.set(k, []);
+    byName.get(k).push(b);
+  });
+  byName.forEach(group => {
+    if (group.length < 2) return;
+    const descs = group.map(b => (b.description || '').trim());
+    const descsDistinct = new Set(descs).size === group.length && descs.every(Boolean);
+    group.forEach((b, i) => {
+      b.duplicateOfName = true;
+      b.displayName = descsDistinct
+        ? `${b.benefitName} — ${descs[i]}`
+        : `${b.benefitName} — Benefit ${i + 1}`;
+      b.disambiguatedBy = descsDistinct ? 'description' : 'sequence';
+    });
+  });
+  return benefits;
 }
 
 export function frequencyLabelFor(cadence) {
@@ -266,20 +371,36 @@ export function frequencyLabelFor(cadence) {
 const RECURRING_CADENCES = new Set(['monthly', 'quarterly']);
 
 // ── Card rollup ────────────────────────────────────────────────────────────
+/**
+ * Utilization and break-even are separate questions and must not be conflated.
+ * A card whose every tracked credit was claimed is not "underutilized" just
+ * because the credits total slightly less than the fee — that is a pricing
+ * question, not a usage one. Underutilization is therefore only claimed when
+ * value was actually left on the table.
+ *
+ * Assessed on benefit value alone (`netBenefitValueAfterFees`), not on points:
+ * points redemptions say nothing about how well the card's credits were used.
+ */
 export function assessCard(s) {
   if (s.availableValue === 0 && s.upcomingValue === 0 && s.usedValue === 0) return ASSESSMENTS.NO_DATA;
+
   const fee = s.annualFee || 0;
-  const net = s.netTrackedValue;
-  if (fee <= 0) return s.usedValue > 0 ? ASSESSMENTS.EXCELLENT : ASSESSMENTS.UNDERUSED;
+  const util = s.utilizationRate;
+
+  // Only a genuine failure to claim available value earns the usage label.
+  if (util < 0.6 && s.missedValue > 0) return ASSESSMENTS.UNDERUSED;
+
+  if (fee <= 0) return s.usedValue > 0 ? ASSESSMENTS.EXCELLENT : ASSESSMENTS.NO_DATA;
+
+  const net = s.netBenefitValueAfterFees;
   if (net >= fee * 0.25) return ASSESSMENTS.EXCELLENT;
   if (net > 0) return ASSESSMENTS.POSITIVE;
-  if (net >= -fee * 0.1) return ASSESSMENTS.BREAK_EVEN;
-  if (s.utilizationRate < 0.5) return ASSESSMENTS.REVIEW;
-  return ASSESSMENTS.UNDERUSED;
+  if (net >= -fee * 0.15) return ASSESSMENTS.BREAK_EVEN;
+  return ASSESSMENTS.REVIEW;
 }
 
 function buildCardSummary(card) {
-  const benefits = (card.benefits || []).map(b => buildBenefitItem(card.cardId, b));
+  const benefits = disambiguateBenefitNames((card.benefits || []).map(b => buildBenefitItem(card.cardId, b)));
 
   const sum = key => r2(benefits.reduce((a, b) => a + b[key], 0));
   const availableValue = sum('availableValue');
@@ -305,10 +426,23 @@ function buildCardSummary(card) {
     remainingAvailableValue,
     upcomingValue,
     excludedValue,
-    pointsRedeemed,
+    faceAvailableValue: sum('faceAvailableValue'),
+    faceUsedValue: sum('faceUsedValue'),
+    hasPersonalOverrides: benefits.some(b => b.isEstimated),
+    // Points redemptions are reported alongside benefit value, never folded
+    // into it. `netBenefitValueAfterFees` answers "did the statement credits
+    // cover the fee?"; `totalTrackedValueAfterFees` adds points on top.
+    recordedPointsRedemptionValue: pointsRedeemed,
+    pointsBreakdown: card.pointsBreakdown || null,
+    isFirstYear: !!card.isFirstYear,
     utilizationRate: availableValue > 0 ? usedValue / availableValue : 0,
+    netBenefitValueAfterFees: r2(usedValue - annualFee),
+    totalTrackedValueAfterFees: r2(usedValue + pointsRedeemed - annualFee),
+    faceNetBenefitValueAfterFees: r2(sum('faceUsedValue') - annualFee),
+    breakEvenGap: r2(annualFee - usedValue),
+    // Legacy aliases, kept so nothing silently reads undefined mid-migration.
+    pointsRedeemed,
     netTrackedValue: r2(usedValue + pointsRedeemed - annualFee),
-    breakEvenGap: r2(annualFee - usedValue - pointsRedeemed),
     benefitsUsed: benefits.filter(b => b.usedValue > 0).length,
     benefitsFullyUsed: benefits.filter(b => b.status === STATUS.FULLY_USED).length,
     benefitsMissed: benefits.filter(b => b.missedValue > 0).length,
@@ -336,11 +470,13 @@ export function buildPortfolioReport(input) {
   const totalRemainingAvailableValue = sum('remainingAvailableValue');
   const totalUpcomingValue = sum('upcomingValue');
   const totalExcludedValue = sum('excludedValue');
-  const totalPointsRedeemed = sum('pointsRedeemed');
+  const totalPointsRedeemed = sum('recordedPointsRedemptionValue');
 
   const withValue = cardSummaries.filter(c => c.availableValue > 0 || c.usedValue > 0);
+  // Ranked on benefit value, so a big one-off points redemption cannot crown a
+  // card whose credits went unused.
   const bestCard = withValue.slice().sort((a, b) =>
-    (b.netTrackedValue - a.netTrackedValue) || (b.usedValue - a.usedValue))[0] || null;
+    (b.netBenefitValueAfterFees - a.netBenefitValueAfterFees) || (b.usedValue - a.usedValue))[0] || null;
   const worstCard = cardSummaries.filter(c => c.missedValue > 0)
     .sort((a, b) => b.missedValue - a.missedValue)[0] || null;
 
@@ -361,6 +497,16 @@ export function buildPortfolioReport(input) {
     totalRemainingAvailableValue,
     totalUpcomingValue,
     totalExcludedValue,
+    // ── The six headline metrics, kept strictly separate ──────────────────
+    redeemedBenefitValue: totalUsedValue,
+    recordedPointsRedemptionValue: totalPointsRedeemed,
+    netBenefitValueAfterFees: r2(totalUsedValue - totalAnnualFees),
+    totalTrackedValueAfterFees: r2(totalUsedValue + totalPointsRedeemed - totalAnnualFees),
+    faceAvailableValue: sum('faceAvailableValue'),
+    faceUsedValue: sum('faceUsedValue'),
+    faceNetBenefitValueAfterFees: r2(sum('faceUsedValue') - totalAnnualFees),
+    hasPersonalOverrides: cardSummaries.some(c => c.hasPersonalOverrides),
+    // Legacy aliases.
     totalPointsRedeemed,
     netTrackedValue: r2(totalUsedValue + totalPointsRedeemed - totalAnnualFees),
     utilizationRate: totalAvailableValue > 0 ? totalUsedValue / totalAvailableValue : 0,
@@ -441,7 +587,7 @@ export function generatePortfolioSummary(report) {
   if (counts.length) parts.push(`You ${joinList(counts)}.`);
 
   if (report.bestCard && report.bestCard.usedValue > 0) {
-    parts.push(`Your strongest-performing card was the ${report.bestCard.cardName}, which returned ${fmtMoney(report.bestCard.usedValue)} in tracked value against a ${fmtMoney(report.bestCard.annualFee)} annual fee.`);
+    parts.push(`Your strongest-performing card was the ${report.bestCard.cardName}, which returned ${fmtMoney(report.bestCard.usedValue)} in redeemed benefit value against a ${fmtMoney(report.bestCard.annualFee)} annual fee.`);
   }
   if (report.worstCard && report.worstCard.missedValue > 0) {
     const same = report.bestCard && report.worstCard.cardId === report.bestCard.cardId;
@@ -451,10 +597,13 @@ export function generatePortfolioSummary(report) {
   }
 
   if (report.totalAnnualFees > 0) {
-    const net = report.netTrackedValue;
+    const net = report.netBenefitValueAfterFees;
     parts.push(net >= 0
-      ? `After accounting for ${fmtMoney(report.totalAnnualFees)} in annual fees, your tracked benefits produced an estimated net value of ${fmtMoney(net)}.`
-      : `After accounting for ${fmtMoney(report.totalAnnualFees)} in annual fees, tracked benefits fall ${fmtMoney(Math.abs(net))} short of covering the fees.`);
+      ? `Statement credits and tracked reimbursements alone produced ${fmtMoney(report.redeemedBenefitValue)} against ${fmtMoney(report.totalAnnualFees)} in annual fees — a net benefit value of ${fmtMoney(net)}.`
+      : `Statement credits and tracked reimbursements alone produced ${fmtMoney(report.redeemedBenefitValue)} against ${fmtMoney(report.totalAnnualFees)} in annual fees, leaving benefit value ${fmtMoney(Math.abs(net))} short of the fees.`);
+    if (report.recordedPointsRedemptionValue > 0) {
+      parts.push(`Separately, you recorded ${fmtMoney(report.recordedPointsRedemptionValue)} in points and miles redemptions. These are a different kind of value — they come from spending and bonuses rather than from the cards' statement credits — so they are reported alongside benefit value, not inside it. Counting both, total tracked value after fees was ${fmtMoney(report.totalTrackedValueAfterFees)}.`);
+    }
   }
 
   if (report.totalRemainingAvailableValue > 0) {
@@ -503,20 +652,30 @@ export function generateCardNarrative(card) {
     parts.push(`${fmtMoney(card.remainingAvailableValue)} across ${pluralize(open.length, 'benefit')} is still available — the largest is the ${open[0].benefitName} at ${fmtMoney(open[0].remainingValue)}.`);
   }
 
-  if (card.pointsRedeemed > 0) {
-    parts.push(`You also recorded ${fmtMoney(card.pointsRedeemed)} in points redemptions on this card.`);
-  }
-
+  // Precise wording: the sentence names each component rather than calling a
+  // points-inclusive figure "tracked benefits alone".
   if (card.annualFee > 0) {
-    const realized = r2(card.usedValue + card.pointsRedeemed);
-    parts.push(card.netTrackedValue >= 0
-      ? `Based on tracked benefits alone, the card returned ${fmtMoney(realized)} against its ${fmtMoney(card.annualFee)} annual fee — a net of ${fmtSignedMoney(card.netTrackedValue)}.`
-      : `Based on tracked benefits alone, the card returned ${fmtMoney(realized)} against its ${fmtMoney(card.annualFee)} annual fee, leaving it ${fmtMoney(Math.abs(card.netTrackedValue))} below break-even.`);
+    if (card.recordedPointsRedemptionValue > 0) {
+      parts.push(`Tracked statement credits produced ${fmtMoney(card.usedValue)} in value. Recorded points redemptions added ${fmtMoney(card.recordedPointsRedemptionValue)}. Together, after the ${fmtMoney(card.annualFee)} annual fee, total tracked value was ${fmtSignedMoney(card.totalTrackedValueAfterFees)}.`);
+      parts.push(card.netBenefitValueAfterFees >= 0
+        ? `On statement credits alone the card was ${fmtMoney(card.netBenefitValueAfterFees)} ahead of its fee.`
+        : `On statement credits alone the card was ${fmtMoney(Math.abs(card.netBenefitValueAfterFees))} below its fee.`);
+    } else {
+      parts.push(card.netBenefitValueAfterFees >= 0
+        ? `Tracked statement credits produced ${fmtMoney(card.usedValue)} against the ${fmtMoney(card.annualFee)} annual fee — ${fmtMoney(card.netBenefitValueAfterFees)} ahead of the fee. No points redemptions were recorded on this card.`
+        : `Tracked statement credits produced ${fmtMoney(card.usedValue)} against the ${fmtMoney(card.annualFee)} annual fee, ${fmtMoney(Math.abs(card.netBenefitValueAfterFees))} short of covering it. No points redemptions were recorded on this card.`);
+    }
   } else {
-    parts.push(`This card carries no annual fee, so all ${fmtMoney(card.usedValue)} of tracked value is net positive.`);
+    parts.push(`This card carries no annual fee, so all ${fmtMoney(card.usedValue)} of tracked benefit value is net positive.`);
   }
 
-  parts.push('Additional value from points earnings, travel protections, lounge access, or transfer partners is not included unless explicitly tracked.');
+  if (card.isFirstYear && card.recordedPointsRedemptionValue > 0) {
+    parts.push('This card was opened during the reporting period, so its points redemption value may include first-year or welcome-bonus value and should not be assumed to recur.');
+  }
+
+  // Only name untracked categories the card could plausibly carry — claiming
+  // lounge access for a card that has no lounge benefit is simply wrong.
+  parts.push(`Value not captured here${card.untrackedValueNote ? ` — ${card.untrackedValueNote}` : ''}: points earned on spend, and any protections or perks you do not track in Perks Ledger.`);
   return parts.join(' ');
 }
 
@@ -595,7 +754,7 @@ export function generateOpportunityNarrative(report) {
     const top = report.openOpportunities[0];
     if (top) {
       const card = report.cardSummaries.find(c => c.cardId === top.cardId);
-      parts.push(`The largest remaining opportunity is the ${top.benefitName} on the ${card ? card.cardName : 'your card'} at ${fmtMoney(top.remainingValue)}${top.nextExpiration ? `, which expires ${top.nextExpiration}` : ''}.`);
+      parts.push(`The largest remaining opportunity is the ${top.benefitName} on the ${card ? card.cardName : 'your card'} at ${fmtMoney(top.remainingValue)}${top.nextExpiration ? `, which expires ${fmtDate(top.nextExpiration)}` : ''}.`);
     }
   }
   if (report.totalUpcomingValue > 0) {
@@ -617,12 +776,16 @@ export function generateRecommendations(report) {
     recs.push({
       priority: 'act-now',
       title: `Use the ${b.benefitName} before it resets`,
-      detail: `${fmtMoney(b.remainingValue)} is still available on the ${card ? card.cardName : 'card'}${b.nextExpiration ? `, expiring ${b.nextExpiration}` : ''}. Consider claiming it before the period closes.`,
+      detail: `${fmtMoney(b.remainingValue)} is still available on the ${card ? card.cardName : 'card'}${b.nextExpiration ? `, expiring ${fmtDate(b.nextExpiration)}` : ''}. Consider claiming it before the period closes.`,
     });
   });
 
   // 2. Repeatedly missed recurring credits — reminder or reassignment.
-  report.repeatOffenders.slice(0, 3).forEach(b => {
+  //    Only for benefits genuinely missed while eligible: a skipped or snoozed
+  //    credit was a deliberate choice and must never generate a nag.
+  report.repeatOffenders
+    .filter(b => b.missedValue > 0 && !INTENTIONAL_STATUSES.has(b.status))
+    .slice(0, 3).forEach(b => {
     const card = report.cardSummaries.find(c => c.cardId === b.cardId);
     recs.push({
       priority: 'habit',
@@ -633,15 +796,27 @@ export function generateRecommendations(report) {
 
   // 3. Cards worth a look before renewal — only where the data supports it.
   report.cardSummaries
-    .filter(c => c.annualFee > 0 && (c.assessment === ASSESSMENTS.REVIEW || c.assessment === ASSESSMENTS.UNDERUSED))
+    .filter(c => c.annualFee > 0 && (c.assessment === ASSESSMENTS.REVIEW
+      || c.assessment === ASSESSMENTS.UNDERUSED || c.assessment === ASSESSMENTS.BREAK_EVEN))
     .sort((a, b) => b.breakEvenGap - a.breakEvenGap)
     .slice(0, 3)
     .forEach(c => {
-      recs.push({
-        priority: 'review',
-        title: `Review the ${c.cardName}${c.renewalDate ? ` before its ${c.renewalDate} renewal` : ''}`,
-        detail: `You used ${fmtPct(c.utilizationRate)} of its tracked benefits and left ${fmtMoney(c.missedValue)} unused. The card may still be worthwhile if untracked value — lounge access, points earning, protections, or status — is worth at least ${fmtMoney(Math.max(0, c.breakEvenGap))} to you personally.`,
-      });
+      const gap = Math.max(0, c.breakEvenGap);
+      if (c.utilizationRate >= 0.95 && c.missedValue === 0) {
+        // Fully used but priced above its credits: the question is earn rate,
+        // not usage. Recommending "use it more" here would be nonsense.
+        recs.push({
+          priority: 'review',
+          title: `Review the ${c.cardName}${c.renewalDate ? ` before its ${c.renewalDate} renewal` : ''}`,
+          detail: `You claimed every tracked credit on this card — ${fmtPct(c.utilizationRate)} of ${fmtMoney(c.availableValue)} — so there is no usage problem to fix. The credits simply total ${fmtMoney(gap)} less than the ${fmtMoney(c.annualFee)} annual fee. Before renewing, consider reviewing your actual category spend on this card: if points earned there are worth at least ${fmtMoney(gap)} a year to you, the card still pays for itself.`,
+        });
+      } else {
+        recs.push({
+          priority: 'review',
+          title: `Review the ${c.cardName}${c.renewalDate ? ` before its ${c.renewalDate} renewal` : ''}`,
+          detail: `You used ${fmtPct(c.utilizationRate)} of its available credits and let ${fmtMoney(c.missedValue)} expire unclaimed. Consider whether the credits fit your normal spending, and whether points earned on this card cover the remaining ${fmtMoney(gap)} gap to the annual fee.`,
+        });
+      }
     });
 
   // 4. Face-value honesty check on large unused credits.
@@ -691,10 +866,15 @@ export function generateMethodology(report) {
     { heading: 'Used value', body: 'A benefit marked used counts at full face value. A benefit with a partial-use amount counts only that amount. Partial amounts are clamped to the range $0–face value, so corrected or negative entries cannot inflate the total.' },
     { heading: 'Partial usage', body: 'Partially used benefits are split three ways: the amount realized, the amount still claimable (remaining opportunity), and the amount forfeited once the window closed. These three never overlap.' },
     { heading: 'Recurring credits', body: 'Monthly, quarterly, semi-annual, annual, anniversary-year (card-year) and Feb–Jan credits are each counted once per period they were actually offered. No period is counted twice, and a recurring credit contributes at most its face value per period.' },
-    { heading: 'Missed value', body: 'Only value from periods whose redemption window has closed is counted as missed. Current and future periods are never counted as missed; their unclaimed balance is reported as remaining opportunity instead.' },
+    { heading: 'Missed value', body: `A period counts as missed only when its actual redemption window closed before ${fmtDate(report.reportDate) || 'the report date'} with value unclaimed. Window bounds are real dates and are inclusive at both ends, so a credit is claimable on its start date and on its final day. Because the status and the printed expiry date are both read from the same window end, a benefit can never show a future expiry while being labelled expired.` },
+    { heading: 'Still claimable', body: 'Value in a window that is open on the report date is reported as Still Claimable, never as missed. This is a separate figure from missed value and the two never overlap.' },
+    { heading: 'Benefit value vs points value', body: 'Redeemed Benefit Value counts statement credits and tracked reimbursements only. Recorded Points Redemption Value counts points and miles you redeemed, which come from spending and bonuses rather than from a card\'s credits. Net Benefit Value After Fees is benefit value less annual fees; Total Tracked Value After Fees adds points on top. The two are never combined under a single label.' },
+    { heading: 'Face value vs personal value', body: report.hasPersonalOverrides ? 'Face value is the issuer-published amount. Where you set your own amount for a benefit, that personal value is used for the headline totals and the benefit is marked as a personal valuation; the face-value equivalents are reported alongside so neither silently replaces the other.' : 'Face value is the issuer-published amount, and personal value defaults to it. You have not overridden any benefit values, so personal value currently equals published face value throughout this report.' },
+    { heading: 'Card status', body: 'Utilization and break-even are assessed separately. A card is only called Benefits Underutilized when value was actually left unclaimed; a card whose every credit was used but whose credits total less than the fee is reported as Near Break-Even or Review at Renewal, which is a pricing question rather than a usage one.' },
     { heading: 'Excluded benefits', body: `Benefits you skipped or snoozed are reported as Excluded and are removed from both the utilization denominator and missed value — an intentional pass is not a miss. ${report.totalExcludedValue > 0 ? `${fmtMoney(report.totalExcludedValue)} was excluded on this basis.` : 'Nothing was excluded on this basis in this period.'}` },
     { heading: 'Annual fees', body: `Net tracked value is used value plus recorded points redemptions minus the annual fee that applied in ${report.periodLabel}. Where a card's fee changed, the historical fee for that year is used.` },
     { heading: 'Estimated values', body: report.hasEstimates ? 'Benefits whose value you overrode with a custom amount are marked as estimated in the benefit tables. These reflect your own valuation, not a fixed statement credit.' : 'No benefit values in this report were overridden with custom estimates; all figures use the published credit amounts.' },
+    { heading: 'Points redemption sources', body: 'Perks Ledger cannot tell where redeemed points came from, so nothing is inferred. Unless you declared a source, a redemption is reported as Other / Unknown. Points redemption value may include first-year or welcome-bonus value and should not be assumed to recur.' },
     { heading: 'What is excluded', body: 'Points and miles earned from spending, travel and purchase protections, lounge access, elite status, companion certificates, and transfer-partner value are not included. A card can therefore be below break-even here and still be worth keeping.' },
     { heading: 'Report options', body: `Generated with: unused ${opts.includeUnused === false ? 'hidden' : 'shown'}, expired ${opts.includeExpired === false ? 'hidden' : 'shown'}, upcoming ${opts.includeUpcoming === false ? 'hidden' : 'shown'}, notes ${opts.includeNotes === false ? 'hidden' : 'shown'}, grouped by ${opts.groupBy === 'category' ? 'benefit category' : 'card'}.` },
   ];

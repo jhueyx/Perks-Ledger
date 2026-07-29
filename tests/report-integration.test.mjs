@@ -21,7 +21,7 @@ globalThis.supabase = { createClient: () => ({ from: () => ({}) }) };
 
 let CARDS, state, CY, generateReport, reportToMarkdown, reportToCSV, scorecardToCSV,
   buildJSONBackup, getReportYears, calcStats, getYTDPeriods, isYTDCurrent, getFee, STATUS,
-  normalizeCardSelection;
+  normalizeCardSelection, r2;
 
 before(async () => {
   ({ CARDS } = await import('../js/cards.js'));
@@ -29,6 +29,7 @@ before(async () => {
   ({ calcStats, getYTDPeriods, isYTDCurrent, getFee } = await import('../js/periods.js'));
   ({ generateReport, reportToMarkdown, reportToCSV, scorecardToCSV, buildJSONBackup, getReportYears, STATUS,
     normalizeCardSelection } = await import('../js/report.js'));
+  ({ r2 } = await import('../js/report-model.js'));
 });
 
 // A fully-elapsed year keeps every period closed, so results do not depend on
@@ -175,6 +176,26 @@ test('custom amounts are used and flagged as estimates, and can be turned off', 
   const off = run({ includeEstimated: false });
   assert.equal(off.hasEstimates, false);
   assert.ok(off.totalAvailableValue < on.totalAvailableValue);
+});
+
+test('points redemptions are summed and reported separately from benefit value', () => {
+  // Regression: pointsBreakdownFor() used r2() without importing it, which threw
+  // only once a card actually had points recorded — no fixture had any.
+  freshState();
+  markMonthlyUsed('gold', [0, 1, 2]);
+  store.set('perks-points-redeemed', JSON.stringify({
+    csr: { [`${YEAR()}-3`]: 400.5, [`${YEAR()}-7`]: 100.25 },
+  }));
+  const rep = run();
+  const csr = rep.cardSummaries.find(c => c.cardId === 'csr');
+  assert.equal(csr.recordedPointsRedemptionValue, 500.75);
+  assert.equal(csr.pointsBreakdown.total, 500.75);
+  assert.equal(csr.pointsBreakdown.bySource.unknown, 500.75, 'source is never inferred');
+  assert.equal(csr.pointsBreakdown.hasDeclaredSource, false);
+  assert.equal(rep.recordedPointsRedemptionValue, 500.75);
+  // Points must not leak into benefit value.
+  assert.equal(csr.netBenefitValueAfterFees, r2(csr.usedValue - csr.annualFee));
+  assert.equal(csr.totalTrackedValueAfterFees, r2(csr.usedValue + 500.75 - csr.annualFee));
 });
 
 test('selecting a single card scopes the whole report', () => {

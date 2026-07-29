@@ -67,7 +67,19 @@ cd Perks-Ledger && node --test 'tests/*.test.mjs'
 
 ## Changelog
 
-### v2.6 (current, ~Jul 2026)
+### v2.7 (current, 2026-07-28)
+Corrections to the Detailed Report after reviewing the first generated PDF.
+- **Benefit value and points value are now separate.** The old "Net Value After Fees" silently folded points redemptions into benefit value. Six named metrics replace it: Available / Redeemed / Expired / Still Claimable Benefit Value, Recorded Points Redemption Value, Net Benefit Value After Fees (`redeemed − fees`) and Total Tracked Value After Fees (`redeemed + points − fees`).
+- **`windowPhase()` is the single authority on period status.** Root cause of the expired-benefit bug: `isYTDCurrent()` in `periods.js` has no branch for `annual`/`cal-annual` and falls through to `return false`, so every *unused* calendar-year credit looked like a closed window. Instances now carry real ISO `periodStart`/`periodEnd` and status is derived from those vs `reportDate`. Bounds are inclusive. The printed expiry and the status read the same field, so they cannot disagree.
+- **Utilization ≠ break-even.** `assessCard()` only returns "Benefits Underutilized" when value was actually left unclaimed. AMEX Gold at 100% utilization and −$36 net now reads "Near Break-Even", not "Underutilized".
+- New statuses `snoozed`, `not-eligible`; labels reworded (Available — Unused, Expired — Unused, Intentionally Excluded, Data Missing).
+- Duplicate benefit names (two DoorDash grocery credits) get a distinguishing `displayName`; records are never merged.
+- Face value vs personal value reported side by side, reusing the existing custom-amounts store — **no migration**.
+- Points redemption sources (`perks-points-sources`) are user-declared only, never inferred; first-year cards carry a welcome-bonus non-recurrence caveat.
+- Print density tightened: **12 pages → 7**.
+- Tests: 76 passing, incl. `tests/report-regression-2026.test.mjs` pinning the real 2026 figures against `tests/fixtures/report-2026.mjs`.
+
+### v2.6 (~Jul 2026)
 - **Export & Reports** (nav `export-report`) — replaces the raw per-card table as the primary export. Three options: **Detailed Report**, **CSV / Raw Data** (scorecard + one row per benefit-period), **JSON Backup** (raw records + computed report).
   - **Detailed Report** is an 11-section written review: header stats, executive summary, portfolio scorecard, card-by-card narrative, per-benefit activity timeline, used benefits, missed/unused benefits, expiration & upcoming opportunities, annual fee analysis, recommendations, methodology.
   - Config modal (period, cards, section toggles, group-by, format) persisted to `perks-report-options`.
