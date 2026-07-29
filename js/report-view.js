@@ -359,6 +359,14 @@ function pill(status) {
 function money(n) { return E(fmtMoney(n)); }
 function plural(n, word) { return `${n} ${word}${n === 1 ? '' : 's'}`; }
 function bLabel(b) { return b.displayName || b.benefitName; }
+/** "Jan 2026, Feb 2026, …" for a monthly credit was the widest cell in the
+ *  table and adds nothing the timeline row below does not already show. */
+function usageSummary(b) {
+  const ds = b.usageDates;
+  if (!ds.length) return '—';
+  if (ds.length <= 2) return ds.join(', ');
+  return `${ds.length} periods · ${ds[0]}–${ds[ds.length - 1]}`;
+}
 // Window bounds are stored as ISO so they can be compared; humanised at render.
 function dateLabel(iso) { return isoToLabel(iso) || '—'; }
 function signed(n) { return `<span class="${n >= 0 ? 'rpt-pos' : 'rpt-neg'}">${E(fmtSignedMoney(n))}</span>`; }
@@ -408,10 +416,10 @@ export function reportToHTML(report) {
     <h2>Portfolio Scorecard</h2>
     ${tableWrap(`<table class="rpt-table">
       <thead><tr>
-        <th>Card</th><th class="r">Annual Fee</th><th class="r">Available</th><th class="r">Redeemed</th>
-        <th class="r">Expired</th><th class="r">Still Claimable</th><th class="r">Points</th>
-        <th class="r">Net Benefit</th><th class="r">Total Tracked</th>
-        <th class="r">Utilization</th><th>Status</th>
+        <th>Card</th><th class="r">Annual<br>fee</th><th class="r">Available</th><th class="r">Redeemed</th>
+        <th class="r">Expired</th><th class="r">Still<br>claimable</th><th class="r">Points</th>
+        <th class="r">Net<br>benefit</th><th class="r">Total<br>tracked</th>
+        <th class="r">Util.</th><th>Status</th>
       </tr></thead>
       <tbody>
         ${report.cardSummaries.map(c => `<tr>
@@ -493,8 +501,8 @@ export function reportToHTML(report) {
             ${tableWrap(`<table class="rpt-table rpt-table-sm">
               <thead><tr>
                 <th>Benefit</th><th>Category</th><th class="r">Available</th><th class="r">Redeemed</th>
-                <th class="r">Expired</th><th class="r">Still Claimable</th><th class="r">Excluded</th>
-                <th>Status</th><th>Redeemed on</th><th>Expires</th>
+                <th class="r">Expired</th><th class="r">Still<br>claimable</th>
+                <th>Status</th><th>Redeemed<br>on</th><th>Expires</th>
               </tr></thead>
               <tbody>${g.items.map(b => benefitRows(b, o)).join('')}</tbody>
             </table>`)}
@@ -597,7 +605,7 @@ export function reportToHTML(report) {
     H.push(`<section class="rpt-section">
       <h2>Annual Fee Analysis</h2>
       ${tableWrap(`<table class="rpt-table">
-        <thead><tr><th>Card</th><th class="r">Annual fee</th><th class="r">Realized tracked value</th><th class="r">Net tracked value</th><th class="r">Still claimable</th><th class="r">Break-even gap</th></tr></thead>
+        <thead><tr><th>Card</th><th class="r">Annual<br>fee</th><th class="r">Redeemed<br>benefit value</th><th class="r">Points<br>redeemed</th><th class="r">Net benefit<br>after fees</th><th class="r">Total tracked<br>after fees</th><th class="r">Still<br>claimable</th><th class="r">Break-even<br>gap</th></tr></thead>
         <tbody>${report.cardSummaries.map(c => `<tr>
           <td class="rpt-strong">${E(c.cardName)}</td>
           <td class="r">${money(c.annualFee)}</td>
@@ -664,9 +672,8 @@ function benefitRows(b, o) {
     <td class="r">${money(b.usedValue)}</td>
     <td class="r${b.missedValue > 0 ? ' rpt-neg' : ''}">${money(b.missedValue)}</td>
     <td class="r">${money(b.remainingValue)}</td>
-    <td class="r rpt-dim">${b.excludedValue > 0 ? money(b.excludedValue) : '—'}</td>
     <td>${pill(b.status)}</td>
-    <td class="rpt-dim">${E(b.usageDates.join(', ') || '—')}</td>
+    <td class="rpt-dim">${E(usageSummary(b))}</td>
     <td class="rpt-dim">${E(dateLabel(b.statusExpiration || b.nextExpiration || b.expirationDate))}</td>
   </tr>`];
 
@@ -675,14 +682,14 @@ function benefitRows(b, o) {
   const detail = b.instances.filter(i => i.status !== STATUS.NOT_YET_AVAILABLE);
   const informative = b.missedValue > 0 || b.remainingValue > 0 || b.excludedValue > 0;
   if (detail.length > 1 && informative) {
-    rows.push(`<tr class="rpt-b-detail"><td colspan="10">
+    rows.push(`<tr class="rpt-b-detail"><td colspan="9">
       <div class="rpt-timeline">${detail.map(i =>
         `<span class="rpt-tl ${STATUS_CLS[i.status] || 'mute'}" title="${E(`${i.periodLabel}: ${STATUS_LABELS[i.status]} · ${fmtMoney(i.usedValue)} of ${fmtMoney(i.amount)}`)}">${E(i.periodLabel)}<b>${money(i.usedValue)}</b></span>`).join('')}</div>
     </td></tr>`);
   }
 
   if (o.includeNotes && b.notes.length) {
-    rows.push(`<tr class="rpt-b-detail"><td colspan="10">${b.notes.map(n =>
+    rows.push(`<tr class="rpt-b-detail"><td colspan="9">${b.notes.map(n =>
       `<div class="rpt-benefit-note"><b>${E(n.period)}</b> ${E(n.note)}</div>`).join('')}</td></tr>`);
   }
   return rows.join('');
@@ -798,7 +805,9 @@ body.rpt-standalone .rpt-paper{max-width:8.5in;margin:0 auto;box-shadow:0 2px 14
 .rpt-toolbar button{padding:8px 16px;border-radius:7px;border:1px solid #1a1a1a;background:#1a1a1a;color:#fff;font-weight:600;cursor:pointer;font-size:13px;}
 @media print{
   @page{size:letter;margin:0.6in;}
-  html,body{background:#fff !important;margin:0;padding:0;}
+  /* The standalone body's 20px padding outranks a bare body selector, so the
+     whole page was being shifted right and pushed past the margin. */
+  html,body,body.rpt-standalone{background:#fff !important;margin:0 !important;padding:0 !important;}
   .no-print,.rpt-toolbar{display:none !important;}
   .rpt-paper{border:none !important;box-shadow:none !important;border-radius:0;padding:0;margin:0;max-width:none;font-size:10.5pt;}
   /* Keep headings with their content and never orphan a table header. */
@@ -818,8 +827,21 @@ body.rpt-standalone .rpt-paper{max-width:8.5in;margin:0 auto;box-shadow:0 2px 14
   thead{display:table-header-group;}
   tfoot{display:table-footer-group;}
   .rpt-table-wrap{overflow:visible !important;}
-  .rpt-table,.rpt-table-sm{min-width:0 !important;width:100% !important;font-size:8pt;}
-  .rpt-table th,.rpt-table td{padding:2.5px 4px;}
+  /* Sized so the widest table (the 11-column scorecard) fits the 7.3in content
+     box. Measured, not guessed: at 8pt/4px it came to 881px against a 701px
+     page and the right-hand columns were silently clipped off the paper. */
+  .rpt-table,.rpt-table-sm{min-width:0 !important;width:100% !important;font-size:7.5pt;}
+  .rpt-table th,.rpt-table td{padding:2px 2.5px;}
+  .rpt-table td.r,.rpt-table td.c{white-space:nowrap;}
+  /* Headers set the minimum column width, and long ones like "STILL
+     CLAIMABLE" reserved 108px to show "$370". Explicit breaks in the header
+     text cost height once per table instead of on every row. */
+  .rpt-table th{line-height:1.15;}
+  /* width:100% cannot shrink a table below its min-content width, so the wide
+     scorecard (11 cols) and benefit tables (10) used to spill past the page box
+     and get clipped. Letting headers wrap is what makes them fit; numeric cells
+     stay nowrap so a money value never breaks across lines. */
+
   /* Minimal ink: drop tinted fills, keep hairline rules. */
   .rpt-stat,.rpt-total td,.rpt-callout,.rpt-summary .rpt-lede{background:transparent !important;}
   /* Density: the first draft ran to 12 pages, most of it whitespace. */
