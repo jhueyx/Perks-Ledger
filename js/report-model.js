@@ -459,6 +459,14 @@ function buildCardSummary(card) {
  * @param {Object} input - snapshot produced by report.js
  * @returns {Object} PortfolioReport
  */
+// Section toggles default to ON. Without this a caller that omits a flag would
+// silently drop a whole section from the report rather than render it.
+export const SECTION_DEFAULTS = {
+  includeUnused: true, includeExpired: true, includeUpcoming: true,
+  includeActivity: true, includeFeeAnalysis: true, includeRecommendations: true,
+  includeNotes: true, includeEstimated: true, groupBy: 'card',
+};
+
 export function buildPortfolioReport(input) {
   const cardSummaries = (input.cards || []).map(buildCardSummary);
 
@@ -520,7 +528,7 @@ export function buildPortfolioReport(input) {
     bestCard,
     worstCard,
     cardSummaries,
-    options: input.options || {},
+    options: { ...SECTION_DEFAULTS, ...(input.options || {}) },
   };
 
   report.usageByCategory = aggregateByCategory(allBenefits);
