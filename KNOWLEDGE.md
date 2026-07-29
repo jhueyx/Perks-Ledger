@@ -13,7 +13,10 @@ Vanilla JS SPA deployed via **Vercel** (with `vercel.json` cache headers) at **p
 | `js/storage.js` | localStorage + Supabase sync, toggle, partial use, notes, snooze, credited, skipped |
 | `js/periods.js` | Period math, stats, ROI calculations, streak logic |
 | `js/badges.js` | 100+ achievement badge definitions (`BADGE_DEFS`), tier system (bronze→legendary), `checkBadges()`, `getEarnedBadges()`, `backfill2025Badges()`, `TIER_COLORS` |
-| `js/views.js` | All render functions — `render()`, `renderCurrent()`, `renderAllCards()`, `renderDigest()`, `renderNetValue()`, `renderFeeOptimizer()`, `renderCardSimulator()`, `renderRenewalCalendar()`, `renderExport()`, etc. |
+| `js/views.js` | All render functions — `render()`, `renderCurrent()`, `renderAllCards()`, `renderDigest()`, `renderNetValue()`, `renderFeeOptimizer()`, `renderCardSimulator()`, `renderRenewalCalendar()`, `renderRecap()`, etc. |
+| `js/report-model.js` | **Pure** report calculation + narrative templates — no DOM, no storage, no period math. Unit tested under `node --test` |
+| `js/report.js` | Adapter: live state → report model input; Markdown / CSV / JSON serializers |
+| `js/report-view.js` | Export & Reports view, config modal, report HTML, `REPORT_CSS` (shared by preview and print doc) |
 | `js/main.js` | Event listeners, auth flow, navigation, modal logic, `renderBadgesView()`, email digest toggle, push subscribe, `window.*` exports for inline handlers |
 
 ### Key Patterns
@@ -47,9 +50,34 @@ Cache-bust: increment version in `index.html` CSS/JS query strings (`?v=...`) an
 
 ---
 
+## Tests
+
+No build step, so tests are plain `node --test` files with no dependencies:
+
+```bash
+cd Perks-Ledger && node --test 'tests/*.test.mjs'
+```
+
+- `tests/report-model.test.mjs` — the pure status / missed-value / narrative ruleset
+- `tests/report-integration.test.mjs` — drives the real `CARDS` catalog and `periods.js` with stubbed browser globals; includes an assertion that report totals match `calcStats()` so the report can't silently drift from the rest of the app
+
+`js/package.json` (`{"type":"module"}`) exists only so Node treats `js/*.js` as ES modules. It is not used at runtime.
+
+---
+
 ## Changelog
 
-### v2.5 (current, ~May 2026)
+### v2.6 (current, ~Jul 2026)
+- **Export & Reports** (nav `export-report`) — replaces the raw per-card table as the primary export. Three options: **Detailed Report**, **CSV / Raw Data** (scorecard + one row per benefit-period), **JSON Backup** (raw records + computed report).
+  - **Detailed Report** is an 11-section written review: header stats, executive summary, portfolio scorecard, card-by-card narrative, per-benefit activity timeline, used benefits, missed/unused benefits, expiration & upcoming opportunities, annual fee analysis, recommendations, methodology.
+  - Config modal (period, cards, section toggles, group-by, format) persisted to `perks-report-options`.
+  - Formats: in-app preview, print/PDF via a standalone popup window, downloadable HTML, Markdown.
+  - **Status model** (`report-model.js`): `fully-used`, `partially-used`, `unused`, `expired-unused`, `expired-partially-used`, `upcoming`, `not-yet-available`, `excluded`, `unknown`. Missed value comes **only** from closed windows; open windows report "remaining opportunity". Skipped/snoozed periods are `excluded` and leave the utilization denominator. Periods before a card was opened are `unknown`, never `unused`.
+  - `REPORT_CSS` in `report-view.js` is the single source of truth for report styling — injected into the app for the preview and inlined into the standalone print document.
+  - The Annual Recap view's original CSV + print export is unchanged.
+- SW cache bumped to v44.
+
+### v2.5 (~May 2026)
 - **Achievements / Badges** (`js/badges.js`, `renderBadgesView()` in `main.js`) — 100+ badges across 5 tiers: Bronze, Silver, Gold, Platinum, Legendary. Categories: streaks, portfolio size, total value captured, single-card value, fee mastery (profit milestone + simultaneous profit count), card-specific mastery, claim volume, completionist (grand slam, all-in, perfect rate), category specialists (Uber, dining, travel loyalty), and brand/bank loyalty badges. Flip-card UI with locked/unlocked visuals. `checkBadges()` runs on sign-in and every toggle; `backfill2025Badges()` retroactively awards 2025 badges on first sign-in. Badges persisted to `user_profiles` (JSON column). Toast notification on unlock.
 - **Benefit Digest** (`renderDigest()` in `views.js`, nav `digest`) — merged Use It Now + per-deadline buckets. "Act now" urgency-ranked list with dismiss (×) and Restore. Collapsed "By Deadline" buckets (monthly / quarterly / semi-annual / annual). Collapsed "Dismissed" section with per-item Restore + "Restore all". Hero total of at-risk value.
 - **Portfolio Value** (`renderNetValue()` in `views.js`, nav `net-value`) — portfolio-level hero: net captured now vs projected, layered progress bar (projected behind captured). Per-card breakdown sorted by capture %, each row with captured/projected/fee bar.

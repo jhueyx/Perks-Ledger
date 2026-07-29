@@ -1,0 +1,4 @@
+{
+  "//": "Marks js/ as ES modules for Node so tests/ can import these files directly. The browser already loads them as modules; this file is not used at runtime.",
+  "type": "module"
+}

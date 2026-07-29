@@ -17,6 +17,7 @@ import {
 import { render, getVisibleCardKeys, renderCurrent, renderRecap, haptic, checkAllClaimed, animateCounters, renderFeeOptimizer, buildAdvisorContext, buildCardChooserContext, formatAdvisorMarkdown, computeAlerts, renderPointsRedemptions } from './views.js';
 import { checkBadges, getEarnedBadges, getEarnedAt, getUnseenBadges, markAllSeen, BADGE_DEFS, getApplicableBadgeDefs, TIER_COLORS } from './badges.js';
 import { calcStats, getCardYearPeriods, isPCurrent, getFee, getBAmount, getCurrentPK, isBExpired, isBNotAvailable } from './periods.js';
+import { openReportConfig, previewReport, openPrintableReport, downloadReportHTML, downloadReportMarkdown, downloadReportCSV, downloadReportJSON } from './report-view.js';
 
 // Web Push: paste the base64url VAPID PUBLIC key here (same one set as the
 // send-push function's VAPID_PUBLIC_KEY secret). Generate with:
@@ -385,13 +386,17 @@ function buildNotifSettingsHTML(){
     </div>`;
   });
   if(pushSupported()){
+    // localStorage is only the first paint — syncPushToggle() corrects it from
+    // the server once the settings screen is on-screen, since push state lives
+    // in two places (an account flag and a per-device subscription) that can
+    // drift apart.
     const pon=localStorage.getItem('push-enabled')==='1';
     html+=`<div class="notif-setting-row" style="border-top:1px solid var(--border);margin-top:8px;padding-top:12px">
       <div>
         <div class="notif-setting-label">Background push</div>
-        <div class="notif-setting-sub">Reminders even when the app is closed${VAPID_PUBLIC_KEY?'':' — not configured yet'}</div>
+        <div class="notif-setting-sub">Reminders on this device even when the app is closed${VAPID_PUBLIC_KEY?'':' — not configured yet'}</div>
       </div>
-      <button class="notif-toggle ${pon?'on':''}" onclick="togglePush(this)"></button>
+      <button class="notif-toggle ${pon?'on':''}" id="pushToggle" onclick="togglePush(this)"></button>
     </div>`;
   }
   html+=`<button class="settings-btn" style="margin-top:12px;font-size:12px;color:var(--text-tertiary)" onclick="disableNotifications()">Turn off all notifications</button>`;
@@ -486,6 +491,7 @@ function renderSettings(){
       </div>
     </div>`;
   if(!state._settingsCardsCollapsed) renderCPGrid('settingsCardGrid','settingsCardSearch',state._mcSelected);
+  syncPushToggle();
 }
 
 async function saveSettingsProfile(){
@@ -751,6 +757,7 @@ function setActiveView(primary){
   else if(primary==='wrap') state.activeView='wrap';
   else if(primary==='benefit-alerts') state.activeView='benefit-alerts';
   else if(primary==='points-redemptions') state.activeView='points-redemptions';
+  else if(primary==='export-report') state.activeView='export-report';
   else if(primary==='settings') state.activeView='settings';
   else if(primary==='more') state.activeView='more';
   else if(primary==='my-cards'){ openMyCards(); return; }
@@ -1020,6 +1027,12 @@ async function enablePush(){
   localStorage.setItem('push-enabled','1');
   return true;
 }
+// Push state lives in two places: `user_profiles.push_enabled` is per-account
+// (send-push filters on it), while subscriptions are per-device. This used to
+// clear the account flag unconditionally, so turning push off on a device that
+// had never subscribed — a desktop browser, say — silently killed push on every
+// other device and orphaned their subscription rows. Now the flag only goes
+// false once the account has no subscriptions left anywhere.
 async function disablePush(){
   const uid=state.currentUser&&state.currentUser.id;
   if(pushSupported()){
@@ -1031,8 +1044,29 @@ async function disablePush(){
       if(uid&&uid!=='demo') await sb.from('perks_push_subscriptions').delete().eq('user_id',uid).eq('endpoint',endpoint);
     }
   }
-  if(uid&&uid!=='demo') await sb.from('user_profiles').update({push_enabled:false}).eq('user_id',uid);
+  if(uid&&uid!=='demo'){
+    const {count}=await sb.from('perks_push_subscriptions').select('id',{count:'exact',head:true}).eq('user_id',uid);
+    if(!count) await sb.from('user_profiles').update({push_enabled:false}).eq('user_id',uid);
+  }
   localStorage.setItem('push-enabled','0');
+}
+
+// Reconciles the toggle with reality after the settings screen renders. Push is
+// only actually live for this device when BOTH the account flag is on and this
+// browser still holds a subscription — localStorage alone can claim either.
+async function syncPushToggle(){
+  const btn=document.getElementById('pushToggle');
+  if(!btn||!pushSupported()) return;
+  const uid=state.currentUser&&state.currentUser.id;
+  if(!uid||uid==='demo') return;
+  try{
+    const reg=await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.getSubscription();
+    const {data}=await sb.from('user_profiles').select('push_enabled').eq('user_id',uid).maybeSingle();
+    const on=!!sub&&!!data?.push_enabled;
+    localStorage.setItem('push-enabled',on?'1':'0');
+    btn.classList.toggle('on',on);
+  }catch(e){ console.error('[syncPushToggle]',e); }
 }
 async function togglePush(btn){
   const turningOn=!btn.classList.contains('on');
@@ -1437,6 +1471,7 @@ const _DRAWER_ICONS={
   'ai-advisor':`<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="7" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 6.5C5.5 5.1 6.6 4 8 4s2.5 1.1 2.5 2.5c0 1-0.6 1.9-1.5 2.3V10H7V8.8C6.1 8.4 5.5 7.5 5.5 6.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><line x1="7" y1="11.5" x2="9" y2="11.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="7.5" y1="13" x2="8.5" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
   'renewal-calendar':`<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/><line x1="2" y1="6.5" x2="14" y2="6.5" stroke="currentColor" stroke-width="1.5"/><line x1="5" y1="1.5" x2="5" y2="4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="11" y1="1.5" x2="11" y2="4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
   'points-redemptions':`<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5V5m0 6v.5M10 6.5c0-.8-.9-1.5-2-1.5s-2 .7-2 1.5S6.9 8 8 8s2 .7 2 1.5S9 11 8 11s-2-.7-2-1.5" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg>`,
+  'export-report':`<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 2.5h6L13 6v7.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M9 2.5V6h4" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><line x1="5.5" y1="8.5" x2="10.5" y2="8.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="5.5" y1="11" x2="9" y2="11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>`,
   'settings':`<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/><path d="M13 9.5l.6-1-1-1a3.5 3.5 0 0 0-.3-.7l.4-1.3-1.2-1.2-1.3.4a3.5 3.5 0 0 0-.7-.3L9 3H7l-.5 1.4a3.5 3.5 0 0 0-.7.3L4.5 4.3 3.3 5.5l.4 1.3a3.5 3.5 0 0 0-.3.7L2 8v1l1.4.5c.1.2.2.5.3.7l-.4 1.3 1.2 1.2 1.3-.4c.2.1.5.2.7.3L7 14h2l.5-1.4c.2-.1.5-.2.7-.3l1.3.4 1.2-1.2-.4-1.3c.1-.2.2-.5.3-.7L14 9.5z" stroke="currentColor" stroke-width="1.4"/></svg>`,
 };
 
@@ -1949,6 +1984,7 @@ function renderMore(){
     {view:'heatmap',label:'Heatmap'},
     {view:'history-log',label:'History'},
     {view:'recap',label:'Annual Recap'},
+    {view:'export-report',label:'Export & Reports'},
     {view:'settings',label:'Settings'},
   ];
   let html='<div class="more-grid">';
@@ -2202,6 +2238,14 @@ window.togglePush=togglePush;
 window.toggleDigestEmail=toggleDigestEmail;
 window.isSkipped=isSkipped;
 window.renderRecap=renderRecap;
+// Export & Reports — inline onclick handlers in the report view
+window.openReportConfig=openReportConfig;
+window.previewReport=previewReport;
+window.openPrintableReport=openPrintableReport;
+window.downloadReportHTML=downloadReportHTML;
+window.downloadReportMarkdown=downloadReportMarkdown;
+window.downloadReportCSV=downloadReportCSV;
+window.downloadReportJSON=downloadReportJSON;
 window.setSnoozedBenefit=setSnoozedBenefit;
 window.openSnoozeModal=openSnoozeModal;
 window.closeSnoozeModal=closeSnoozeModal;

@@ -1,6 +1,6 @@
 import { CARDS, MONTHS, MONTHS_FULL, CARD_LABELS, CARD_SHORT_LABELS, CARD_CLS, BENEFIT_CATEGORIES, POINTS_PROGRAMS, PREMIUM_CARD_CATALOG, POINTS_MULTIPLIERS } from './cards.js';
 import { state, CY, CM, escapeHtml } from './state.js';
-import { isUsed, isCredited, toggleCredited, getEffectiveAmount, getNote, getPartialUsed, loadNotes, saveNotes, getNoteKey, isSkipped, isGloballySnoozed, isMonthSnoozed, getSnoozedUntil, getCardFeeMonth, getCardFeeDay, countSkipped, clearAllSkipped, loadSkipped, loadPointsRedeemed, getPointsRedeemedYTD, getAllPointsRedeemedYTD } from './storage.js';
+import { isUsed, isCredited, toggleCredited, getEffectiveAmount, bName, getNote, getPartialUsed, loadNotes, saveNotes, getNoteKey, isSkipped, isGloballySnoozed, isMonthSnoozed, getSnoozedUntil, getCardFeeMonth, getCardFeeDay, countSkipped, clearAllSkipped, loadSkipped, loadPointsRedeemed, getPointsRedeemedYTD, getAllPointsRedeemedYTD } from './storage.js';
 import {
   getCardYearStart, getCardYearPeriods, getYTDPeriods, isPFuture, isPCurrent, isYTDCurrent,
   getCurrentPK, getCurrentLabel, getBAmount, getFee, isBExpired, isBNotAvailable,
@@ -8,6 +8,7 @@ import {
   getUnclaimedMonthly, maxCardYearValue, calcCapturedByType, getCardYearMonthsElapsed,
   getProjectedCapture, getROIGrade
 } from './periods.js';
+import { renderExportReport, ensureReportStyles } from './report-view.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 export function getVisibleCardKeys(){
@@ -218,7 +219,7 @@ function buildEOMWarning(cardKey){
   const unclaimed=getUnclaimedMonthly(cardKey);
   if(!unclaimed.length) return '';
   const total=unclaimed.reduce((s,b)=>s+b.amt,0);
-  const names=unclaimed.map(b=>b.name).join(', ');
+  const names=unclaimed.map(b=>bName(cardKey,b)).join(', ');
   return `<div class="eom-warning"><div><strong>${days} day${days===1?'':'s'} left this month</strong> — you still have $${total.toFixed(0)} unclaimed: ${names}</div></div>`;
 }
 
@@ -331,7 +332,7 @@ export function renderDigest(){
       s.benefits.forEach(b=>{
         if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(cardKey,b.id)) return;
         if(isUsed(cardKey,b.id,pk)||isSkipped(cardKey,b.id,pk)) return;
-        bucket.items.push({cardKey,cardLabel:CARD_LABELS[cardKey],name:b.name,amt:getRemainingAmt(cardKey,b,{m:CM},pk),pk,benefitId:b.id});
+        bucket.items.push({cardKey,cardLabel:CARD_LABELS[cardKey],name:bName(cardKey,b),amt:getRemainingAmt(cardKey,b,{m:CM},pk),pk,benefitId:b.id});
       });
     });
   });
@@ -361,7 +362,7 @@ export function renderDigest(){
       if(!CARDS[cardKey]) return '';
       let benefitName='',benefitAmt=0;
       CARDS[cardKey].sections.forEach(s=>s.benefits.forEach(b=>{
-        if(b.id===benefitId){ benefitName=b.name; benefitAmt=getBAmount(b,{m:CM}); }
+        if(b.id===benefitId){ benefitName=bName(cardKey,b); benefitAmt=getBAmount(b,{m:CM}); }
       }));
       if(!benefitName) return '';
       return `<div class="priority-row" style="opacity:0.6">
@@ -623,7 +624,7 @@ function buildPriorityQueue(){
           urgency=10; urgencyLabel='This travel year'; tier=1;
         } else { urgency=10; urgencyLabel='This period'; tier=1; }
         const score=tier*1000+urgency*Math.log(amt+1);
-        items.push({cardKey,benefitId:b.id,pk,name:b.name,card:CARD_LABELS[cardKey],amt,urgency,urgencyLabel,urgencyCls,score,cadence:s.cadence});
+        items.push({cardKey,benefitId:b.id,pk,name:bName(cardKey,b),card:CARD_LABELS[cardKey],amt,urgency,urgencyLabel,urgencyCls,score,cadence:s.cadence});
       });
     });
   });
@@ -695,7 +696,7 @@ export function renderCurrent(){
         const dispAmt=b.note&&b.amount===0?b.note:`$${effectiveAmt}`;
         const note=getNote(state.activeCard,b.id,pk);
         const periodLabel=isMonthly?`${MONTHS_FULL[viewM]} ${viewY}`:lbl;
-        const noteHTML=note?`<div class="benefit-note" data-id="${b.id}" data-pk="${pk}" data-name="${b.name}" data-period="${periodLabel}"><span class="note-dot"></span>${escapeHtml(note)}</div>`:`<div class="add-note" data-id="${b.id}" data-pk="${pk}" data-name="${b.name}" data-period="${periodLabel}">+ add note</div>`;
+        const noteHTML=note?`<div class="benefit-note" data-id="${b.id}" data-pk="${pk}" data-name="${bName(state.activeCard,b)}" data-period="${periodLabel}"><span class="note-dot"></span>${escapeHtml(note)}</div>`:`<div class="add-note" data-id="${b.id}" data-pk="${pk}" data-name="${bName(state.activeCard,b)}" data-period="${periodLabel}">+ add note</div>`;
         // Always show the partial bar for partial-eligible benefits, not just
         // once fully used -- otherwise logging an amount below the total
         // hides the input the moment it drops below 100%, with no way back
@@ -703,10 +704,10 @@ export function renderCurrent(){
         const partialHTML=b.partial?buildPartialBar(state.activeCard,b.id,pk,effectiveAmt):'';
         const creditedHTML=used?`<div style="margin-top:4px;font-size:10px;font-family:var(--mono)"><span style="color:${credited?'var(--green)':'var(--text-tertiary)'};cursor:pointer" data-credit-id="${b.id}" data-credit-pk="${pk}">${credited?'✓ Credit posted':'○ Credit pending'}</span></div>`:'';
         const snoozedBadge=snoozed?`<span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);margin-top:3px;display:block">⏸︎ snoozed until ${snoozedUntil} · <span style="cursor:pointer;text-decoration:underline" data-unsnooze="${b.id}" data-unsnooze-card="${state.activeCard}">resume</span></span>`:'';
-        const snoozeBtn=!snoozed?`<button class="snooze-btn" data-snooze-id="${b.id}" data-snooze-card="${state.activeCard}" data-snooze-name="${b.name}" title="Snooze this benefit — hide from all calculations until a chosen month" style="background:none;border:none;cursor:pointer;font-size:12px;padding:2px 5px;color:var(--text-tertiary);opacity:0.25;transition:opacity 0.15s;line-height:1;border-radius:3px;flex-shrink:0" aria-label="Snooze benefit">⏸︎</button>`:'';
+        const snoozeBtn=!snoozed?`<button class="snooze-btn" data-snooze-id="${b.id}" data-snooze-card="${state.activeCard}" data-snooze-name="${bName(state.activeCard,b)}" title="Snooze this benefit — hide from all calculations until a chosen month" style="background:none;border:none;cursor:pointer;font-size:12px;padding:2px 5px;color:var(--text-tertiary);opacity:0.25;transition:opacity 0.15s;line-height:1;border-radius:3px;flex-shrink:0" aria-label="Snooze benefit">⏸︎</button>`:'';
         html+=`<div class="benefit-row${used?' used':''}${snoozed?' snoozed-row':''}" style="${snoozed?'opacity:0.45;':''}">
           <div style="flex:1">
-            <div class="benefit-name">${b.name}${catTag}${streakBadge}${expiryBadge}</div>
+            <div class="benefit-name">${bName(state.activeCard,b)}${catTag}${streakBadge}${expiryBadge}</div>
             <div class="benefit-desc">${b.desc}</div>
             ${snoozedBadge}${!snoozed?noteHTML:''}${partialHTML}${creditedHTML}
           </div>
@@ -743,7 +744,7 @@ export function renderHistBase(getPsFn,isCurFn,bannerHTML){
     if(!visibleBenefits.length) return;
     html+=`<div class="section-header"><span class="section-title">${s.label} benefits</span></div>`;
     visibleBenefits.forEach(b=>{
-      html+=`<div class="hist-row"><div><div class="hist-name">${b.name}</div><div class="hist-sub">${b.decAmount?`$${b.amount}/mo · $${b.decAmount} Dec`:`$${b.amount}/${s.cadence==='semi-annual'||s.cadence==='cal-semi-annual'?'half':s.cadence==='monthly'?'mo':s.cadence==='quarterly'?'qtr':'yr'}`}</div></div><div class="dots-row">`;
+      html+=`<div class="hist-row"><div><div class="hist-name">${bName(state.activeCard,b)}</div><div class="hist-sub">${b.decAmount?`$${b.amount}/mo · $${b.decAmount} Dec`:`$${b.amount}/${s.cadence==='semi-annual'||s.cadence==='cal-semi-annual'?'half':s.cadence==='monthly'?'mo':s.cadence==='quarterly'?'qtr':'yr'}`}</div></div><div class="dots-row">`;
       ps.forEach(p=>{
         if(isBExpired(b,p)||isBNotAvailable(b,0,p)) return;
         const fut=isPFuture(p),cur=isCurFn(s.cadence,p),used=isUsed(state.activeCard,b.id,p.pk);
@@ -786,7 +787,7 @@ export function renderSummBase(getPsFn,isCurFn,bannerHTML,label){
       const amtLbl=b.decAmount?`$${b.amount}–$${b.decAmount}/mo`:`$${b.amount}/${cadLbl}`;
       const expiredTag=b.expiresAfter?`<span style="font-size:10px;color:var(--red);margin-left:4px">ends ${b.expiresAfter.h===0?'Jun':'Dec'} ${b.expiresAfter.y}</span>`:'';
       if(snoozed){
-        html+=`<div class="summary-row-item" style="opacity:0.45"><div><span class="summary-item-name">${b.name}</span>${expiredTag}<span class="summary-item-cadence">${amtLbl}</span><span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);margin-left:6px">⏸︎ until ${snoozedUntil} · <span style="cursor:pointer;text-decoration:underline" data-unsnooze="${b.id}" data-unsnooze-card="${state.activeCard}">resume</span></span></div></div>`;
+        html+=`<div class="summary-row-item" style="opacity:0.45"><div><span class="summary-item-name">${bName(state.activeCard,b)}</span>${expiredTag}<span class="summary-item-cadence">${amtLbl}</span><span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);margin-left:6px">⏸︎ until ${snoozedUntil} · <span style="cursor:pointer;text-decoration:underline" data-unsnooze="${b.id}" data-unsnooze-card="${state.activeCard}">resume</span></span></div></div>`;
         return;
       }
       let bc=0,bm=0,bl=0;
@@ -795,8 +796,8 @@ export function renderSummBase(getPsFn,isCurFn,bannerHTML,label){
         const fut=isPFuture(p),cur=isCurFn(s.cadence,p),used=isUsed(state.activeCard,b.id,p.pk),amt=getBAmount(b,p);
         if(used) bc+=amt; else if(!fut&&!cur) bm+=amt; else bl+=amt;
       });
-      const snoozeBtn=`<button class="snooze-btn" data-snooze-id="${b.id}" data-snooze-card="${state.activeCard}" data-snooze-name="${b.name}" title="Snooze this benefit" style="background:none;border:none;cursor:pointer;font-size:11px;padding:1px 4px;color:var(--text-tertiary);opacity:0.3;transition:opacity 0.15s;line-height:1;border-radius:3px;flex-shrink:0" aria-label="Snooze benefit">⏸︎</button>`;
-      html+=`<div class="summary-row-item"><div><span class="summary-item-name">${b.name}</span>${expiredTag}<span class="summary-item-cadence">${amtLbl}</span></div><div class="badges" style="display:flex;align-items:center;gap:4px">${bc>0?`<span class="badge-captured">+$${bc.toFixed(0)}</span>`:''}${bm>0?`<span class="badge-missed">−$${bm.toFixed(0)} missed</span>`:''}${bl>0?`<span class="badge-left">$${bl.toFixed(0)} left</span>`:''}${snoozeBtn}</div></div>`;
+      const snoozeBtn=`<button class="snooze-btn" data-snooze-id="${b.id}" data-snooze-card="${state.activeCard}" data-snooze-name="${bName(state.activeCard,b)}" title="Snooze this benefit" style="background:none;border:none;cursor:pointer;font-size:11px;padding:1px 4px;color:var(--text-tertiary);opacity:0.3;transition:opacity 0.15s;line-height:1;border-radius:3px;flex-shrink:0" aria-label="Snooze benefit">⏸︎</button>`;
+      html+=`<div class="summary-row-item"><div><span class="summary-item-name">${bName(state.activeCard,b)}</span>${expiredTag}<span class="summary-item-cadence">${amtLbl}</span></div><div class="badges" style="display:flex;align-items:center;gap:4px">${bc>0?`<span class="badge-captured">+$${bc.toFixed(0)}</span>`:''}${bm>0?`<span class="badge-missed">−$${bm.toFixed(0)} missed</span>`:''}${bl>0?`<span class="badge-left">$${bl.toFixed(0)} left</span>`:''}${snoozeBtn}</div></div>`;
     });
   });
   html+=`</div>`;
@@ -829,7 +830,7 @@ export function renderAllCards(){
         const used=isUsed(cardKey,b.id,pk);
         if(!used){
           const amt=getBAmount(b,{m:CM});
-          byPeriod[s.cadence].push({cardKey,cardLabel:CARD_LABELS[cardKey],cardCls:CARD_CLS[cardKey],name:b.name,amt});
+          byPeriod[s.cadence].push({cardKey,cardLabel:CARD_LABELS[cardKey],cardCls:CARD_CLS[cardKey],name:bName(cardKey,b),amt});
           grandTotal+=amt;
         }
       });
@@ -905,7 +906,7 @@ function buildHeatmapHTML(){
         const rdMonth=(rdEntry&&rdEntry.year===CY)?rdEntry.month:displayM;
         monthData[rdMonth].total+=amt;
         if(used) monthData[rdMonth].claimed+=amt;
-        monthData[rdMonth].items.push({name:b.name||b.label||'Benefit',amount:amt,claimed:used,id:b.id,pk});
+        monthData[rdMonth].items.push({name:bName(cardKey,b)||b.label||'Benefit',amount:amt,claimed:used,id:b.id,pk});
       };
       if(cadence==='monthly'){
         for(let m=0;m<12;m++){ const pk=`${CY}-m${m}`; s.benefits.forEach(b=>{ if(isBNotAvailable(b,CY)||isBExpired(b,{calY:CY,calM:m,m})) return; addAmt(m,b,pk); }); }
@@ -1155,8 +1156,8 @@ export function renderRecap(){
         const periods=getYTDPeriods(s.cadence);
         let bMissed=0,bCaptured=0;
         periods.forEach(p=>{ if(isPFuture(p)) return; const amt=getBAmount(b,p); if(isUsed(cardKey,b.id,p.pk)) bCaptured+=amt; else if(!isYTDCurrent(s.cadence,p)) bMissed+=amt; });
-        if(bMissed>biggestMiss.amt) biggestMiss={name:b.name,amt:bMissed,card:CARD_LABELS[cardKey]};
-        if(bCaptured>topBenefit.amt) topBenefit={name:b.name,amt:bCaptured,card:CARD_LABELS[cardKey]};
+        if(bMissed>biggestMiss.amt) biggestMiss={name:bName(cardKey,b),amt:bMissed,card:CARD_LABELS[cardKey]};
+        if(bCaptured>topBenefit.amt) topBenefit={name:bName(cardKey,b),amt:bCaptured,card:CARD_LABELS[cardKey]};
       });
     });
     state.selectedYear=savedYear2;
@@ -1165,7 +1166,7 @@ export function renderRecap(){
       s.benefits.forEach(b=>{
         if(isBNotAvailable(b,year)) return;
         const streak=getStreak(cardKey,b.id);
-        if(streak>longestStreak.streak){ longestStreak={name:b.name,streak,card:CARD_LABELS[cardKey]}; longestStreakCount=1; }
+        if(streak>longestStreak.streak){ longestStreak={name:bName(cardKey,b),streak,card:CARD_LABELS[cardKey]}; longestStreakCount=1; }
         else if(streak===longestStreak.streak&&streak>0) longestStreakCount++;
       });
     });
@@ -1232,7 +1233,7 @@ export async function renderHistoryLog(){
     const {data,error}=await sb.from('benefit_log').select('*').order('created_at',{ascending:false}).limit(100);
     if(error||!data||!data.length){ set(`<div class="banner"><strong>Benefit history</strong></div><div style="text-align:center;padding:32px;color:var(--text-tertiary);font-size:13px">No history yet — start marking benefits used!</div>`); return; }
     const benefitNames={};
-    Object.keys(CARDS).forEach(ck=>{ CARDS[ck].sections.forEach(s=>s.benefits.forEach(b=>{ benefitNames[b.id]=b.name; })); });
+    Object.keys(CARDS).forEach(ck=>{ CARDS[ck].sections.forEach(s=>s.benefits.forEach(b=>{ benefitNames[b.id]=bName(ck,b); })); });
     let html=`<div class="banner"><strong>Benefit history</strong> — last ${data.length} actions</div>`;
     html+=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">`;
     data.forEach(entry=>{
@@ -1768,7 +1769,7 @@ export function renderWrap(){
                 const amt=(b.decAmount&&m===11)?b.decAmount:b.amount;
                 monthTotals[m]=(monthTotals[m]||0)+amt;
                 totalClaims++;
-                if(amt>biggestWin.amt) biggestWin={name:b.name,card:CARD_LABELS[k],amt};
+                if(amt>biggestWin.amt) biggestWin={name:bName(k,b),card:CARD_LABELS[k],amt};
               }
             }
           });
@@ -1782,7 +1783,7 @@ export function renderWrap(){
                 const amt=getBAmount(b,p);
                 const mo=pkToCalMonth(p.pk);
                 monthTotals[mo]=(monthTotals[mo]||0)+amt;
-                if(amt>biggestWin.amt) biggestWin={name:b.name,card:CARD_LABELS[k],amt};
+                if(amt>biggestWin.amt) biggestWin={name:bName(k,b),card:CARD_LABELS[k],amt};
               }
             });
           });
@@ -1893,7 +1894,7 @@ export function computeAlerts(userKeySet){
   [...userKeySet].forEach(k=>{
     CARDS[k].sections.forEach(s=>{
       s.benefits.forEach(b=>{
-        if(b.startsFrom&&b.startsFrom>=CY-1) alerts.push({id:`nb_${b.id}`,type:'new_benefit',card:k,benefit:b.name,amount:b.amount,since:b.startsFrom,cadence:s.cadence});
+        if(b.startsFrom&&b.startsFrom>=CY-1) alerts.push({id:`nb_${b.id}`,type:'new_benefit',card:k,benefit:bName(k,b),amount:b.amount,since:b.startsFrom,cadence:s.cadence});
       });
     });
   });
@@ -1902,7 +1903,7 @@ export function computeAlerts(userKeySet){
       s.benefits.forEach(b=>{
         if(!b.expiresAfter) return;
         const{y,h}=b.expiresAfter;
-        if(y*12+(h===0?5:11)>=CY*12+CM) alerts.push({id:`ex_${b.id}`,type:'expiring',card:k,benefit:b.name,amount:b.amount,expiryStr:`${h===0?'Jun':'Dec'} ${y}`});
+        if(y*12+(h===0?5:11)>=CY*12+CM) alerts.push({id:`ex_${b.id}`,type:'expiring',card:k,benefit:bName(k,b),amount:b.amount,expiryStr:`${h===0?'Jun':'Dec'} ${y}`});
       });
     });
   });
@@ -1960,7 +1961,7 @@ export function buildAdvisorContext(){
         if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(ck,b.id)) return;
         if(isUsed(ck,b.id,pk)) return;
         const amt=getBAmount(b,{m:CM});
-        const item=`${CARD_LABELS[ck]}: ${b.name} ($${amt})`;
+        const item=`${CARD_LABELS[ck]}: ${bName(ck,b)} ($${amt})`;
         if(s.cadence==='monthly') monthly.push(item);
         else other.push(item);
       });
@@ -2283,7 +2284,7 @@ export function renderPointsRedemptions(){
 }
 
 export function render(){
-  const _analyticsViews=['compare','history-log','recap','heatmap','performance','digest','net-value','badges','fee-optimizer','card-simulator','renewal-calendar','upgrade-advisor','ai-advisor','wrap','benefit-alerts','points-redemptions'];
+  const _analyticsViews=['compare','history-log','recap','heatmap','performance','digest','net-value','badges','fee-optimizer','card-simulator','renewal-calendar','upgrade-advisor','ai-advisor','wrap','benefit-alerts','points-redemptions','export-report'];
   const _isAnalytics=_analyticsViews.includes(state.activeView);
   ['cardSelector','navPrimary','navSecondary','yearSelector','ptrIndicator'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display=_isAnalytics?'none':''; });
   document.querySelectorAll('.drag-hint,.ptr-indicator').forEach(el=>{ el.style.display=_isAnalytics?'none':''; });
@@ -2321,5 +2322,6 @@ export function render(){
   else if(state.activeView==='wrap') renderWrap();
   else if(state.activeView==='benefit-alerts') renderBenefitAlerts();
   else if(state.activeView==='points-redemptions') renderPointsRedemptions();
+  else if(state.activeView==='export-report'){ ensureReportStyles(); renderExportReport(); }
   setTimeout(()=>{ updateTabBadge(); updateCardBadges(); },200);
 }

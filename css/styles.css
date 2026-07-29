@@ -2744,6 +2744,58 @@
   .ua-new-ben:last-child { border-bottom: none; }
   .ua-new-ben-amt { font-size: 11px; font-family: var(--mono); color: var(--text-tertiary); flex-shrink: 0; margin-left: 8px; }
 
+  /* ── Export & Reports hub ──────────────────────────────────────────────
+     The report document itself is styled by REPORT_CSS in report-view.js
+     (one source of truth shared with the standalone/print document). These
+     rules only cover the app chrome around it. */
+  .rpt-choices { display: grid; gap: 10px; margin-bottom: 14px; }
+  @media (min-width: 720px) { .rpt-choices { grid-template-columns: repeat(3, 1fr); } }
+  .rpt-choice {
+    text-align: left; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px 16px; cursor: pointer;
+    display: flex; flex-direction: column; gap: 5px; transition: border-color 0.15s, transform 0.1s;
+    font-family: var(--font); color: var(--text);
+  }
+  .rpt-choice:active { transform: scale(0.99); }
+  .rpt-choice:hover { border-color: var(--accent); }
+  .rpt-choice-primary { border-color: var(--accent); background: var(--surface-alt, var(--surface)); }
+  .rpt-choice-title { font-size: 15px; font-weight: 600; }
+  .rpt-choice-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+  .rpt-choice-tag {
+    font-size: 10px; font-family: var(--mono); color: var(--text-tertiary);
+    text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px;
+  }
+  .rpt-hint { font-size: 12px; color: var(--text-tertiary); font-family: var(--mono); margin-bottom: 8px; }
+  .rpt-preview-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 4px; }
+
+  /* Config modal */
+  .rpt-cfg-group { margin-top: 16px; }
+  .rpt-cfg-label {
+    font-size: 10px; font-family: var(--mono); color: var(--text-tertiary);
+    text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600;
+    margin-bottom: 7px; display: flex; align-items: center; gap: 8px;
+  }
+  .rpt-cfg-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .rpt-chip {
+    padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border);
+    background: transparent; color: var(--text-secondary); font-size: 12px;
+    font-family: var(--font); cursor: pointer; transition: all 0.15s;
+  }
+  .rpt-chip.active { border-color: var(--accent); background: var(--accent); color: #fff; font-weight: 600; }
+  .rpt-mini {
+    border: none; background: none; color: var(--accent); font-size: 10px;
+    font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.06em;
+    cursor: pointer; padding: 0; text-decoration: underline; text-underline-offset: 2px;
+  }
+  .rpt-cfg-row {
+    display: flex; align-items: flex-start; gap: 10px; padding: 7px 0;
+    border-bottom: 1px solid var(--border-light); cursor: pointer;
+  }
+  .rpt-cfg-row:last-child { border-bottom: none; }
+  .rpt-cfg-row input { margin-top: 3px; flex-shrink: 0; accent-color: var(--accent); }
+  .rpt-cfg-row-title { display: block; font-size: 13px; color: var(--text); }
+  .rpt-cfg-row-desc { display: block; font-size: 11px; color: var(--text-tertiary); line-height: 1.4; }
+
   @media print {
     body * { visibility: hidden; }
     .export-report, .export-report * { visibility: visible; }
@@ -2752,4 +2804,8 @@
     .wrap-card, .wrap-card * { visibility: visible !important; }
     .wrap-card { position: absolute; left: 0; top: 0; width: 100% !important; border-radius: 0; }
     .wrap-actions { display: none !important; }
+    /* Printing straight from the in-app report preview */
+    .rpt-paper, .rpt-paper * { visibility: visible !important; }
+    .rpt-paper { position: absolute; left: 0; top: 0; width: 100%; }
+    .rpt-preview-actions, .rpt-choices, .rpt-hint { display: none !important; }
   }

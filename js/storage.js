@@ -27,16 +27,17 @@ export async function syncFromSupabase(){
       const localTs=localStorage.getItem(STORAGE_KEY+'-ts-'+state.currentUser.id);
       if(localTs&&data.updated_at&&new Date(data.updated_at)<=new Date(localTs)) return;
       const raw=data.data;
-      const remoteExtras={_customAmounts:raw._customAmounts||{},_partial:raw._partial||{},_notes:raw._notes||{},_credited:raw._credited||{},_skipped:raw._skipped||{},_feeOverrides:raw._feeOverrides||{},_snoozed:raw._snoozed||{},_cardOrder:raw._cardOrder||[],_cardMeta:raw._cardMeta||{},_badges:raw._badges||{},_redemptionMonths:raw._redemptionMonths||{},_pointsRedeemed:raw._pointsRedeemed||{}};
+      const remoteExtras={_customAmounts:raw._customAmounts||{},_customNames:raw._customNames||{},_partial:raw._partial||{},_notes:raw._notes||{},_credited:raw._credited||{},_skipped:raw._skipped||{},_feeOverrides:raw._feeOverrides||{},_snoozed:raw._snoozed||{},_cardOrder:raw._cardOrder||[],_cardMeta:raw._cardMeta||{},_badges:raw._badges||{},_redemptionMonths:raw._redemptionMonths||{},_pointsRedeemed:raw._pointsRedeemed||{}};
       const benefitData={...raw};
-      delete benefitData._customAmounts; delete benefitData._partial; delete benefitData._notes; delete benefitData._credited; delete benefitData._skipped; delete benefitData._feeOverrides; delete benefitData._snoozed; delete benefitData._cardOrder; delete benefitData._cardMeta; delete benefitData._badges; delete benefitData._redemptionMonths; delete benefitData._pointsRedeemed;
-      const localExtras={_customAmounts:loadCustomAmounts(),_partial:loadPartial(),_notes:loadNotes(),_credited:loadCredited(),_skipped:loadSkipped(),_feeOverrides:getFeeOverrides(),_snoozed:loadSnoozed(),_cardOrder:JSON.parse(localStorage.getItem('perks-card-order')||'[]'),_cardMeta:loadCardMeta(),_badges:loadBadges(),_redemptionMonths:loadRedemptionMonths(),_pointsRedeemed:loadPointsRedeemed()};
+      delete benefitData._customAmounts; delete benefitData._customNames; delete benefitData._partial; delete benefitData._notes; delete benefitData._credited; delete benefitData._skipped; delete benefitData._feeOverrides; delete benefitData._snoozed; delete benefitData._cardOrder; delete benefitData._cardMeta; delete benefitData._badges; delete benefitData._redemptionMonths; delete benefitData._pointsRedeemed;
+      const localExtras={_customAmounts:loadCustomAmounts(),_customNames:loadCustomNames(),_partial:loadPartial(),_notes:loadNotes(),_credited:loadCredited(),_skipped:loadSkipped(),_feeOverrides:getFeeOverrides(),_snoozed:loadSnoozed(),_cardOrder:JSON.parse(localStorage.getItem('perks-card-order')||'[]'),_cardMeta:loadCardMeta(),_badges:loadBadges(),_redemptionMonths:loadRedemptionMonths(),_pointsRedeemed:loadPointsRedeemed()};
       const changed=JSON.stringify(benefitData)!==JSON.stringify(state.DATA)||JSON.stringify(remoteExtras)!==JSON.stringify(localExtras);
       if(changed){
         state.DATA=Object.assign(freshDATA(),benefitData);
         localStorage.setItem(STORAGE_KEY+'-'+state.currentUser.id,JSON.stringify(state.DATA));
         localStorage.setItem(STORAGE_KEY+'-ts-'+state.currentUser.id,data.updated_at);
         saveCustomAmounts(remoteExtras._customAmounts);
+        saveCustomNames(remoteExtras._customNames);
         savePartial(remoteExtras._partial);
         saveNotes(remoteExtras._notes);
         saveCredited(remoteExtras._credited);
@@ -64,7 +65,7 @@ export async function saveToStorage(){
     localStorage.setItem(STORAGE_KEY+'-ts-'+state.currentUser.id,ts);
   }catch(e){}
   try{
-    const payload={...state.DATA,_customAmounts:loadCustomAmounts(),_partial:loadPartial(),_notes:loadNotes(),_credited:loadCredited(),_skipped:loadSkipped(),_feeOverrides:getFeeOverrides(),_snoozed:loadSnoozed(),_cardOrder:JSON.parse(localStorage.getItem('perks-card-order')||'[]'),_cardMeta:loadCardMeta(),_badges:loadBadges(),_redemptionMonths:loadRedemptionMonths(),_pointsRedeemed:loadPointsRedeemed()};
+    const payload={...state.DATA,_customAmounts:loadCustomAmounts(),_customNames:loadCustomNames(),_partial:loadPartial(),_notes:loadNotes(),_credited:loadCredited(),_skipped:loadSkipped(),_feeOverrides:getFeeOverrides(),_snoozed:loadSnoozed(),_cardOrder:JSON.parse(localStorage.getItem('perks-card-order')||'[]'),_cardMeta:loadCardMeta(),_badges:loadBadges(),_redemptionMonths:loadRedemptionMonths(),_pointsRedeemed:loadPointsRedeemed()};
     const {data:updated,error:upErr}=await sb.from('tracker_data').update({data:payload,updated_at:ts}).eq('user_id',state.currentUser.id).select('user_id');
     if(upErr) throw upErr;
     if(!updated||updated.length===0){
@@ -95,6 +96,25 @@ export function setCustomAmount(cardKey,benefitId,amount){
   if(amount===null) delete d[`${cardKey}__${benefitId}`];
   else d[`${cardKey}__${benefitId}`]=amount;
   saveCustomAmounts(d);
+}
+
+// ── Custom benefit names ───────────────────────────────────────────────────
+// Lets "Dining Credit" be renamed to "Grubhub" so a benefit reads as whatever
+// the user actually spends it on. Stored per card+benefit, exactly like custom
+// amounts. Views should call bName() rather than reading b.name directly.
+const CUSTOM_NAMES_KEY='perks-custom-names';
+export function loadCustomNames(){ try{ return JSON.parse(localStorage.getItem(CUSTOM_NAMES_KEY)||'{}'); }catch(e){ return {}; } }
+export function saveCustomNames(d){ localStorage.setItem(CUSTOM_NAMES_KEY,JSON.stringify(d)); }
+export function getCustomName(cardKey,benefitId){ return loadCustomNames()[`${cardKey}__${benefitId}`]||''; }
+export function bName(cardKey,b){ return (b&&(loadCustomNames()[`${cardKey}__${b.id}`]||b.name))||''; }
+export function setCustomName(cardKey,benefitId,name){
+  const d=loadCustomNames();
+  const k=`${cardKey}__${benefitId}`;
+  const trimmed=(name||'').trim();
+  if(!trimmed) delete d[k];
+  else d[k]=trimmed;
+  saveCustomNames(d);
+  scheduleSave();
 }
 
 // ── Partial use ────────────────────────────────────────────────────────────
