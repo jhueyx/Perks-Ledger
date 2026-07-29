@@ -2200,6 +2200,22 @@ export function formatAdvisorMarkdown(text){
 }
 
 // ── Main render dispatcher ─────────────────────────────────────────────────
+// Absolute month (year*12+month) a card was opened / closed, from _cardMeta.
+// _cardMeta is the single source of open dates — cards.js no longer carries any.
+function cardHeldRange(cardKey){
+  const meta=state.cardMeta?.[cardKey];
+  const from=meta?.openedYear?meta.openedYear*12+(meta.openedMonth??0):null;
+  const to=meta?.closedYear?meta.closedYear*12+(meta.closedMonth??11):null;
+  return {from,to};
+}
+function wasCardHeld(cardKey,year,month){
+  const {from,to}=cardHeldRange(cardKey);
+  const abs=year*12+month;
+  if(from!==null&&abs<from) return false;
+  if(to!==null&&abs>to) return false;
+  return true;
+}
+
 // ── Render: points redeemed ────────────────────────────────────────────────
 // Source is user-declared only — the app cannot know where points came from,
 // and the Detailed Report must not present a first-year welcome bonus as
@@ -2259,13 +2275,24 @@ export function renderPointsRedemptions(){
       <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:${ytd>0?'var(--green)':'var(--text-tertiary)'}">$${ytd.toFixed(2)} ${isPrior?yr:'YTD'}</span>
     </div>`;
 
-    months.forEach(({year,month})=>{
+    // Months before the card existed cannot have redemptions. Still shown if a
+    // value is already recorded there, so a mistaken entry stays visible and
+    // can be cleared rather than becoming orphaned data the UI hides.
+    const visible=months.filter(({year,month})=>wasCardHeld(cardKey,year,month)||byMonth[`${year}-${month}`]);
+    if(!visible.length){
+      const {from}=cardHeldRange(cardKey);
+      const opened=from!==null?`${MONTHS[from%12]} ${Math.floor(from/12)}`:'later';
+      html+=`<div style="font-size:11px;font-family:var(--mono);color:var(--text-tertiary);padding:4px 0">Not held in ${yr} — opened ${opened}.</div></div>`;
+      return;
+    }
+    visible.forEach(({year,month})=>{
       const mk=`${year}-${month}`;
       const amt=(byMonth[mk]||0);
+      const held=wasCardHeld(cardKey,year,month);
       const isCurrent=!isPrior&&month===CM;
       const monthLabel=`${MONTHS[month]} ${year}`;
       html+=`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border-light)">
-        <div style="width:68px;flex-shrink:0;font-size:11px;font-family:var(--mono);color:${isCurrent?'var(--text)':'var(--text-tertiary)'};font-weight:${isCurrent?'600':'400'}">${monthLabel}</div>
+        <div style="width:68px;flex-shrink:0;font-size:11px;font-family:var(--mono);color:${isCurrent?'var(--text)':'var(--text-tertiary)'};font-weight:${isCurrent?'600':'400'}">${monthLabel}${held?'':`<span title="Card was not open this month" style="color:var(--red);margin-left:3px">!</span>`}</div>
         <div style="display:flex;align-items:center;gap:4px;flex:1">
           <span style="font-size:12px;color:var(--text-tertiary);font-family:var(--mono)">$</span>
           <input type="number" min="0" step="0.01" placeholder="0.00"
