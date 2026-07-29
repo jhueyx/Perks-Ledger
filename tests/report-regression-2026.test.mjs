@@ -180,6 +180,31 @@ test('no reminder is recommended for an intentionally excluded benefit', () => {
   });
 });
 
+test('every benefit row reconciles: available = redeemed + expired + claimable', () => {
+  // The per-benefit table showed Available / Used / Remaining but not Expired,
+  // so a monthly credit with missed months looked like broken arithmetic
+  // ($70 available, $30 used, $10 remaining). Any renderer must be able to
+  // account for the whole of availableValue from the item's own fields.
+  const round = n => Math.round(n * 100) / 100;
+  const broken = [];
+  report.cardSummaries.forEach(c => c.benefits.forEach(b => {
+    const parts = round(b.usedValue + b.missedValue + b.remainingValue);
+    if (parts !== round(b.availableValue)) {
+      broken.push(`${c.cardName} / ${b.benefitName}: available ${b.availableValue} != ${parts}`);
+    }
+  }));
+  assert.deepEqual(broken, []);
+});
+
+test('a partly-missed monthly credit exposes its expired value', () => {
+  const lyft = benefitOn('csr', 'c_lyft');
+  assert.equal(lyft.availableValue, 70);
+  assert.equal(lyft.usedValue, 60);
+  assert.equal(lyft.missedValue, 10, 'the January miss must be visible, not implied');
+  assert.equal(lyft.remainingValue, 0);
+  assert.equal(lyft.usedValue + lyft.missedValue + lyft.remainingValue, lyft.availableValue);
+});
+
 // ── Duplicate benefit names ────────────────────────────────────────────────
 test('the two DoorDash grocery credits get distinguishing display labels', () => {
   const bs = disambiguateBenefitNames([

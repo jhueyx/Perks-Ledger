@@ -488,8 +488,9 @@ export function reportToHTML(report) {
           H.push(`<div class="rpt-group"><div class="rpt-group-label">${E(g.label)}</div>
             ${tableWrap(`<table class="rpt-table rpt-table-sm">
               <thead><tr>
-                <th>Benefit</th><th>Category</th><th class="r">Available</th><th class="r">Used</th>
-                <th class="r">Remaining</th><th>Status</th><th>Used on</th><th>Expires</th>
+                <th>Benefit</th><th>Category</th><th class="r">Available</th><th class="r">Redeemed</th>
+                <th class="r">Expired</th><th class="r">Still Claimable</th><th class="r">Excluded</th>
+                <th>Status</th><th>Redeemed on</th><th>Expires</th>
               </tr></thead>
               <tbody>${g.items.map(b => benefitRows(b, o)).join('')}</tbody>
             </table>`)}
@@ -639,12 +640,18 @@ export function reportToHTML(report) {
 /** One summary row per benefit, plus a per-period timeline when it recurs. */
 function benefitRows(b, o) {
   const estimate = b.isEstimated ? ` <span class="rpt-est" title="Custom value you set">est.</span>` : '';
+  // Every dollar of Available is accounted for across these four columns, so a
+  // row always reconciles: available = redeemed + expired + claimable (+ any
+  // upcoming). Without the Expired column a partly-missed monthly credit read
+  // as though its arithmetic were broken.
   const rows = [`<tr class="rpt-b-row">
     <td class="rpt-strong">${E(bLabel(b))}${estimate}</td>
     <td class="rpt-dim">${E(b.category)}</td>
     <td class="r">${money(b.availableValue)}</td>
     <td class="r">${money(b.usedValue)}</td>
+    <td class="r${b.missedValue > 0 ? ' rpt-neg' : ''}">${money(b.missedValue)}</td>
     <td class="r">${money(b.remainingValue)}</td>
+    <td class="r rpt-dim">${b.excludedValue > 0 ? money(b.excludedValue) : '—'}</td>
     <td>${pill(b.status)}</td>
     <td class="rpt-dim">${E(b.usageDates.join(', ') || '—')}</td>
     <td class="rpt-dim">${E(dateLabel(b.statusExpiration || b.nextExpiration || b.expirationDate))}</td>
@@ -654,14 +661,14 @@ function benefitRows(b, o) {
   // credit's individual misses become visible.
   const detail = b.instances.filter(i => i.status !== STATUS.NOT_YET_AVAILABLE);
   if (detail.length > 1) {
-    rows.push(`<tr class="rpt-b-detail"><td colspan="8">
+    rows.push(`<tr class="rpt-b-detail"><td colspan="10">
       <div class="rpt-timeline">${detail.map(i =>
         `<span class="rpt-tl ${STATUS_CLS[i.status] || 'mute'}" title="${E(`${i.periodLabel}: ${STATUS_LABELS[i.status]} · ${fmtMoney(i.usedValue)} of ${fmtMoney(i.amount)}`)}">${E(i.periodLabel)}<b>${money(i.usedValue)}</b></span>`).join('')}</div>
     </td></tr>`);
   }
 
   if (o.includeNotes && b.notes.length) {
-    rows.push(`<tr class="rpt-b-detail"><td colspan="8">${b.notes.map(n =>
+    rows.push(`<tr class="rpt-b-detail"><td colspan="10">${b.notes.map(n =>
       `<div class="rpt-benefit-note"><b>${E(n.period)}</b> ${E(n.note)}</div>`).join('')}</td></tr>`);
   }
   return rows.join('');
