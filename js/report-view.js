@@ -695,6 +695,53 @@ function benefitRows(b, o) {
   return rows.join('');
 }
 
+// Auto-print bootstrap for the popup. Injected as a string so it runs inside
+// the new window rather than this one.
+//
+// The naive version — addEventListener('load', … setTimeout(print, 350)) —
+// printed blank on the first attempt and only worked on a second try. Two
+// reasons: the popup's initial about:blank fires `load` while we are still
+// awaiting the artwork embed, so by the time the script is written that event
+// is already gone and the listener never fires; and a fixed 350ms guess does
+// not actually wait for the embedded card images to decode.
+//
+// So: check readyState instead of assuming the event is still coming, wait on
+// the real signals (images + fonts) rather than a timer, and hand off with
+// setTimeout — an unpainted popup receives no animation frames, so scheduling
+// the print via requestAnimationFrame silently never ran.
+export const AUTO_PRINT_JS = `
+(function(){
+  var printed = false;
+  function go(){
+    if (printed) return;
+    printed = true;
+    try { window.focus(); } catch (e) {}
+    window.print();
+  }
+  function whenPainted(){
+    var waits = [];
+    Array.prototype.forEach.call(document.images, function(img){
+      if (!img.complete) {
+        waits.push(new Promise(function(res){
+          img.addEventListener('load', res, { once: true });
+          img.addEventListener('error', res, { once: true });
+        }));
+      }
+    });
+    if (document.fonts && document.fonts.ready) waits.push(document.fonts.ready);
+    // Never hang: print anyway if something stalls.
+    var settled = Promise.all(waits).catch(function(){});
+    var timeout = new Promise(function(res){ setTimeout(res, 3000); });
+    // A setTimeout, not requestAnimationFrame: a popup that has not been
+    // painted yet gets no animation frames, so rAF here simply never fired and
+    // the first print did nothing.
+    Promise.race([settled, timeout]).then(function(){ setTimeout(go, 60); });
+  }
+  if (document.readyState === 'complete' || document.readyState === 'interactive') whenPainted();
+  else window.addEventListener('load', whenPainted, { once: true });
+})();
+`;
+
 // ── Standalone / print document ────────────────────────────────────────────
 export function buildStandaloneHTML(report, { autoPrint } = {}) {
   return `<!DOCTYPE html>
@@ -709,7 +756,7 @@ export function buildStandaloneHTML(report, { autoPrint } = {}) {
   <button onclick="window.print()">Print / Save as PDF</button>
 </div>
 <main class="rpt-paper">${reportToHTML(report)}</main>
-${autoPrint ? '<script>window.addEventListener("load",()=>setTimeout(()=>window.print(),350));<\/script>' : ''}
+${autoPrint ? `<script>${AUTO_PRINT_JS}<\/script>` : ''}
 </body></html>`;
 }
 
