@@ -293,7 +293,11 @@ test('JSON backup covers every store the app syncs to the cloud', () => {
   // payload is the definition of "all my data"; the backup must not fall behind.
   freshState();
   const storageSrc = readFileSync(new URL('../js/storage.js', import.meta.url), 'utf8');
-  const payload = storageSrc.slice(storageSrc.indexOf('const payload={...state.DATA,'));
+  // `let` since the flush path rebases onto a newer remote row; match either
+  // binding, and fail loudly rather than silently slicing if neither is found.
+  const at = storageSrc.search(/(?:const|let) payload=\{\.\.\.state\.DATA,/);
+  assert.notEqual(at, -1, 'could not locate the cloud payload literal in storage.js');
+  const payload = storageSrc.slice(at);
   const synced = [...payload.slice(0, payload.indexOf('};')).matchAll(/_([A-Za-z]+):/g)]
     .map(m => m[1]).filter(k => k !== 'cardOrder');
   const backup = buildJSONBackup(run()).raw;

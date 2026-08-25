@@ -62,6 +62,7 @@ cd Perks-Ledger && node --test 'tests/*.test.mjs'
 
 - `tests/report-model.test.mjs` — the pure status / missed-value / narrative ruleset
 - `tests/report-integration.test.mjs` — drives the real `CARDS` catalog and `periods.js` with stubbed browser globals; includes an assertion that report totals match `calcStats()` so the report can't silently drift from the rest of the app
+- `tests/sync-queue.test.mjs` — stubs the Supabase client and drives the real `storage.js` save/pull paths; pins the offline retry queue and the three-way merge (see v2.9)
 
 `js/package.json` (`{"type":"module"}`) exists only so Node treats `js/*.js` as ES modules. It is not used at runtime.
 
@@ -69,7 +70,47 @@ cd Perks-Ledger && node --test 'tests/*.test.mjs'
 
 ## Changelog
 
-### v2.8 (current, 2026-08-24)
+### v2.9 (current, 2026-08-24)
+Offline-safe cloud sync. `saveToStorage()` had two faults that between them
+could lose a benefit toggle silently:
+
+1. It advanced the **local timestamp before it knew the write had landed**. On
+   failure the local copy therefore looked newer than the cloud row, and
+   `syncFromSupabase()` — which pulls only when remote > local — stopped
+   pulling on that device permanently.
+2. **Nothing retried.** The "cloud sync failed" message cleared itself after
+   3s and the change stayed on one device until the user happened to toggle
+   something else.
+
+Now: the timestamp moves only after a confirmed write; a failure records a
+pending marker (`perks-pending-sync-<uid>`), shows a standing "⚠ unsynced —
+will retry", and retries on `online`, on foreground, on load, and on a
+5s→5min backoff. `syncFromSupabase()` flushes a pending write before it will
+consider pulling.
+
+**Flushing rebases rather than clobbers.** A blind flush would push this
+device's whole payload over anything another device wrote while it was
+offline. `perks-synced-base-<uid>` stores the payload as the cloud last
+confirmed it; `diffPayload(base, current)` therefore yields exactly this
+device's own edits, and `mergePayload(remote, changes)` lays them over the
+current remote row. Both devices' changes survive, including an un-toggle.
+The baseline is recorded on **every** confirmed read, not only when the pull
+changed something — otherwise a device already in step with the cloud has no
+baseline and its first rebase falls back to a wholesale overwrite.
+
+Saves are serialised (`_saveInFlight`) so a retry firing mid-toggle cannot
+race its own rebase. `applyPayloadLocally()` is now shared by the pull path
+and the rebase, so the two cannot drift on which `_extras` they know about.
+
+`tests/sync-queue.test.mjs` (15 tests) stubs the Supabase client and pins all
+of the above, including the two original faults as named regressions.
+
+**Known limitation:** the cloud row is still a single JSON blob with no
+per-entry timestamps, so the merge resolves conflicts by "this device's edits
+win over the remote value for keys this device changed." Two devices editing
+the *same* benefit while both offline still resolves last-writer-wins.
+
+### v2.8 (2026-08-24)
 UI/UX review and accessibility pass. No feature or data changes — every fix is
 presentational, semantic, or asset weight.
 

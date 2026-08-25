@@ -21,6 +21,12 @@ export function toggle(card,id,pk){
 // ── Supabase sync ─────────────────────────────────────────────────────────
 export async function syncFromSupabase(){
   if(!state.currentUser||state.currentUser.id==='demo') return;
+  // A local change that never reached the cloud has to go up before a pull can
+  // be trusted, otherwise the pull overwrites it with the older remote row.
+  if(hasPendingSync()){
+    await saveToStorage();
+    if(hasPendingSync()) return;
+  }
   try{
     const {data,error}=await sb.from('tracker_data').select('data,updated_at').eq('user_id',state.currentUser.id).single();
     if(!error&&data&&data.data){
@@ -32,53 +38,171 @@ export async function syncFromSupabase(){
       delete benefitData._customAmounts; delete benefitData._customNames; delete benefitData._partial; delete benefitData._notes; delete benefitData._credited; delete benefitData._skipped; delete benefitData._feeOverrides; delete benefitData._snoozed; delete benefitData._cardOrder; delete benefitData._cardMeta; delete benefitData._badges; delete benefitData._redemptionMonths; delete benefitData._pointsRedeemed; delete benefitData._pointsSources;
       const localExtras={_customAmounts:loadCustomAmounts(),_customNames:loadCustomNames(),_partial:loadPartial(),_notes:loadNotes(),_credited:loadCredited(),_skipped:loadSkipped(),_feeOverrides:getFeeOverrides(),_snoozed:loadSnoozed(),_cardOrder:JSON.parse(localStorage.getItem('perks-card-order')||'[]'),_cardMeta:loadCardMeta(),_badges:loadBadges(),_redemptionMonths:loadRedemptionMonths(),_pointsRedeemed:loadPointsRedeemed(),_pointsSources:loadPointsSources()};
       const changed=JSON.stringify(benefitData)!==JSON.stringify(state.DATA)||JSON.stringify(remoteExtras)!==JSON.stringify(localExtras);
+      // Record the baseline on every confirmed read, changed or not — it is
+      // what diffPayload() measures "what this device changed" against.
+      saveBase(raw);
       if(changed){
-        state.DATA=Object.assign(freshDATA(),benefitData);
-        localStorage.setItem(STORAGE_KEY+'-'+state.currentUser.id,JSON.stringify(state.DATA));
+        applyPayloadLocally(raw);
         localStorage.setItem(STORAGE_KEY+'-ts-'+state.currentUser.id,data.updated_at);
-        saveCustomAmounts(remoteExtras._customAmounts);
-        saveCustomNames(remoteExtras._customNames);
-        savePartial(remoteExtras._partial);
-        saveNotes(remoteExtras._notes);
-        saveCredited(remoteExtras._credited);
-        saveSkipped(remoteExtras._skipped);
-        if(Object.keys(remoteExtras._feeOverrides).length) saveFeeOverridesData(remoteExtras._feeOverrides);
-        if(Object.keys(remoteExtras._snoozed).length) saveSnoozed(remoteExtras._snoozed);
-        if(remoteExtras._cardOrder.length) localStorage.setItem('perks-card-order',JSON.stringify(remoteExtras._cardOrder));
-        if(Object.keys(remoteExtras._cardMeta).length) saveCardMetaData(remoteExtras._cardMeta);
-        if(Object.keys(remoteExtras._badges).length) saveBadges(remoteExtras._badges);
-        if(Object.keys(remoteExtras._redemptionMonths).length) saveRedemptionMonths(remoteExtras._redemptionMonths);
-        if(Object.keys(remoteExtras._pointsRedeemed).length) savePointsRedeemedData(remoteExtras._pointsRedeemed);
-        if(Object.keys(remoteExtras._pointsSources).length) savePointsSourcesData(remoteExtras._pointsSources);
         document.dispatchEvent(new CustomEvent('perks:rerender'));
       }
     }
   }catch(e){}
 }
 
+// Write a whole tracker_data payload into `state` and localStorage. Shared by
+// the pull path and by the rebase inside saveToStorage(), so the two cannot
+// drift apart on which extras they know about.
+export const PAYLOAD_EXTRAS=['_customAmounts','_customNames','_partial','_notes','_credited','_skipped','_feeOverrides','_snoozed','_cardOrder','_cardMeta','_badges','_redemptionMonths','_pointsRedeemed','_pointsSources'];
+export function applyPayloadLocally(raw){
+  const x=k=>raw[k]||(k==='_cardOrder'?[]:{});
+  const benefitData={...raw};
+  for(const k of PAYLOAD_EXTRAS) delete benefitData[k];
+  state.DATA=Object.assign(freshDATA(),benefitData);
+  try{ localStorage.setItem(STORAGE_KEY+'-'+state.currentUser.id,JSON.stringify(state.DATA)); }catch(e){}
+  saveCustomAmounts(x('_customAmounts'));
+  saveCustomNames(x('_customNames'));
+  savePartial(x('_partial'));
+  saveNotes(x('_notes'));
+  saveCredited(x('_credited'));
+  saveSkipped(x('_skipped'));
+  if(Object.keys(x('_feeOverrides')).length) saveFeeOverridesData(x('_feeOverrides'));
+  if(Object.keys(x('_snoozed')).length) saveSnoozed(x('_snoozed'));
+  if(x('_cardOrder').length) { try{ localStorage.setItem('perks-card-order',JSON.stringify(x('_cardOrder'))); }catch(e){} }
+  if(Object.keys(x('_cardMeta')).length) saveCardMetaData(x('_cardMeta'));
+  if(Object.keys(x('_badges')).length) saveBadges(x('_badges'));
+  if(Object.keys(x('_redemptionMonths')).length) saveRedemptionMonths(x('_redemptionMonths'));
+  if(Object.keys(x('_pointsRedeemed')).length) savePointsRedeemedData(x('_pointsRedeemed'));
+  if(Object.keys(x('_pointsSources')).length) savePointsSourcesData(x('_pointsSources'));
+}
+
+// ── Pending cloud writes ───────────────────────────────────────────────────
+// A failed cloud save used to leave no trace: the error cleared after 3s and
+// nothing ever retried, so the change lived on one device only. Worse, the
+// local timestamp was advanced regardless of whether the write landed, which
+// made syncFromSupabase() treat the local copy as newer than the cloud and
+// refuse to pull forever.
+//
+// Now a failure records the payload's timestamp under a pending key. While
+// that key is set the UI says so, every reconnect/foreground/load retries, and
+// syncFromSupabase() flushes the pending write before it considers pulling.
+function pendingKey(){ return 'perks-pending-sync-'+state.currentUser.id; }
+// The payload as the cloud last confirmed it. Diffing the current payload
+// against this baseline tells us exactly which entries THIS device changed,
+// which is what makes a three-way merge possible without an operation log.
+function baseKey(){ return 'perks-synced-base-'+state.currentUser.id; }
+function loadBase(){ try{ return JSON.parse(localStorage.getItem(baseKey())||'null'); }catch(e){ return null; } }
+function saveBase(p){ try{ localStorage.setItem(baseKey(),JSON.stringify(p)); }catch(e){} }
+
+// Both the benefit maps and the `_extras` are two levels of plain object, so
+// one shallow-per-branch walk covers the whole payload.
+function isPlain(v){ return v&&typeof v==='object'&&!Array.isArray(v); }
+
+// Every leaf where `cur` differs from `base` -- i.e. this device's own edits.
+export function diffPayload(base,cur){
+  const out={};
+  for(const k of Object.keys(cur||{})){
+    const b=(base||{})[k], c=cur[k];
+    if(isPlain(c)&&isPlain(b)){
+      const inner=diffPayload(b,c);
+      if(Object.keys(inner).length) out[k]=inner;
+    }else if(JSON.stringify(b)!==JSON.stringify(c)){
+      out[k]=c;
+    }
+  }
+  return out;
+}
+
+// Apply this device's edits on top of whatever the cloud now holds, so a
+// change made on another device while we were offline survives the flush.
+export function mergePayload(remote,changes){
+  const out=isPlain(remote)?{...remote}:{};
+  for(const k of Object.keys(changes||{})){
+    const c=changes[k];
+    out[k]=isPlain(c)&&isPlain(out[k])?mergePayload(out[k],c):c;
+  }
+  return out;
+}
+
+export function hasPendingSync(){
+  if(!state.currentUser||state.currentUser.id==='demo') return false;
+  try{ return !!localStorage.getItem(pendingKey()); }catch(e){ return false; }
+}
+function markPending(ts){ try{ localStorage.setItem(pendingKey(),ts); }catch(e){} }
+function clearPending(){ try{ localStorage.removeItem(pendingKey()); }catch(e){} }
+
+let _retryTimer=null, _retryDelay=0;
+const RETRY_MIN=5000, RETRY_MAX=300000;
+
+function scheduleRetry(){
+  if(_retryTimer) return;
+  _retryDelay=_retryDelay?Math.min(_retryDelay*2,RETRY_MAX):RETRY_MIN;
+  _retryTimer=setTimeout(()=>{ _retryTimer=null; if(hasPendingSync()) saveToStorage(); },_retryDelay);
+}
+function cancelRetry(){ if(_retryTimer){ clearTimeout(_retryTimer); _retryTimer=null; } _retryDelay=0; }
+
+// Retry the moment the device looks usable again, rather than waiting out the
+// backoff. Guarded so the module stays importable under node for tests.
+let _hooksInstalled=false;
+export function installSyncRetryHooks(){
+  if(typeof window==='undefined'||_hooksInstalled) return;   // doUnlock() can run again on re-login
+  _hooksInstalled=true;
+  const flush=()=>{ if(hasPendingSync()){ cancelRetry(); saveToStorage(); } };
+  window.addEventListener('online',flush);
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden) flush(); });
+}
+
+let _saveInFlight=null;
 export async function saveToStorage(){
   if(!state.currentUser) return;
   if(state.currentUser.id==='demo'){ setSave('saved','✓ saved locally'); setTimeout(()=>setSave('',''),2000); return; }
+  // Serialise saves: a retry firing while the user is toggling would otherwise
+  // let two rebases read the same remote row and race each other's write.
+  if(_saveInFlight) return _saveInFlight;
+  _saveInFlight=(async()=>{ try{ return await _doSave(); } finally { _saveInFlight=null; } })();
+  return _saveInFlight;
+}
+
+async function _doSave(){
   setSave('saving','saving…');
   const ts=new Date().toISOString();
   try{
     localStorage.setItem(STORAGE_KEY+'-'+state.currentUser.id,JSON.stringify(state.DATA));
-    localStorage.setItem(STORAGE_KEY+'-ts-'+state.currentUser.id,ts);
   }catch(e){}
   try{
-    const payload={...state.DATA,_customAmounts:loadCustomAmounts(),_customNames:loadCustomNames(),_partial:loadPartial(),_notes:loadNotes(),_credited:loadCredited(),_skipped:loadSkipped(),_feeOverrides:getFeeOverrides(),_snoozed:loadSnoozed(),_cardOrder:JSON.parse(localStorage.getItem('perks-card-order')||'[]'),_cardMeta:loadCardMeta(),_badges:loadBadges(),_redemptionMonths:loadRedemptionMonths(),_pointsRedeemed:loadPointsRedeemed(),_pointsSources:loadPointsSources()};
+    let payload={...state.DATA,_customAmounts:loadCustomAmounts(),_customNames:loadCustomNames(),_partial:loadPartial(),_notes:loadNotes(),_credited:loadCredited(),_skipped:loadSkipped(),_feeOverrides:getFeeOverrides(),_snoozed:loadSnoozed(),_cardOrder:JSON.parse(localStorage.getItem('perks-card-order')||'[]'),_cardMeta:loadCardMeta(),_badges:loadBadges(),_redemptionMonths:loadRedemptionMonths(),_pointsRedeemed:loadPointsRedeemed(),_pointsSources:loadPointsSources()};
+    // If another device wrote while this one was queued, rebase onto that row
+    // instead of overwriting it: take the remote as the base and re-apply only
+    // the entries this device actually changed since its last confirmed sync.
+    if(hasPendingSync()){
+      const {data:cur}=await sb.from('tracker_data').select('data,updated_at').eq('user_id',state.currentUser.id).single();
+      const lastTs=localStorage.getItem(STORAGE_KEY+'-ts-'+state.currentUser.id);
+      const remoteMoved=cur&&cur.updated_at&&(!lastTs||new Date(cur.updated_at)>new Date(lastTs));
+      if(remoteMoved&&cur.data){
+        payload=mergePayload(cur.data,diffPayload(loadBase(),payload));
+        applyPayloadLocally(payload);
+      }
+    }
     const {data:updated,error:upErr}=await sb.from('tracker_data').update({data:payload,updated_at:ts}).eq('user_id',state.currentUser.id).select('user_id');
     if(upErr) throw upErr;
     if(!updated||updated.length===0){
       const {error:insErr}=await sb.from('tracker_data').insert({user_id:state.currentUser.id,data:payload,updated_at:ts});
       if(insErr) throw insErr;
     }
+    // Only now is the local copy genuinely in sync, so only now may the
+    // local timestamp move -- it is what syncFromSupabase() compares against.
+    try{ localStorage.setItem(STORAGE_KEY+'-ts-'+state.currentUser.id,ts); }catch(e){}
+    saveBase(payload);
+    clearPending();
+    cancelRetry();
     setSave('saved','✓ saved');
     setTimeout(()=>setSave('',''),2000);
   }catch(e){
     console.error('[tracker_data save error]',e?.message,e?.code,e?.details,e?.hint);
-    setSave('error','⚠ cloud sync failed — saved locally');
-    setTimeout(()=>setSave('',''),3000);
+    markPending(ts);
+    scheduleRetry();
+    // Stays on screen: an unsynced change is a standing condition, not a blip.
+    setSave('error','⚠ unsynced — will retry');
   }
 }
 export function scheduleSave(){ clearTimeout(state.saveTimer); state.saveTimer=setTimeout(saveToStorage,600); }

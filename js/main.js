@@ -2,7 +2,7 @@ import { CARDS, CARD_LABELS, PREMIUM_CARD_CATALOG, POINTS_MULTIPLIERS, TRANSFER_
 const DEPLOY_DATE='2026-08-24 18:47';
 import { state, CY, CM, NOW, MONTHS, MONTHS_FULL, sb, freshDATA, STORAGE_KEY, escapeHtml, SUPABASE_URL, SUPABASE_KEY } from './state.js';
 import {
-  toggle, scheduleSave, setSave, syncFromSupabase,
+  toggle, scheduleSave, setSave, syncFromSupabase, installSyncRetryHooks, hasPendingSync,
   loadRedemptionMonths, setRedemptionMonth,
   loadCustomAmounts, saveCustomAmounts, setCustomAmount,
   loadPartial, savePartial, setPartialUsed, getBenefitTotal, getPartialUsed,
@@ -219,6 +219,9 @@ function doUnlock(){
   updateAlertBadge();
   setTimeout(initCardFlip,200);
   syncFromSupabase();
+  // Retry any write that never reached the cloud, on reconnect or foreground.
+  installSyncRetryHooks();
+  if(hasPendingSync()) setSave('error','⚠ unsynced — will retry');
   state.redemptionDates=loadRedemptionMonths();
   setTimeout(saveDigestCache,3000);
   setTimeout(()=>{
