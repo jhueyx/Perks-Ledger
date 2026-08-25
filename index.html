@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Perks Ledger</title>
 
 <!-- PWA Meta -->
@@ -135,7 +135,7 @@
   <div class="card-sheet-handle"></div>
   <div class="card-sheet-header">
     <div class="card-sheet-title" id="cardSheetTitle"></div>
-    <button class="card-sheet-close" id="cardSheetClose">✕</button>
+    <button class="card-sheet-close" id="cardSheetClose" aria-label="Close">✕</button>
   </div>
   <div id="cardSheetBody"></div>
 </div>
@@ -179,14 +179,14 @@
 <!-- Confetti canvas -->
 <canvas id="confettiCanvas"></canvas>
 
-<div class="app-header">
+<header class="app-header">
   <div style="display:flex;align-items:center;gap:8px">
-    <button class="menu-btn" id="menuBtn" title="More">☰</button>
-    <div class="app-title"><img src="icon-192.png" style="width:22px;height:22px;border-radius:5px;vertical-align:middle;margin-right:7px;flex-shrink:0">Perks Ledger</div>
+    <button class="menu-btn" id="menuBtn" title="More" aria-label="Open menu" aria-expanded="false" aria-controls="navExtras">☰</button>
+    <div class="app-title"><img src="icon-192.png" alt="" style="width:22px;height:22px;border-radius:5px;vertical-align:middle;margin-right:7px;flex-shrink:0">Perks Ledger</div>
   </div>
   <div style="display:flex;align-items:center;gap:12px">
     <div class="save-status" id="saveStatus"></div>
-    <button class="dark-toggle" id="darkToggle" onclick="toggleDark()">
+    <button class="dark-toggle" id="darkToggle" onclick="toggleDark()" aria-label="Toggle dark mode" aria-pressed="false">
       <span id="darkIcon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>
       <span class="dark-toggle-label" id="darkLabel">Dark</span>
     </button>
@@ -198,7 +198,7 @@
       <button class="header-signout-btn" onclick="signOut()">Sign Out</button>
     </div>
   </div>
-</div>
+</header>
 
 <!-- Drawer overlay -->
 <div class="drawer-overlay" id="drawerOverlay"></div>
@@ -207,7 +207,7 @@
 <nav class="left-drawer" id="navExtras">
   <div class="drawer-header">
     <span class="drawer-title">Perks Ledger</span>
-    <button class="drawer-close" id="drawerClose">✕</button>
+    <button class="drawer-close" id="drawerClose" aria-label="Close menu">✕</button>
   </div>
   <div class="drawer-items">
     <div class="drawer-section-label" style="font-size:9px;font-family:var(--mono);color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.08em;padding:4px 12px 8px">Views</div>
@@ -301,7 +301,7 @@
     <button class="card-btn active-csr" data-card="csr">
       <div class="active-ring"></div>
       <div class="card-visual">
-        <img src="assets/csr-card.png" alt="Chase Sapphire Reserve Card" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:14px;"/>
+        <img src="assets/csr-card.webp" alt="Chase Sapphire Reserve Card" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:14px;"/>
       </div>
       <div class="card-label">Chase Sapphire Reserve · $795/yr</div>
     </button>
@@ -309,7 +309,7 @@
     <button class="card-btn" data-card="gold">
       <div class="active-ring"></div>
       <div class="card-visual">
-        <img src="assets/gold-card.png" alt="AMEX Gold Card" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:14px;"/>
+        <img src="assets/gold-card.webp" alt="AMEX Gold Card" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:14px;"/>
       </div>
       <div class="card-label">AMEX Gold · $325/yr</div>
     </button>
@@ -317,7 +317,7 @@
     <button class="card-btn" data-card="platinum">
       <div class="active-ring"></div>
       <div class="card-visual">
-        <img src="assets/platinum-card.png" alt="AMEX Platinum Card" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:14px;"/>
+        <img src="assets/platinum-card.webp" alt="AMEX Platinum Card" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:14px;"/>
       </div>
       <div class="card-label">AMEX Platinum · $895/yr</div>
     </button>
@@ -325,7 +325,7 @@
     <button class="card-btn" data-card="cap1_venture_x">
       <div class="active-ring"></div>
       <div class="card-visual">
-        <img src="assets/venture-x-card.png" alt="Capital One Venture X Card" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:14px;"/>
+        <img src="assets/venture-x-card.webp" alt="Capital One Venture X Card" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:14px;"/>
       </div>
       <div class="card-label">Venture X · $395/yr</div>
     </button>
@@ -341,7 +341,7 @@
     <button class="card-btn" data-card="amex_green">
       <div class="active-ring"></div>
       <div class="card-visual">
-        <img src="assets/amex-green-card.png" alt="AMEX Green Card" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:14px;"/>
+        <img src="assets/amex-green-card.webp" alt="AMEX Green Card" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:14px;"/>
       </div>
       <div class="card-label">AMEX Green · $150/yr</div>
     </button>
@@ -349,7 +349,7 @@
     <button class="card-btn" data-card="amex_hilton_honors">
       <div class="active-ring"></div>
       <div class="card-visual">
-        <img src="assets/hilton-honors-aspire-card.png" alt="Hilton Honors Aspire Card" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:14px;"/>
+        <img src="assets/hilton-honors-aspire-card.webp" alt="Hilton Honors Aspire Card" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:14px;"/>
       </div>
       <div class="card-label">Hilton Honors Aspire · $550/yr</div>
     </button>
@@ -357,7 +357,7 @@
     <button class="card-btn" data-card="amex_marriott_brill">
       <div class="active-ring"></div>
       <div class="card-visual">
-        <img src="assets/marriott-bonvoy-brilliant-card.png" alt="Marriott Bonvoy Brilliant Card" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:14px;"/>
+        <img src="assets/marriott-bonvoy-brilliant-card.webp" alt="Marriott Bonvoy Brilliant Card" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:14px;"/>
       </div>
       <div class="card-label">Marriott Bonvoy Brilliant · $650/yr</div>
     </button>
@@ -365,7 +365,7 @@
     <button class="card-btn" data-card="chase_world_of_hyatt">
       <div class="active-ring"></div>
       <div class="card-visual">
-        <img src="assets/world-of-hyatt-card.png" alt="World of Hyatt Card" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:14px;"/>
+        <img src="assets/world-of-hyatt-card.webp" alt="World of Hyatt Card" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:14px;"/>
       </div>
       <div class="card-label">World of Hyatt · $95/yr</div>
     </button>
@@ -373,7 +373,7 @@
     <button class="card-btn" data-card="chase_united_quest">
       <div class="active-ring"></div>
       <div class="card-visual">
-        <img src="assets/united-quest-card.png" alt="United Quest Card" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:14px;"/>
+        <img src="assets/united-quest-card.webp" alt="United Quest Card" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:14px;"/>
       </div>
       <div class="card-label">United Quest · $250/yr</div>
     </button>
@@ -397,7 +397,7 @@
     <button class="card-btn" data-card="wf_premier_autograph">
       <div class="active-ring"></div>
       <div class="card-visual">
-        <img src="assets/wf-premier-autograph-card.png" alt="Wells Fargo Premier Autograph Visa Infinite Card" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:14px;"/>
+        <img src="assets/wf-premier-autograph-card.webp" alt="Wells Fargo Premier Autograph Visa Infinite Card" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:14px;"/>
       </div>
       <div class="card-label">WF Premier Autograph · $95/yr</div>
     </button>
@@ -408,13 +408,13 @@
 
   <!-- Primary nav -->
   <!-- Top nav for main views -->
-  <div class="nav-primary" id="navPrimary">
+  <nav class="nav-primary" id="navPrimary" aria-label="Main views">
     <button class="nav-primary-btn active" data-primary="all-cards">
       <span class="nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></span>All Cards
     </button>
     <button class="nav-primary-btn" data-primary="this-period">
       <span class="nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
-      <span class="month-tab-label"><span class="month-arrow" id="monthPrevBtn">‹</span><span id="currentTab">Month</span><span class="month-arrow" id="monthNextBtn" style="visibility:hidden">›</span></span>
+      <span class="month-tab-label"><span class="month-arrow" id="monthPrevBtn" role="button" tabindex="0" aria-label="Previous month">‹</span><span id="currentTab">Month</span><span class="month-arrow" id="monthNextBtn" role="button" tabindex="0" aria-label="Next month" style="visibility:hidden">›</span></span>
     </button>
     <button class="nav-primary-btn" data-primary="card-year">
       <span class="nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span>Card Year
@@ -422,22 +422,22 @@
     <button class="nav-primary-btn" data-primary="ytd">
       <span class="nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></span>YTD
     </button>
-  </div>
+  </nav>
 
   <!-- Secondary nav (hidden for most views) -->
-  <div class="nav-secondary hidden" id="navSecondary">
+  <nav class="nav-secondary hidden" id="navSecondary" aria-label="Sub views">
     <button class="stab active" data-view="history">Period</button>
     <button class="stab" data-view="annual">Summary</button>
-  </div>
+  </nav>
 
   <!-- Year selector -->
   <div class="year-selector hidden" id="yearSelector"></div>
 
-  <div id="main"></div>
+  <main id="main"></main>
 </div>
 
 <!-- Bottom tab bar (mobile only) -->
-<nav class="bottom-tab-bar" id="bottomTabBar">
+<nav class="bottom-tab-bar" id="bottomTabBar" aria-label="Primary">
   <button class="bottom-tab" id="bottomHomeBtn">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
     <span class="bottom-tab-label">Home</span>

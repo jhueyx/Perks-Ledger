@@ -732,7 +732,7 @@ function updateSecondaryNav(primary){
     sec.classList.add('hidden');
     updateYearSelector(false);
   }
-  stabs.forEach(t=>t.classList.toggle('active',t.dataset.view===state.activeView));
+  stabs.forEach(t=>{ const on=t.dataset.view===state.activeView; t.classList.toggle('active',on); if(on) t.setAttribute('aria-current','true'); else t.removeAttribute('aria-current'); });
 }
 
 function setActiveView(primary){
@@ -763,12 +763,14 @@ function setActiveView(primary){
   else if(primary==='my-cards'){ openMyCards(); return; }
 
   const topViews=['all-cards','this-period','card-year','ytd'];
+  // .active is purely visual; aria-current is what a screen reader reads.
+  const mark=(b,on)=>{ b.classList.toggle('active',on); if(on) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); };
   if(topViews.includes(primary)){
-    document.querySelectorAll('.nav-primary-btn').forEach(b=>b.classList.toggle('active',b.dataset.primary===primary));
-    document.querySelectorAll('.drawer-item').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.nav-primary-btn').forEach(b=>mark(b,b.dataset.primary===primary));
+    document.querySelectorAll('.drawer-item').forEach(b=>mark(b,false));
   } else {
-    document.querySelectorAll('.nav-primary-btn').forEach(b=>b.classList.remove('active'));
-    document.querySelectorAll('.drawer-item').forEach(b=>b.classList.toggle('active',b.dataset.primary===primary));
+    document.querySelectorAll('.nav-primary-btn').forEach(b=>mark(b,false));
+    document.querySelectorAll('.drawer-item').forEach(b=>mark(b,b.dataset.primary===primary));
   }
   document.getElementById('navPrimary').classList.toggle('hidden', primary==='more');
   updateSecondaryNav(primary);
@@ -787,10 +789,12 @@ function goToCardPeriod(cardKey){ state.activeCard=cardKey; setActiveView('this-
 function openDrawer(){
   document.getElementById('navExtras').classList.add('open');
   document.getElementById('drawerOverlay').classList.add('open');
+  document.getElementById('menuBtn')?.setAttribute('aria-expanded','true');
 }
 function closeDrawer(){
   document.getElementById('navExtras').classList.remove('open');
   document.getElementById('drawerOverlay').classList.remove('open');
+  document.getElementById('menuBtn')?.setAttribute('aria-expanded','false');
 }
 function updateBottomTabBar(primary){
   document.querySelectorAll('.bottom-tab[data-bottom]').forEach(b=>b.classList.toggle('active',b.dataset.bottom===primary));
@@ -881,6 +885,7 @@ function toggleDark(){
     ?`<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.5"/><line x1="8" y1="1" x2="8" y2="3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="8" y1="13" x2="8" y2="15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="1" y1="8" x2="3" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="13" y1="8" x2="15" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="3.05" y1="3.05" x2="4.46" y2="4.46" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="11.54" y1="11.54" x2="12.95" y2="12.95" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="12.95" y1="3.05" x2="11.54" y2="4.46" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="4.46" y1="11.54" x2="3.05" y2="12.95" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`
     :`<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M13.5 9.5A6 6 0 0 1 6.5 2.5a6 6 0 1 0 7 7z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   document.getElementById('darkLabel').textContent=newTheme==='dark'?'Light':'Dark';
+  document.getElementById('darkToggle')?.setAttribute('aria-pressed',newTheme==='dark'?'true':'false');
   localStorage.setItem('perks-theme',newTheme);
 }
 
@@ -1416,15 +1421,58 @@ document.addEventListener('touchend',async()=>{
   }
 },{passive:true});
 
+// ── Dismissible layers ────────────────────────────────────────────────────
+// Topmost first: Escape closes one layer at a time.
+const _LAYERS=[
+  {id:'noteModal',      close:()=>closeNoteModal()},
+  {id:'snoozeModal',    close:()=>closeSnoozeModal()},
+  {id:'feeDateModal',   close:()=>closeFeeDateModal()},
+  {id:'cardDateModal',  close:()=>document.getElementById('cardDateModal').classList.add('hidden')},
+  {id:'myCardsModal',   close:()=>closeMyCards()},
+  {id:'cardSheet',      close:()=>closeCardSheet(),  openCls:'open'},
+  {id:'navExtras',      close:()=>closeDrawer(),     openCls:'open'},
+];
+function _isLayerOpen(l){
+  const el=document.getElementById(l.id);
+  if(!el) return false;
+  return l.openCls ? el.classList.contains(l.openCls) : !el.classList.contains('hidden');
+}
+// The card picker is a required first-run step -- Escape must not dismiss it.
+function anyOverlayOpen(){
+  if(!document.getElementById('cardPickerOverlay').classList.contains('hidden')) return true;
+  return _LAYERS.some(_isLayerOpen);
+}
+function closeTopLayer(){
+  const l=_LAYERS.find(_isLayerOpen);
+  if(l){ l.close(); return true; }
+  return false;
+}
+
+// Modals that were missing click-outside-to-close (the others already had it).
+document.getElementById('myCardsModal').addEventListener('click',e=>{ if(e.target===e.currentTarget) closeMyCards(); });
+document.getElementById('cardDateModal').addEventListener('click',e=>{ if(e.target===e.currentTarget) document.getElementById('cardDateModal').classList.add('hidden'); });
+
 // ── Keyboard shortcuts ────────────────────────────────────────────────────
 document.addEventListener('keydown',e=>{
-  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
+  if(e.key==='Escape'){ closeTopLayer(); return; }
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.isContentEditable) return;
+  if(e.metaKey||e.ctrlKey||e.altKey) return;
+  // View shortcuts must not fire through an open overlay.
+  if(anyOverlayOpen()) return;
   if(e.key==='1') setActiveView('all-cards');
   else if(e.key==='2') setActiveView('this-period');
   else if(e.key==='3') setActiveView('card-year');
   else if(e.key==='4') setActiveView('ytd');
   else if(e.key==='m'||e.key==='M') openDrawer();
-  else if(e.key==='Escape') closeDrawer();
+});
+
+// role="button" spans need Enter/Space wired up by hand.
+document.addEventListener('keydown',e=>{
+  const t=e.target;
+  if(t?.getAttribute?.('role')!=='button') return;
+  if(e.key!=='Enter'&&e.key!==' ') return;
+  e.preventDefault();
+  t.click();
 });
 
 // ── SVG nav icons IIFE ────────────────────────────────────────────────────
@@ -2086,6 +2134,7 @@ const confettiCanvas=document.getElementById('confettiCanvas');
 let _confettiRunning=false;
 function launchConfetti(){
   if(/Mobi|Android/i.test(navigator.userAgent)) return;
+  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   if(_confettiRunning) return;
   _confettiRunning=true;
   const ctx=confettiCanvas.getContext('2d');

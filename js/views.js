@@ -25,10 +25,32 @@ export function getVisibleCardKeys(){
   return base;
 }
 
+// Rebuilding #main destroys whatever the keyboard was focused on, which
+// dropped the user back to the top of the page on every benefit toggle.
+// Remember the focused control by its data attributes and re-focus its
+// replacement once the new HTML is in.
+function focusFingerprint(el){
+  if(!el||el===document.body||!document.getElementById('main').contains(el)) return null;
+  const parts=['id','pk','creditId','creditPk','snoozeId','unsnooze']
+    .filter(k=>el.dataset[k]!=null)
+    .map(k=>`[data-${k.replace(/[A-Z]/g,c=>'-'+c.toLowerCase())}="${CSS.escape(el.dataset[k])}"]`);
+  if(!parts.length) return null;
+  const cls=[...el.classList].filter(c=>c!=='checked'&&c!=='pop')[0];
+  return (cls?'.'+CSS.escape(cls):el.tagName.toLowerCase())+parts.join('');
+}
+
 export function set(html, onReady){
   const main=document.getElementById('main');
+  const refocus=focusFingerprint(document.activeElement);
   main.classList.add('transitioning');
-  setTimeout(()=>{ main.innerHTML=html; main.classList.remove('transitioning'); if(onReady) onReady(); },180);
+  setTimeout(()=>{
+    main.innerHTML=html;
+    main.classList.remove('transitioning');
+    if(onReady) onReady();
+    if(refocus){
+      try{ main.querySelector(refocus)?.focus({preventScroll:true}); }catch(e){}
+    }
+  },180);
 }
 
 export function haptic(style='light'){
@@ -54,6 +76,7 @@ export function animateCounters(){
 }
 
 export function launchConfetti(){
+  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const canvas=document.getElementById('confettiCanvas');
   const ctx=canvas.getContext('2d');
   canvas.width=window.innerWidth; canvas.height=window.innerHeight;
@@ -696,15 +719,15 @@ export function renderCurrent(){
         const dispAmt=b.note&&b.amount===0?b.note:`$${effectiveAmt}`;
         const note=getNote(state.activeCard,b.id,pk);
         const periodLabel=isMonthly?`${MONTHS_FULL[viewM]} ${viewY}`:lbl;
-        const noteHTML=note?`<div class="benefit-note" data-id="${b.id}" data-pk="${pk}" data-name="${bName(state.activeCard,b)}" data-period="${periodLabel}"><span class="note-dot"></span>${escapeHtml(note)}</div>`:`<div class="add-note" data-id="${b.id}" data-pk="${pk}" data-name="${bName(state.activeCard,b)}" data-period="${periodLabel}">+ add note</div>`;
+        const noteHTML=note?`<button type="button" class="benefit-note" data-id="${b.id}" data-pk="${pk}" data-name="${bName(state.activeCard,b)}" data-period="${periodLabel}"><span class="note-dot"></span>${escapeHtml(note)}</button>`:`<button type="button" class="add-note" data-id="${b.id}" data-pk="${pk}" data-name="${bName(state.activeCard,b)}" data-period="${periodLabel}">+ add note</button>`;
         // Always show the partial bar for partial-eligible benefits, not just
         // once fully used -- otherwise logging an amount below the total
         // hides the input the moment it drops below 100%, with no way back
         // to it short of re-checking the box (which re-marks it fully used).
         const partialHTML=b.partial?buildPartialBar(state.activeCard,b.id,pk,effectiveAmt):'';
-        const creditedHTML=used?`<div style="margin-top:4px;font-size:10px;font-family:var(--mono)"><span style="color:${credited?'var(--green)':'var(--text-tertiary)'};cursor:pointer" data-credit-id="${b.id}" data-credit-pk="${pk}">${credited?'✓ Credit posted':'○ Credit pending'}</span></div>`:'';
-        const snoozedBadge=snoozed?`<span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);margin-top:3px;display:block">⏸︎ snoozed until ${snoozedUntil} · <span style="cursor:pointer;text-decoration:underline" data-unsnooze="${b.id}" data-unsnooze-card="${state.activeCard}">resume</span></span>`:'';
-        const snoozeBtn=!snoozed?`<button class="snooze-btn" data-snooze-id="${b.id}" data-snooze-card="${state.activeCard}" data-snooze-name="${bName(state.activeCard,b)}" title="Snooze this benefit — hide from all calculations until a chosen month" style="background:none;border:none;cursor:pointer;font-size:12px;padding:2px 5px;color:var(--text-tertiary);opacity:0.25;transition:opacity 0.15s;line-height:1;border-radius:3px;flex-shrink:0" aria-label="Snooze benefit">⏸︎</button>`:'';
+        const creditedHTML=used?`<div style="margin-top:4px;font-size:10px;font-family:var(--mono)"><button type="button" class="linkish" style="color:${credited?'var(--green)':'var(--text-tertiary)'}" data-credit-id="${b.id}" data-credit-pk="${pk}" aria-pressed="${credited?'true':'false'}">${credited?'✓ Credit posted':'○ Credit pending'}</button></div>`:'';
+        const snoozedBadge=snoozed?`<span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);margin-top:3px;display:block">⏸︎ snoozed until ${snoozedUntil} · <button type="button" class="linkish" style="text-decoration:underline" data-unsnooze="${b.id}" data-unsnooze-card="${state.activeCard}">resume</button></span>`:'';
+        const snoozeBtn=!snoozed?`<button class="snooze-btn" data-snooze-id="${b.id}" data-snooze-card="${state.activeCard}" data-snooze-name="${bName(state.activeCard,b)}" title="Snooze this benefit — hide from all calculations until a chosen month" style="background:none;border:none;cursor:pointer;font-size:12px;padding:6px 8px;color:var(--text-secondary);opacity:0.55;transition:opacity 0.15s;line-height:1;border-radius:3px;flex-shrink:0" aria-label="Snooze benefit">⏸︎</button>`:'';
         html+=`<div class="benefit-row${used?' used':''}${snoozed?' snoozed-row':''}" style="${snoozed?'opacity:0.45;':''}">
           <div style="flex:1">
             <div class="benefit-name">${bName(state.activeCard,b)}${catTag}${streakBadge}${expiryBadge}</div>
@@ -712,7 +735,7 @@ export function renderCurrent(){
             ${snoozedBadge}${!snoozed?noteHTML:''}${partialHTML}${creditedHTML}
           </div>
           <div style="display:flex;align-items:center;gap:4px">${snoozeBtn}<div class="benefit-amt">${dispAmt}</div></div>
-          <button class="check-btn${used?' checked':''}" data-id="${b.id}" data-pk="${pk}"></button>
+          <button class="check-btn${used?' checked':''}" data-id="${b.id}" data-pk="${pk}" aria-pressed="${used?'true':'false'}" aria-label="${used?'Mark unused':'Mark used'}: ${escapeHtml(bName(state.activeCard,b))}"></button>
         </div>`;
       });
     }
@@ -787,7 +810,7 @@ export function renderSummBase(getPsFn,isCurFn,bannerHTML,label){
       const amtLbl=b.decAmount?`$${b.amount}–$${b.decAmount}/mo`:`$${b.amount}/${cadLbl}`;
       const expiredTag=b.expiresAfter?`<span style="font-size:10px;color:var(--red);margin-left:4px">ends ${b.expiresAfter.h===0?'Jun':'Dec'} ${b.expiresAfter.y}</span>`:'';
       if(snoozed){
-        html+=`<div class="summary-row-item" style="opacity:0.45"><div><span class="summary-item-name">${bName(state.activeCard,b)}</span>${expiredTag}<span class="summary-item-cadence">${amtLbl}</span><span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);margin-left:6px">⏸︎ until ${snoozedUntil} · <span style="cursor:pointer;text-decoration:underline" data-unsnooze="${b.id}" data-unsnooze-card="${state.activeCard}">resume</span></span></div></div>`;
+        html+=`<div class="summary-row-item" style="opacity:0.45"><div><span class="summary-item-name">${bName(state.activeCard,b)}</span>${expiredTag}<span class="summary-item-cadence">${amtLbl}</span><span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);margin-left:6px">⏸︎ until ${snoozedUntil} · <button type="button" class="linkish" style="text-decoration:underline" data-unsnooze="${b.id}" data-unsnooze-card="${state.activeCard}">resume</button></span></div></div>`;
         return;
       }
       let bc=0,bm=0,bl=0;
@@ -796,7 +819,7 @@ export function renderSummBase(getPsFn,isCurFn,bannerHTML,label){
         const fut=isPFuture(p),cur=isCurFn(s.cadence,p),used=isUsed(state.activeCard,b.id,p.pk),amt=getBAmount(b,p);
         if(used) bc+=amt; else if(!fut&&!cur) bm+=amt; else bl+=amt;
       });
-      const snoozeBtn=`<button class="snooze-btn" data-snooze-id="${b.id}" data-snooze-card="${state.activeCard}" data-snooze-name="${bName(state.activeCard,b)}" title="Snooze this benefit" style="background:none;border:none;cursor:pointer;font-size:11px;padding:1px 4px;color:var(--text-tertiary);opacity:0.3;transition:opacity 0.15s;line-height:1;border-radius:3px;flex-shrink:0" aria-label="Snooze benefit">⏸︎</button>`;
+      const snoozeBtn=`<button class="snooze-btn" data-snooze-id="${b.id}" data-snooze-card="${state.activeCard}" data-snooze-name="${bName(state.activeCard,b)}" title="Snooze this benefit" style="background:none;border:none;cursor:pointer;font-size:11px;padding:6px 8px;color:var(--text-secondary);opacity:0.55;transition:opacity 0.15s;line-height:1;border-radius:3px;flex-shrink:0" aria-label="Snooze benefit">⏸︎</button>`;
       html+=`<div class="summary-row-item"><div><span class="summary-item-name">${bName(state.activeCard,b)}</span>${expiredTag}<span class="summary-item-cadence">${amtLbl}</span></div><div class="badges" style="display:flex;align-items:center;gap:4px">${bc>0?`<span class="badge-captured">+$${bc.toFixed(0)}</span>`:''}${bm>0?`<span class="badge-missed">−$${bm.toFixed(0)} missed</span>`:''}${bl>0?`<span class="badge-left">$${bl.toFixed(0)} left</span>`:''}${snoozeBtn}</div></div>`;
     });
   });
