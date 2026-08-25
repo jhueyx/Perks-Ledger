@@ -2823,6 +2823,51 @@
   }
 
 
+  /* ── Group tab strip ──────────────────────────────────────────────── */
+  .group-tabs {
+    display: flex; gap: 4px; margin-bottom: 14px;
+    overflow-x: auto; scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .group-tabs::-webkit-scrollbar { display: none; }
+  .group-tab {
+    flex: 0 0 auto;
+    padding: 6px 14px; border-radius: 100px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--text-secondary);
+    font-size: 12px; font-family: var(--mono); cursor: pointer;
+    white-space: nowrap; transition: all 0.15s;
+  }
+  .group-tab:hover { border-color: var(--text-secondary); color: var(--text); }
+  .group-tab.active {
+    background: var(--gold); color: var(--on-gold); border-color: var(--gold);
+  }
+
+  /* ── Break-even chart ─────────────────────────────────────────────── */
+  .be-hero {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px 16px 12px; margin-bottom: 14px;
+  }
+  .be-hero-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; gap: 12px; }
+  .be-hero-val { font-size: 24px; font-weight: 700; font-family: var(--mono); letter-spacing: -0.02em; line-height: 1; }
+  .be-hero-lbl { font-size: 10px; font-family: var(--mono); color: var(--text-tertiary); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+  /* height comes from the SVG's own aspect-ratio, so the box always matches
+     its viewBox — no stretched labels, no letterboxing. */
+  .be-chart { width: 100%; height: auto; display: block; overflow: visible; }
+  .be-verdict { font-size: 11px; font-family: var(--mono); margin-top: 8px; line-height: 1.45; }
+  .be-card-row {
+    background: var(--surface); border: 1px solid var(--border-light);
+    border-radius: var(--radius); padding: 12px 14px 10px; margin-bottom: 8px;
+    cursor: pointer; transition: border-color 0.15s;
+  }
+  .be-card-row:hover { border-color: var(--border); }
+  .be-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+  .be-card-num { font-size: 12px; font-family: var(--mono); font-weight: 600; white-space: nowrap; }
+
+  @media (max-width: 600px) {
+    .be-hero-val { font-size: 20px; }
+  }
+
   /* ── Accessibility ────────────────────────────────────────────────
      Appended last so these win over the `outline: none` declarations
      earlier in the file. */

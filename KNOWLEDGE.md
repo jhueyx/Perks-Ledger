@@ -15,6 +15,7 @@ Vanilla JS SPA deployed via **Vercel** (with `vercel.json` cache headers) at **p
 | `js/badges.js` | 100+ achievement badge definitions (`BADGE_DEFS`), tier system (bronze→legendary), `checkBadges()`, `getEarnedBadges()`, `backfill2025Badges()`, `TIER_COLORS` |
 | `js/views.js` | All render functions — `render()`, `renderCurrent()`, `renderAllCards()`, `renderDigest()`, `renderNetValue()`, `renderFeeOptimizer()`, `renderCardSimulator()`, `renderRenewalCalendar()`, `renderRecap()`, etc. |
 | `js/report-model.js` | **Pure** report calculation + narrative templates — no DOM, no storage, no period math. Unit tested under `node --test` |
+| `js/breakeven-model.js` | **Pure** break-even math — cumulative capture vs fee, pace, projection, verdict. No DOM, no storage. Unit tested |
 | `js/report.js` | Adapter: live state → report model input; Markdown / CSV / JSON serializers |
 | `js/report-view.js` | Export & Reports view, config modal, report HTML, `REPORT_CSS` (shared by preview and print doc) |
 | `js/main.js` | Event listeners, auth flow, navigation, modal logic, `renderBadgesView()`, email digest toggle, push subscribe, `window.*` exports for inline handlers |
@@ -63,6 +64,8 @@ cd Perks-Ledger && node --test 'tests/*.test.mjs'
 - `tests/report-model.test.mjs` — the pure status / missed-value / narrative ruleset
 - `tests/report-integration.test.mjs` — drives the real `CARDS` catalog and `periods.js` with stubbed browser globals; includes an assertion that report totals match `calcStats()` so the report can't silently drift from the rest of the app
 - `tests/sync-queue.test.mjs` — stubs the Supabase client and drives the real `storage.js` save/pull paths; pins the offline retry queue and the three-way merge (see v2.9)
+- `tests/breakeven-model.test.mjs` — the pure break-even math: cumulative capture, crossing interpolation, pace, projection, verdict wording
+- `tests/view-groups.test.mjs` — reads the real sources to check every grouped view is dispatched, routable and reachable only through its group
 
 `js/package.json` (`{"type":"module"}`) exists only so Node treats `js/*.js` as ES modules. It is not used at runtime.
 
@@ -70,7 +73,63 @@ cd Perks-Ledger && node --test 'tests/*.test.mjs'
 
 ## Changelog
 
-### v2.9 (current, 2026-08-24)
+### v3.0 (current, 2026-08-24)
+Break-even chart, and 22 views consolidated to 15.
+
+**Break-even (`js/breakeven-model.js`, nav `break-even`).** The app could
+always say "you captured $X of your $Y fee" but not whether $X was good *for
+the date* — 62% is ahead of pace in May and behind it in November. Nothing
+plotted anything against time: the entire chart inventory was one donut, bars,
+a fee sparkline and the heatmap grid.
+
+The model is **pure** and unit-tested (19 tests), in the same spirit as
+`report-model.js`: it takes a list of `{month, amount}` claims plus the fee and
+returns cumulative capture, the interpolated break-even crossing, pace against
+a straight-line target, a year-end projection, and a one-line verdict. The
+wording lives in the model too, so the sentence and the numbers behind it are
+covered by the same tests.
+
+`collectBreakEvenClaims()` in `views.js` is the adapter. It reuses `calcStats()`'s
+inclusion rules so the chart cannot disagree with the totals elsewhere, and
+dates each claim by its recorded redemption month, falling back to the month
+its period opened (the same rule the heatmap uses for pre-tracking data).
+Portfolio view re-bases each card's claims onto a shared calendar axis first —
+cards start their years in different months, so month 3 means something
+different per card.
+
+The SVG carries its own `aspect-ratio` inline, so the CSS box always matches
+the viewBox. Setting a fixed pixel height instead either stretches every label
+(`preserveAspectRatio="none"`) or letterboxes the chart; both were tried.
+
+**View groups (`VIEW_GROUPS` in `views.js`).** Five views all computed
+captured-vs-fees, three asked "should I change my lineup", two listed things
+needing attention. They are now three tab strips:
+
+| Group | Tabs |
+|---|---|
+| Money | Now · Break-even · Per card · Trends · Year · Report card |
+| Cards | Compare · Simulate · Upgrade |
+| Alerts | Act now · Changes |
+
+Every tab is still its own view id — the strip is injected by `set()`, the one
+sink all ten render functions already used, so no render function changed.
+Nav entries address a **group** (`money`); `GROUP_ENTRY` resolves it to the
+first tab and `VIEW_GROUP_OF` keeps the group's nav entry lit while any of its
+tabs shows. Both the More grid and the bottom tab bar address groups too —
+a bottom tab pointing at a grouped view would never highlight.
+
+**Worth knowing:** the five merged views did not agree with each other.
+Portfolio Value, Fee Optimizer and Performance count **card-year** periods;
+Report Card and Annual Recap count **calendar YTD**. Both labelled the result
+"captured", so the same instant could show two different totals. Grouping them
+does not fix that — it just puts them one tab apart, where it is visible.
+
+`tests/view-groups.test.mjs` (12 tests) pins the wiring: every tab has a render
+dispatch, a `setActiveView` branch and an `_analyticsViews` entry; no view is
+in two groups; no grouped view keeps a drawer entry that would bypass its
+strip. All of those fail silently rather than throwing.
+
+### v2.9 (2026-08-24)
 Offline-safe cloud sync. `saveToStorage()` had two faults that between them
 could lose a benefit toggle silently:
 

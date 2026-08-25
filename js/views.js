@@ -9,6 +9,7 @@ import {
   getProjectedCapture, getROIGrade
 } from './periods.js';
 import { renderExportReport, ensureReportStyles } from './report-view.js';
+import { buildBreakEven, breakEvenVerdict } from './breakeven-model.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 export function getVisibleCardKeys(){
@@ -23,6 +24,50 @@ export function getVisibleCardKeys(){
     }
   }catch(e){}
   return base;
+}
+
+// ── View groups ────────────────────────────────────────────────────────────
+// Several views answered the same question with different framing: five of
+// them computed captured-vs-fees, three asked "should I change my lineup",
+// two listed things needing attention. Grouping them behind one tab strip
+// each cuts the drawer from 22 entries to 14 without touching the render
+// functions themselves — every tab is still its own view id.
+export const VIEW_GROUPS={
+  money:{label:'Money', tabs:[
+    {view:'net-value',       label:'Now'},
+    {view:'break-even',      label:'Break-even'},
+    {view:'fee-optimizer',   label:'Per card'},
+    {view:'performance',     label:'Trends'},
+    {view:'recap',           label:'Year'},
+    {view:'wrap',            label:'Report card'},
+  ]},
+  cards:{label:'Cards', tabs:[
+    {view:'compare',         label:'Compare'},
+    {view:'card-simulator',  label:'Simulate'},
+    {view:'upgrade-advisor', label:'Upgrade'},
+  ]},
+  alerts:{label:'Alerts', tabs:[
+    {view:'digest',          label:'Act now'},
+    {view:'benefit-alerts',  label:'Changes'},
+  ]},
+};
+// view id -> group id
+export const VIEW_GROUP_OF=Object.fromEntries(
+  Object.entries(VIEW_GROUPS).flatMap(([g,{tabs}])=>tabs.map(t=>[t.view,g]))
+);
+// Entering a group lands on its first tab.
+export const GROUP_ENTRY=Object.fromEntries(
+  Object.entries(VIEW_GROUPS).map(([g,{tabs}])=>[g,tabs[0].view])
+);
+
+function groupTabsHTML(view){
+  const g=VIEW_GROUP_OF[view];
+  if(!g) return '';
+  return `<nav class="group-tabs" aria-label="${VIEW_GROUPS[g].label} views">`+
+    VIEW_GROUPS[g].tabs.map(t=>{
+      const on=t.view===view;
+      return `<button class="group-tab${on?' active':''}"${on?' aria-current="page"':''} onclick="setActiveView('${t.view}')">${t.label}</button>`;
+    }).join('')+`</nav>`;
 }
 
 // Rebuilding #main destroys whatever the keyboard was focused on, which
@@ -43,8 +88,9 @@ export function set(html, onReady){
   const main=document.getElementById('main');
   const refocus=focusFingerprint(document.activeElement);
   main.classList.add('transitioning');
+  const tabs=groupTabsHTML(state.activeView);
   setTimeout(()=>{
-    main.innerHTML=html;
+    main.innerHTML=tabs+html;
     main.classList.remove('transitioning');
     if(onReady) onReady();
     if(refocus){
@@ -2356,7 +2402,7 @@ export function renderPointsRedemptions(){
 }
 
 export function render(){
-  const _analyticsViews=['compare','history-log','recap','heatmap','performance','digest','net-value','badges','fee-optimizer','card-simulator','renewal-calendar','upgrade-advisor','ai-advisor','wrap','benefit-alerts','points-redemptions','export-report'];
+  const _analyticsViews=['compare','history-log','recap','heatmap','performance','digest','net-value','badges','fee-optimizer','card-simulator','renewal-calendar','upgrade-advisor','ai-advisor','wrap','benefit-alerts','points-redemptions','export-report','break-even'];
   const _isAnalytics=_analyticsViews.includes(state.activeView);
   ['cardSelector','navPrimary','navSecondary','yearSelector','ptrIndicator'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display=_isAnalytics?'none':''; });
   document.querySelectorAll('.drag-hint,.ptr-indicator').forEach(el=>{ el.style.display=_isAnalytics?'none':''; });
@@ -2386,6 +2432,7 @@ export function render(){
   else if(state.activeView==='performance') renderPerformance();
   else if(state.activeView==='digest') renderDigest();
   else if(state.activeView==='net-value') renderNetValue();
+  else if(state.activeView==='break-even') renderBreakEven();
   else if(state.activeView==='fee-optimizer') renderFeeOptimizer();
   else if(state.activeView==='card-simulator') renderCardSimulator();
   else if(state.activeView==='renewal-calendar') renderRenewalCalendar();
@@ -2396,4 +2443,157 @@ export function render(){
   else if(state.activeView==='points-redemptions') renderPointsRedemptions();
   else if(state.activeView==='export-report'){ ensureReportStyles(); renderExportReport(); }
   setTimeout(()=>{ updateTabBadge(); updateCardBadges(); },200);
+}
+
+// ── Break-even ─────────────────────────────────────────────────────────────
+// The app could always say "you have captured $X of your $Y fee". It could not
+// say whether $X was good *for the date* — 62% is ahead of pace in May and
+// behind it in November. These plot capture against the fee over the card
+// year, which is the same basis Portfolio Value and Fee Optimizer use.
+
+// Where a claim sits within the card year, 0-indexed from the card-year start.
+function cardYearPos(cardKey, calY, calM){
+  const {year:fy, month:fm} = getCardYearStart(cardKey, CY);
+  return (calY * 12 + calM) - (fy * 12 + fm);
+}
+
+// Claims for one card, using the same inclusion rules as calcStats() so the
+// chart cannot disagree with the totals shown elsewhere. A claim is dated by
+// its recorded redemption month where we have one, and by the month its period
+// opened where we do not (data predating redemption tracking).
+export function collectBreakEvenClaims(cardKey){
+  const claims = [];
+  CARDS[cardKey].sections.forEach(s=>{
+    getCardYearPeriods(cardKey, s.cadence).forEach(p=>{
+      s.benefits.forEach(b=>{
+        if(isBExpired(b,p) || isBNotAvailable(b, state.selectedYear, p) || isGloballySnoozed(cardKey,b.id)) return;
+        if(!isUsed(cardKey, b.id, p.pk)) return;
+        const full = getBAmount(b,p);
+        const partial = b.partial ? getPartialUsed(cardKey, b.id, p.pk) : 0;
+        const amount = b.partial && partial > 0 ? Math.min(partial, full) : full;
+        const rd = state.redemptionDates?.[`${cardKey}__${b.id}__${p.pk}`];
+        const pos = rd ? cardYearPos(cardKey, rd.year, rd.month)
+                       : cardYearPos(cardKey, p.calY ?? CY, p.calM ?? 0);
+        if(pos >= 0 && pos < 12) claims.push({month:pos, amount});
+      });
+    });
+  });
+  return claims;
+}
+
+export function breakEvenForCard(cardKey){
+  const {year:fy, month:fm} = getCardYearStart(cardKey, CY);
+  const elapsed = (CY * 12 + CM) - (fy * 12 + fm) + 1;
+  return buildBreakEven({
+    claims: collectBreakEvenClaims(cardKey),
+    fee: getFee(cardKey, CY),
+    monthsElapsed: Math.min(Math.max(elapsed, 0), 12),
+    label: CARD_LABELS[cardKey],
+  });
+}
+
+// Portfolio-wide. Cards start their years on different months, so each card's
+// claims are re-based onto a shared calendar-month axis before summing --
+// otherwise month 3 would mean a different thing per card.
+export function breakEvenForPortfolio(){
+  const claims = [];
+  let fee = 0;
+  getVisibleCardKeys().forEach(cardKey=>{
+    fee += getFee(cardKey, CY);
+    const {year:fy, month:fm} = getCardYearStart(cardKey, CY);
+    collectBreakEvenClaims(cardKey).forEach(c=>{
+      const abs = (fy * 12 + fm) + c.month;      // back to absolute months
+      const pos = abs - (CY * 12);               // then onto this calendar year
+      if(pos >= 0 && pos < 12) claims.push({month:pos, amount:c.amount});
+    });
+  });
+  return buildBreakEven({ claims, fee, monthsElapsed: CM + 1, label:'Portfolio' });
+}
+
+// The chart. Inline SVG in a viewBox so it scales with the container; all
+// colour comes from theme tokens so it works in both themes.
+export function breakEvenChartHTML(model, opts={}){
+  const H=opts.compact?104:150, W=480, PL=8, PR=8, PT=12, PB=20;   // viewBox units
+  const iw=W-PL-PR, ih=H-PT-PB;
+  const {ceiling, fee, monthCount, monthsElapsed, actual, projected, crossed} = model;
+  const x = i => PL + (monthCount<=1 ? 0 : (i/(monthCount-1))*iw);
+  const y = v => PT + ih - Math.min(1, v/ceiling)*ih;
+
+  const pt=(arr,off)=>arr.map((v,i)=>`${x(i+off).toFixed(1)},${y(v).toFixed(1)}`);
+  const actualPts=pt(actual,0);
+  // Join the projection onto the last real point so the line is continuous.
+  const projPts=projected.length
+    ? [actualPts[actualPts.length-1]||`${x(0)},${y(0)}`, ...pt(projected,monthsElapsed)].filter(Boolean)
+    : [];
+
+  const feeY=y(fee);
+  const area=actualPts.length>1
+    ? `<polygon points="${x(0).toFixed(1)},${y(0).toFixed(1)} ${actualPts.join(' ')} ${x(actual.length-1).toFixed(1)},${y(0).toFixed(1)}" fill="var(--green)" opacity="0.13"/>`
+    : '';
+
+  // Interpolate between the point before the crossing month and the crossing
+  // itself; clamp so a first-month crossing sits on the axis, not off it.
+  const crossX = crossed.reached && actual.length
+    ? x(Math.max(0, crossed.month - 1 + crossed.fraction))
+    : null;
+
+  const labels=(opts.monthLabels||[]).map((l,i)=>
+    i%2===0?`<text x="${x(i).toFixed(1)}" y="${H-5}" font-size="8" fill="var(--text-tertiary)" text-anchor="middle" font-family="var(--mono)">${l}</text>`:''
+  ).join('');
+
+  return `<svg class="be-chart" viewBox="0 0 ${W} ${H}" style="aspect-ratio:${W}/${H}" role="img" aria-label="${escapeHtml(model.label)}: $${model.pace.captured.toFixed(0)} captured against a $${fee.toFixed(0)} annual fee">
+    ${area}
+    <line x1="${PL}" y1="${feeY.toFixed(1)}" x2="${W-PR}" y2="${feeY.toFixed(1)}" stroke="var(--red)" stroke-width="1" stroke-dasharray="3 3" opacity="0.75"/>
+    <text x="${W-PR}" y="${(feeY-3).toFixed(1)}" font-size="8" fill="var(--red)" text-anchor="end" font-family="var(--mono)">fee $${fee.toFixed(0)}</text>
+    ${projPts.length>1?`<polyline points="${projPts.join(' ')}" fill="none" stroke="var(--text-tertiary)" stroke-width="1.4" stroke-dasharray="3 3"/>`:''}
+    ${actualPts.length>1?`<polyline points="${actualPts.join(' ')}" fill="none" stroke="var(--green)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`:''}
+    ${actualPts.length?`<circle cx="${x(actual.length-1).toFixed(1)}" cy="${y(model.pace.captured).toFixed(1)}" r="2.6" fill="var(--green)"/>`:''}
+    ${crossX!==null?`<circle cx="${crossX.toFixed(1)}" cy="${feeY.toFixed(1)}" r="2.6" fill="none" stroke="var(--gold)" stroke-width="1.6"/>`:''}
+    ${labels}
+  </svg>`;
+}
+
+// Month tick labels for a card year starting at `startMonth`.
+function beMonthLabels(startMonth){
+  return Array.from({length:12},(_,i)=>MONTHS[(startMonth+i)%12]);
+}
+
+export function renderBreakEven(){
+  const port=breakEvenForPortfolio();
+  const pv=breakEvenVerdict(port);
+  const toneCol=t=>t==='good'?'var(--green)':t==='bad'?'var(--red)':'var(--gold)';
+
+  let html=`<div class="banner"><strong>Break-even</strong> — capture against annual fees, across the year</div>`;
+
+  html+=`<div class="be-hero">
+    <div class="be-hero-top">
+      <div>
+        <div class="be-hero-val" style="color:${port.pace.captured>=port.fee?'var(--green)':'var(--text)'}">$${port.pace.captured.toFixed(0)}</div>
+        <div class="be-hero-lbl">captured of $${port.fee.toFixed(0)} in fees</div>
+      </div>
+      <div style="text-align:right">
+        <div class="be-hero-val" style="color:${port.pace.projectedNet>=0?'var(--green)':'var(--red)'}">${port.pace.projectedNet>=0?'+':'−'}$${Math.abs(port.pace.projectedNet).toFixed(0)}</div>
+        <div class="be-hero-lbl">projected year end</div>
+      </div>
+    </div>
+    ${breakEvenChartHTML(port,{monthLabels:beMonthLabels(0)})}
+    <div class="be-verdict" style="color:${toneCol(pv.tone)}">${pv.text}</div>
+  </div>`;
+
+  html+=`<div class="section-header"><span class="section-title">By card</span><span class="section-period">card year</span></div>`;
+  getVisibleCardKeys().forEach(k=>{
+    const m=breakEvenForCard(k);
+    const v=breakEvenVerdict(m);
+    const {month:fm}=getCardYearStart(k,CY);
+    html+=`<div class="be-card-row" onclick="goToCardPeriod('${k}')">
+      <div class="be-card-head">
+        <span class="all-cards-card-name ${CARD_CLS[k]||''}">${CARD_LABELS[k]}</span>
+        <span class="be-card-num" style="color:${m.pace.captured>=m.fee?'var(--green)':'var(--text-secondary)'}">$${m.pace.captured.toFixed(0)} <span style="color:var(--text-tertiary)">/ $${m.fee.toFixed(0)}</span></span>
+      </div>
+      ${breakEvenChartHTML(m,{monthLabels:beMonthLabels(fm),compact:true})}
+      <div class="be-verdict" style="color:${toneCol(v.tone)}">${v.text}</div>
+    </div>`;
+  });
+
+  set(html);
 }

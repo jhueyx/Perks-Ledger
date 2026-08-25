@@ -14,7 +14,7 @@ import {
   loadCardMeta, setCardOpenedDate,
   setPointsRedeemed, setPointsSource
 } from './storage.js';
-import { render, getVisibleCardKeys, renderCurrent, renderRecap, haptic, checkAllClaimed, animateCounters, renderFeeOptimizer, buildAdvisorContext, buildCardChooserContext, formatAdvisorMarkdown, computeAlerts, renderPointsRedemptions } from './views.js';
+import { render, getVisibleCardKeys, renderCurrent, renderRecap, haptic, checkAllClaimed, animateCounters, renderFeeOptimizer, buildAdvisorContext, buildCardChooserContext, formatAdvisorMarkdown, computeAlerts, renderPointsRedemptions, VIEW_GROUPS, VIEW_GROUP_OF, GROUP_ENTRY } from './views.js';
 import { checkBadges, getEarnedBadges, getEarnedAt, getUnseenBadges, markAllSeen, BADGE_DEFS, getApplicableBadgeDefs, TIER_COLORS } from './badges.js';
 import { calcStats, getCardYearPeriods, isPCurrent, getFee, getBAmount, getCurrentPK, isBExpired, isBNotAvailable } from './periods.js';
 import { openReportConfig, previewReport, openPrintableReport, downloadReportHTML, downloadReportMarkdown, downloadReportCSV, downloadReportJSON } from './report-view.js';
@@ -739,6 +739,8 @@ function updateSecondaryNav(primary){
 }
 
 function setActiveView(primary){
+  // Nav entries address a group ('money'); tabs inside it address a view.
+  if(GROUP_ENTRY[primary]) primary=GROUP_ENTRY[primary];
   state.activePrimary=primary;
   if(primary==='all-cards'){ state.activeView='all-cards'; state.selectedYear=CY; }
   else if(primary==='this-period') state.activeView='current';
@@ -751,6 +753,7 @@ function setActiveView(primary){
   else if(primary==='performance') state.activeView='performance';
   else if(primary==='digest') state.activeView='digest';
   else if(primary==='net-value') state.activeView='net-value';
+  else if(primary==='break-even') state.activeView='break-even';
   else if(primary==='badges') state.activeView='badges';
   else if(primary==='fee-optimizer') state.activeView='fee-optimizer';
   else if(primary==='card-simulator') state.activeView='card-simulator';
@@ -768,12 +771,14 @@ function setActiveView(primary){
   const topViews=['all-cards','this-period','card-year','ytd'];
   // .active is purely visual; aria-current is what a screen reader reads.
   const mark=(b,on)=>{ b.classList.toggle('active',on); if(on) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); };
+  // A grouped view keeps its group's nav entry lit.
+  const navKey=VIEW_GROUP_OF[primary]||primary;
   if(topViews.includes(primary)){
     document.querySelectorAll('.nav-primary-btn').forEach(b=>mark(b,b.dataset.primary===primary));
     document.querySelectorAll('.drawer-item').forEach(b=>mark(b,false));
   } else {
     document.querySelectorAll('.nav-primary-btn').forEach(b=>mark(b,false));
-    document.querySelectorAll('.drawer-item').forEach(b=>mark(b,b.dataset.primary===primary));
+    document.querySelectorAll('.drawer-item').forEach(b=>mark(b,b.dataset.primary===navKey));
   }
   document.getElementById('navPrimary').classList.toggle('hidden', primary==='more');
   updateSecondaryNav(primary);
@@ -800,7 +805,9 @@ function closeDrawer(){
   document.getElementById('menuBtn')?.setAttribute('aria-expanded','false');
 }
 function updateBottomTabBar(primary){
-  document.querySelectorAll('.bottom-tab[data-bottom]').forEach(b=>b.classList.toggle('active',b.dataset.bottom===primary));
+  // Tabs address groups ('money'); `primary` is already the resolved view.
+  const key=VIEW_GROUP_OF[primary]||primary;
+  document.querySelectorAll('.bottom-tab[data-bottom]').forEach(b=>b.classList.toggle('active',b.dataset.bottom===key));
   const menuBtn=document.getElementById('bottomMenuBtn');
   if(menuBtn) menuBtn.classList.toggle('active',primary==='more');
   const homeBtn=document.getElementById('bottomHomeBtn');
@@ -1503,6 +1510,9 @@ document.addEventListener('keydown',e=>{
 
 // ── Drawer icon map (module scope for reuse in renderMore) ────────────────
 const _DRAWER_ICONS={
+  'money':`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
+  'cards':`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>`,
+  'alerts':`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`,
   'priority':`<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5"/><line x1="8" y1="5" x2="8" y2="8.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="11" r="0.8" fill="currentColor"/></svg>`,
   'insights':`<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2a4 4 0 0 1 4 4c0 1.6-.9 3-2.2 3.7V11H6.2V9.7A4 4 0 0 1 4 6a4 4 0 0 1 4-4z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><line x1="6.2" y1="12.5" x2="9.8" y2="12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="6.8" y1="14" x2="9.2" y2="14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
   'keep-card':`<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="4" width="13" height="9" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 8.5L7 10l3.5-3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
@@ -2021,20 +2031,16 @@ window.setHeatmapRedemptionDate=function(cardKey,id,pk,year,month){
 
 // ── More page ─────────────────────────────────────────────────────────────
 function renderMore(){
+  // Mirrors the drawer: the grouped views are reached through their group.
   const items=[
-    {view:'net-value',label:'Portfolio Value'},
+    {view:'alerts',label:'Alerts'},
+    {view:'money',label:'Money'},
+    {view:'cards',label:'Cards'},
     {view:'points-redemptions',label:'Points Redeemed'},
-    {view:'card-simulator',label:'Card Simulator'},
-    {view:'upgrade-advisor',label:'Upgrade Advisor'},
     {view:'ai-advisor',label:'AI Advisor'},
-    {view:'wrap',label:'Report Card'},
-    {view:'benefit-alerts',label:'Benefit Alerts'},
     {view:'renewal-calendar',label:'Renewal Calendar'},
-    {view:'compare',label:'Compare Cards'},
-    {view:'performance',label:'Performance'},
     {view:'heatmap',label:'Heatmap'},
     {view:'history-log',label:'History'},
-    {view:'recap',label:'Annual Recap'},
     {view:'export-report',label:'Export & Reports'},
     {view:'settings',label:'Settings'},
   ];
