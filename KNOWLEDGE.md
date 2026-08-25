@@ -22,9 +22,11 @@ Vanilla JS SPA deployed via **Vercel** (with `vercel.json` cache headers) at **p
 ### Key Patterns
 - **Inline onclick handlers** in rendered HTML must use `window.*` exports (set at bottom of `main.js`)
 - **Custom events** decouple storage from rendering: `perks:benefit-toggled`, `perks:rerender`, `perks:benefit-skipped`
-- **`set(html, onReady?)`** in `views.js` applies a 180ms fade transition before inserting HTML; pass `onReady` callback for post-DOM event binding
+- **`set(html, onReady?)`** in `views.js` applies a 180ms fade transition before inserting HTML; pass `onReady` callback for post-DOM event binding. It also records the focused control before the swap and re-focuses its replacement after — without that, keyboard users lose focus to the top of the page on every re-render
 - **`state` object** is a single mutable export — mutations propagate across modules
 - **Dark mode** applied via inline `<head>` script (runs before module deferred execution)
+- **Colour tokens** (see v2.8) — `--gold` is a *fill*; text on it uses `--on-gold`, gold *as text* uses `--gold-text`, and card brand colours as text use their `-text` variant. The base brand tokens have no dark-theme override, so using one as a text colour is how you ship invisible text
+- **`:focus-visible` rules live at the very end of `styles.css`** so they override the `outline: none` declarations scattered earlier in the file — don't move that block
 
 ### Cadence Types
 | Cadence | Period Key Format | Example |
@@ -46,7 +48,7 @@ Everything bundled into one Supabase row per user in `tracker_data`.
 
 ## Deployment
 Push to `origin main` → Vercel auto-deploys to perks.hueyventures.org. `vercel.json` sets `no-cache` headers on `index.html`, `sw.js`, and all JS/CSS files.
-Cache-bust: increment version in `index.html` CSS/JS query strings (`?v=...`) and bump `CACHE_NAME` in `sw.js` (currently `benefits-tracker-v35`).
+Cache-bust: three markers must move together — `DEPLOY_DATE` in `js/main.js`, the `?v=...` query strings in `index.html`, and `CACHE_NAME` in `sw.js` (currently `benefits-tracker-v55`). Don't edit them by hand: `scripts/bump-version.sh` does all three and the `pre-push` hook calls it. The hook commits *during* the push, so that commit needs a second `git push --no-verify` if it doesn't ride along with the first.
 
 ---
 
@@ -67,7 +69,75 @@ cd Perks-Ledger && node --test 'tests/*.test.mjs'
 
 ## Changelog
 
-### v2.7 (current, 2026-07-28)
+### v2.8 (current, 2026-08-24)
+UI/UX review and accessibility pass. No feature or data changes — every fix is
+presentational, semantic, or asset weight.
+
+**Colour tokens — read this before adding any gold to the UI.**
+Three conventions now hold, and breaking them is what caused the dark-mode bugs
+below:
+- `--gold` is the **brand fill only** (`#C8922A` light / `#E0A93A` dark). Text
+  placed *on* a gold fill uses `--on-gold`, which is ink in both themes. White
+  on gold measured 2.76:1 and failed AA in 13 rules; ink on the same gold is
+  6.46:1, so the brand colour never had to change.
+- Gold used **as text** uses `--gold-text` (`#7A4F0A` / `#E8B84A`), never
+  `--gold`. 32 rules were converted.
+- The 20 card brand colours (`--hilton`, `--csr`, …) have **no dark-theme
+  override**. As text they must use the `-text` variant. `.all-cards-card-name`
+  used the raw tokens, which put Hilton navy on near-black at **1.21:1** —
+  invisible. `.wfpremier` had no rule at all.
+
+**Contrast — both themes now clear WCAG AA (4.5:1) everywhere measured.**
+`--text-tertiary` was 2.32:1 light / 2.40:1 dark while being used 220 times,
+almost always on the app's *smallest* text; now 4.58 / 4.97. `--text-secondary`
+4.16 → 5.20. `--green` 3.50 → 4.66. New per-theme `--danger-bg` /
+`--danger-text` / `--cat-dining-text` / `--cat-ent-text` replace hardcoded
+values: `.badge-captured` was light-green text on a hardcoded light-green pill
+(2.0:1 in dark) and `.cat-entertainment` was 2.9:1.
+
+**Keyboard and screen reader.** There were **zero** `:focus-visible` rules and
+`outline: none` on 12 elements — tabbing was invisible. Added rings (via
+`--focus-ring`) that follow each element's own `border-radius`; the block is
+appended at the end of `styles.css` deliberately, so it wins over those
+`outline: none` declarations. `.check-btn`, the most-used control in the app,
+was an **empty `<button>`** with no accessible name or state — now
+`aria-label` + `aria-pressed`. The note / credit / unsnooze controls were
+`div`/`span` with `cursor:pointer` and are now real `<button>`s (`.linkish`,
+`.benefit-note`, `.add-note` strip the UA chrome). Added landmarks
+(`<header>`, `<main>`, labelled `<nav>`), `aria-current` on the active nav
+item, labels on icon-only buttons, and `prefers-reduced-motion` support
+(confetti is gated in JS, in both `views.js` and `main.js`). Removed
+`user-scalable=no` / `maximum-scale=1.0`, which had disabled pinch-zoom.
+
+**`set()` now restores keyboard focus.** Rebuilding `#main` destroyed the
+focused element, so a keyboard user was thrown to the top of the page on *every*
+benefit toggle. `focusFingerprint()` records the control by its data attributes
+and re-focuses its replacement after the swap.
+
+**Interaction fixes.** Escape closed only the drawer — the six modals and the
+card sheet ignored it; a `_LAYERS` list now closes the topmost layer, and
+deliberately excludes the card picker since that's a required first-run step.
+Click-outside added to `myCardsModal` and `cardDateModal` (the others already
+had it). Shortcuts `1/2/3/4/m` were firing *through* open modals. Enlarged the
+snooze control (was `opacity: 0.25`, ~1.1:1, on a ~22×16px target), close
+buttons and month arrows. Dropped the centred text + `0.1em` letter-spacing
+from `.splash-input` — a leftover from the old password splash that was being
+applied to the email field.
+
+**Card art: 2.2 MB → 516 KB.** `assets/` was loading eagerly for a 150px-wide
+carousel, with `platinum-card.png` alone at 819 KB. Ten PNGs converted to WebP
+at display-appropriate width (600px max), quality chosen per image against a
+PSNR target and the low-scoring ones checked visually before committing. The
+three files that were *already* WebP were left alone rather than re-encoded
+lossy-to-lossy. `sw.js` precaches only `/` and `/index.html`, so no manifest
+needed updating.
+
+**Known gap:** the month `‹ ›` arrows are `role="button"` spans, not real
+buttons. They sit *inside* the tab `<button>`, so promoting them would nest
+interactive elements and the parser would hoist them out. ARIA gets them
+keyboard-reachable and named; the real fix is restructuring that tab.
+
+### v2.7 (2026-07-28)
 Corrections to the Detailed Report after reviewing the first generated PDF.
 - **Benefit value and points value are now separate.** The old "Net Value After Fees" silently folded points redemptions into benefit value. Six named metrics replace it: Available / Redeemed / Expired / Still Claimable Benefit Value, Recorded Points Redemption Value, Net Benefit Value After Fees (`redeemed − fees`) and Total Tracked Value After Fees (`redeemed + points − fees`).
 - **`windowPhase()` is the single authority on period status.** Root cause of the expired-benefit bug: `isYTDCurrent()` in `periods.js` has no branch for `annual`/`cal-annual` and falls through to `return false`, so every *unused* calendar-year credit looked like a closed window. Instances now carry real ISO `periodStart`/`periodEnd` and status is derived from those vs `reportDate`. Bounds are inclusive. The printed expiry and the status read the same field, so they cannot disagree.
