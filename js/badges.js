@@ -13,6 +13,25 @@ function badgesKey(){ return 'perks-badges'+(state.currentUser?'-'+state.current
 // "Perfect Month" defs are generated per-year (rather than hardcoded) so they
 // keep working past the year they were first written in.
 const PERFECT_MONTH_START_YEAR = 2024;
+
+// Year badges are generated rather than listed, because the hardcoded list
+// stopped at 2026: come January no year badge could ever unlock again.
+// TRACKING_FIRST_YEAR is when the ledger starts; the upper bound just needs
+// to stay comfortably ahead of the calendar.
+export const TRACKING_FIRST_YEAR = 2024;
+// Derived from the clock, not a literal: any fixed ceiling eventually stops
+// being ahead of the calendar, and does so silently.
+export const TRACKING_LAST_YEAR = new Date().getFullYear() + 5;
+export const TRACKED_YEARS = Array.from(
+  { length: TRACKING_LAST_YEAR - TRACKING_FIRST_YEAR + 1 },
+  (_, i) => TRACKING_FIRST_YEAR + i,
+);
+const YEAR_BADGES = TRACKED_YEARS.map(y => ({
+  id: `yr_${y}`,
+  tier: y === TRACKING_FIRST_YEAR ? 'bronze' : (y % 2 ? 'silver' : 'bronze'),
+  name: y === TRACKING_FIRST_YEAR ? `Class of '${String(y).slice(2)}` : `${y} Active`,
+  desc: y === TRACKING_FIRST_YEAR ? `Tracking benefits since ${y}` : `Tracking benefits in ${y}`,
+}));
 function buildPerfectMonthDefs(){
   const defs=[];
   for(let year=PERFECT_MONTH_START_YEAR; year<=CY; year++){
@@ -86,9 +105,7 @@ export const BADGE_DEFS = [
   { id:'jet_setter',      tier:'silver',    name:'Jet Setter',               desc:'Travel or airline credits used on 2+ cards',              cards:['cap1_venture_x','csr','platinum','amex_hilton_honors','wf_premier_autograph','chase_united_quest','chase_united_club'] },
 
   // ── Year-based ───────────────────────────────────────────────────────
-  { id:'yr_2024',         tier:'bronze',    name:'Class of \'24',            desc:'Tracking benefits since 2024' },
-  { id:'yr_2025',         tier:'silver',    name:'2025 Champion',            desc:'Active benefit tracker in 2025' },
-  { id:'yr_2026',         tier:'bronze',    name:'2026 Active',              desc:'Tracking benefits in 2026' },
+  ...YEAR_BADGES,
   { id:'multi_year',      tier:'gold',      name:'Multi-Year Veteran',       desc:'Active tracker in 3+ calendar years' },
   { id:'early_adopter',   tier:'silver',    name:'Early Adopter',            desc:'Using Perks Ledger since 2024 or earlier' },
 
@@ -358,7 +375,7 @@ export function checkBadges(){
       if(!v) return;
       const pk=(k.split('__')[1])||'';
       const yr=parseInt(pk.substring(0,4));
-      if(yr>=2020&&yr<=2030) activeYears.add(yr);
+      if(yr>=2020&&yr<=TRACKING_LAST_YEAR) activeYears.add(yr);
     });
   });
 
@@ -531,9 +548,7 @@ export function checkBadges(){
   maybe('jet_setter',        travelCardCount>=2);
 
   // Year-based
-  maybe('yr_2024',           activeYears.has(2024));
-  maybe('yr_2025',           activeYears.has(2025));
-  maybe('yr_2026',           activeYears.has(2026));
+  TRACKED_YEARS.forEach(y=>maybe(`yr_${y}`, activeYears.has(y)));
   maybe('multi_year',        activeYears.size>=3);
   maybe('early_adopter',     activeYears.has(2024)||activeYears.has(2023));
 

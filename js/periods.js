@@ -134,12 +134,21 @@ export function getFee(cardKey,year){
   year=year||state.selectedYear;
   return (card.historicalFees&&card.historicalFees[year]!==undefined)?card.historicalFees[year]:card.fee;
 }
+// `expiresAfter` accepts either form:
+//   {y, m}  -- m is the LAST month the benefit is available, 0-indexed.
+//   {y, h}  -- older half-year form: h=0 ends in June, h=1 ends in December.
+// The month form exists because several benefits end mid-half ("through Sep"),
+// which the half-year form could only round to June or December.
+export function expiryLastMonth(b){
+  if(!b.expiresAfter) return null;
+  const {y,h,m}=b.expiresAfter;
+  return {y, m: m!==undefined ? m : (h===0?5:11)};
+}
 export function isBExpired(b,p){
-  if(!b.expiresAfter) return false;
-  const {y,h}=b.expiresAfter;
-  const expAbs=y*12+(h===0?5:11);
+  const e=expiryLastMonth(b);
+  if(!e) return false;
   const pAbs=p.calY*12+p.calM;
-  return pAbs>expAbs;
+  return pAbs>(e.y*12+e.m);
 }
 export function isBNotAvailable(b,viewYear,p){
   if(b.startsFrom){

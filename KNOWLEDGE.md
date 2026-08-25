@@ -66,6 +66,15 @@ cd Perks-Ledger && node --test 'tests/*.test.mjs'
 - `tests/sync-queue.test.mjs` — stubs the Supabase client and drives the real `storage.js` save/pull paths; pins the offline retry queue and the three-way merge (see v2.9)
 - `tests/breakeven-model.test.mjs` — the pure break-even math: cumulative capture, crossing interpolation, pace, projection, verdict wording
 - `tests/view-groups.test.mjs` — reads the real sources to check every grouped view is dispatched, routable and reachable only through its group
+- `tests/benefit-expiry.test.mjs` — parses every benefit's copy for a stated end date and fails if the data does not encode it; also pins the generated year badges
+
+The suite is clock-sensitive, so it is worth running against a future date
+before a year rollover:
+
+```bash
+printf 'const R=Date;const F=new R("2027-03-15T12:00:00Z");globalThis.Date=class extends R{constructor(...a){return a.length?new R(...a):new R(F)}static now(){return F.getTime()}static parse(...a){return R.parse(...a)}static UTC(...a){return R.UTC(...a)}};' > /tmp/clock.mjs
+node --import file:///tmp/clock.mjs --test 'tests/*.test.mjs'
+```
 
 `js/package.json` (`{"type":"module"}`) exists only so Node treats `js/*.js` as ES modules. It is not used at runtime.
 
@@ -73,7 +82,55 @@ cd Perks-Ledger && node --test 'tests/*.test.mjs'
 
 ## Changelog
 
-### v3.0 (current, 2026-08-24)
+### v3.1 (current, 2026-08-24)
+Year-rollover audit — what happens to the app on 1 Jan 2027.
+
+Verified by running the suite under faked 2027 / 2031 / 2040 / 2055 clocks and
+by simulating "15 Mar 2027" directly against the real catalog. The period
+engine, year selector, report years and fee fallback all roll over correctly.
+Two things did not.
+
+**$406 of value that no longer exists would have appeared in 2027.** Five
+benefits stated an end date **in their description text only**, with no
+`expiresAfter` field — and `isBExpired()` returns `false` the moment
+`expiresAfter` is absent, so the engine kept them alive indefinitely. Select
+Hotel Credit ("2026 only", $250) and the Sapphire Preferred Apple TV+ credit
+("through Dec 2026", $156) would have shown all through 2027, inflating
+projected capture, the break-even chart and the fee optimizer's keep/cancel
+verdict — silently, and in the optimistic direction, which is the worst
+direction for a cancel decision.
+
+`expiresAfter` now also accepts `{y, m}` where `m` is the last available month,
+alongside the existing `{y, h}` half-year form (h=0 → June, h=1 → December).
+The month form exists because "through Sep 2027" could previously only be
+rounded to June or December — a $30 error either way on the Lyft credit.
+`expiryLastMonth()` normalises the two.
+
+Note the annual-cadence semantic: an annual benefit is judged by the month its
+**period starts**, so a credit ending Dec 2026 still counts for a card year
+that began in 2026 and runs into 2027. That is deliberate — the credit really
+was claimable during that card year — but it means calendar-year and card-year
+views legitimately differ here.
+
+**Year badges stopped at 2026.** `yr_2024` / `yr_2025` / `yr_2026` were
+hardcoded, so from January no year badge could ever unlock again, and
+`activeYears` was capped at `yr<=2030`, which would have silently stopped
+counting years in 2031. Year badges are now generated from `TRACKED_YEARS`,
+and `TRACKING_LAST_YEAR` is derived from the clock (`current + 5`) rather than
+being a literal — any fixed ceiling eventually stops being ahead of the
+calendar, and does so without an error.
+
+**Still needs a human:** `historicalFees` has no 2027 entry for any card. The
+fallback to `card.fee` is correct until a fee actually changes, but the Benefit
+Alerts fee-change detector only fires on data you have entered, so it cannot
+warn you about a 2027 increase on its own.
+
+`tests/benefit-expiry.test.mjs` parses the user-facing copy of every benefit in
+the catalog and fails when it names an end date the data does not encode —
+which is exactly how these five drifted. Verified as a real guard by reverting
+one fix and watching it name the offender.
+
+### v3.0 (2026-08-24)
 Break-even chart, and 22 views consolidated to 15.
 
 **Break-even (`js/breakeven-model.js`, nav `break-even`).** The app could

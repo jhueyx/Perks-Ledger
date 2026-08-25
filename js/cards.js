@@ -46,7 +46,7 @@ export const CARDS={
       {id:'c_dd_restaurant',name:'DoorDash Restaurant Credit',desc:'$5 promo for restaurant orders (DashPass required)',amount:5},
       {id:'c_dd_nonrest1',name:'DoorDash $10 Grocery Credit',desc:'$10 promo for grocery, convenience, etc',amount:10},
       {id:'c_dd_nonrest2',name:'DoorDash $10 Grocery Credit',desc:'$10 promo for grocery, convenience, etc',amount:10},
-      {id:'c_lyft',name:'Lyft Credit',desc:'Monthly in-app credit for rides (through Sep 2027)',amount:10,startsFrom:2025},
+      {id:'c_lyft',name:'Lyft Credit',desc:'Monthly in-app credit for rides (through Sep 2027)',amount:10,startsFrom:2025,expiresAfter:{y:2027,m:8}},
       {id:'c_peloton',name:'Peloton Credit',desc:'Toward eligible Peloton memberships',amount:10,startsFrom:2025},
     ]},
     {label:'Semi-annual (calendar)',cadence:'cal-semi-annual',benefits:[
@@ -59,18 +59,18 @@ export const CARDS={
       {id:'c_travel',name:'Travel Credit',desc:'Any travel purchase — automatic. Resets each February.',amount:300,partial:true},
     ]},
     {label:'Annual',cadence:'annual',benefits:[
-      {id:'c_selecthotel',name:'Select Hotel Credit (2026 only)',desc:'IHG, Montage, Pendry, Omni, Virgin, Minor, Pan Pacific',amount:250,startsFrom:2026},
-      {id:'c_apple',name:'Apple TV+ & Apple Music',desc:'Complimentary annual subscriptions — activate once via Chase (through Jun 2027)',amount:288,startsFrom:2026},
+      {id:'c_selecthotel',expiresAfter:{y:2026,m:11},name:'Select Hotel Credit (2026 only)',desc:'IHG, Montage, Pendry, Omni, Virgin, Minor, Pan Pacific',amount:250,startsFrom:2026},
+      {id:'c_apple',expiresAfter:{y:2027,m:5},name:'Apple TV+ & Apple Music',desc:'Complimentary annual subscriptions — activate once via Chase (through Jun 2027)',amount:288,startsFrom:2026},
       {id:'c_ge',name:'Global Entry / TSA PreCheck / NEXUS',desc:'Statement credit every 4 years',amount:120},
     ]},
   ]},
   chase_sapphire_pref:{name:'Chase Sapphire Preferred',fee:95,historicalFees:{2025:95},feeMonth:0,feeDay:1,sections:[
     {label:'Monthly',cadence:'monthly',benefits:[
-      {id:'csp_dashpass',name:'DashPass Promo Credit',desc:'$10/mo for groceries, retail, and more via DoorDash (through Dec 2027)',amount:10,startsFrom:2026},
+      {id:'csp_dashpass',expiresAfter:{y:2027,m:11},name:'DashPass Promo Credit',desc:'$10/mo for groceries, retail, and more via DoorDash (through Dec 2027)',amount:10,startsFrom:2026},
     ]},
     {label:'Annual',cadence:'annual',benefits:[
       {id:'csp_hotel',name:'Hotel Credit',desc:'Statement credit on hotel stays booked through Chase Travel',amount:100},
-      {id:'csp_apple',name:'Apple TV+',desc:'Complimentary annual subscription — activate once via Chase (through Dec 2026)',amount:156,startsFrom:2026},
+      {id:'csp_apple',expiresAfter:{y:2026,m:11},name:'Apple TV+',desc:'Complimentary annual subscription — activate once via Chase (through Dec 2026)',amount:156,startsFrom:2026},
       {id:'csp_ge',name:'Global Entry / TSA PreCheck / NEXUS',desc:'Statement credit every 4 years',amount:120,startsFrom:2026},
     ]},
   ]},
