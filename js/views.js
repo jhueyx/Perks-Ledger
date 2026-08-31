@@ -1326,7 +1326,7 @@ export function updateCardBadges(){
     CARDS[cardKey].sections.forEach(s=>{
       const pk=getCurrentPK(cardKey,s.cadence);
       const p={calY:CY,calM:CM,m:CM};
-      s.benefits.forEach(b=>{ if(isBExpired(b,p)||isBNotAvailable(b,CY)||isGloballySnoozed(cardKey,b.id)) return; if(!isUsed(cardKey,b.id,pk)) unclaimed++; });
+      s.benefits.forEach(b=>{ if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(cardKey,b.id)) return; if(!isUsed(cardKey,b.id,pk)) unclaimed++; });
     });
     let badge=btn.querySelector('.card-notif-badge');
     if(unclaimed>0){
