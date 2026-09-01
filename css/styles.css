@@ -174,28 +174,6 @@
     padding: 0;
   }
 
-  /* iOS standalone PWA: some WebKit versions don't extend a `position:
-     sticky` element's own background into the safe-area inset above it
-     until the page is scrolled, leaving a visible seam between the
-     status-bar strip and .app-header's frosted background below it.
-     This paints that exact strip with the same tint so there's nothing
-     to see a seam between. Height is 0 (invisible) anywhere without a
-     safe-area inset — non-iOS browsers, desktop, Android. */
-  body::before {
-    content: "";
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    height: env(safe-area-inset-top);
-    background: rgba(255,255,255,0.85);
-    -webkit-backdrop-filter: blur(20px);
-    backdrop-filter: blur(20px);
-    z-index: 99;
-    pointer-events: none;
-  }
-  [data-theme="dark"] body::before {
-    background: rgba(28,28,30,0.85);
-  }
-
   .app-header {
     background: rgba(var(--surface-rgb, 255,255,255), 0.85);
     backdrop-filter: blur(20px);
