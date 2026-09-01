@@ -164,7 +164,15 @@
      theme color instead of relying solely on background propagation. */
   html {
     background: var(--bg);
+    /* This is a mobile app (installed PWA) — no need for a visible
+       scrollbar indicator on the main page scroll, matching the same
+       treatment already used for .card-selector and .ach-recent-strip.
+       <html>, not <body>, is the actual scrolling element here (body has
+       no explicit overflow/fixed height), so the rule has to live here
+       to have any effect. */
+    scrollbar-width: none;
   }
+  html::-webkit-scrollbar { display: none; }
 
   body {
     font-family: var(--font);
@@ -172,12 +180,7 @@
     color: var(--text);
     min-height: 100vh;
     padding: 0;
-    /* This is a mobile app (installed PWA) — no need for a visible
-       scrollbar indicator on the main page scroll, matching the same
-       treatment already used for .card-selector and .ach-recent-strip. */
-    scrollbar-width: none;
   }
-  body::-webkit-scrollbar { display: none; }
 
   .app-header {
     /* Flat, matching html/body's var(--bg) exactly — no translucent blur —
