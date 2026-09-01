@@ -175,9 +175,10 @@
   }
 
   .app-header {
-    background: rgba(var(--surface-rgb, 255,255,255), 0.85);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    /* Flat, matching html/body's var(--bg) exactly — no translucent blur —
+       so the safe-area/status-bar strip and the header are the same solid
+       color with nothing for a seam to appear between. */
+    background: var(--bg);
     border-bottom: 1px solid var(--border);
     padding: 16px 24px;
     padding-top: max(16px, env(safe-area-inset-top));
@@ -187,9 +188,6 @@
     position: sticky;
     top: 0;
     z-index: 100;
-  }
-  [data-theme="dark"] .app-header {
-    background: rgba(28,28,30,0.85);
   }
 
   /* Tab badge */
