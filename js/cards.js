@@ -46,6 +46,7 @@ export const CARDS={
       {id:'c_dd_restaurant',name:'DoorDash Restaurant Credit',desc:'$5 promo for restaurant orders (DashPass required)',amount:5},
       {id:'c_dd_nonrest1',name:'DoorDash $10 Grocery Credit',desc:'$10 promo for grocery, convenience, etc',amount:10},
       {id:'c_dd_nonrest2',name:'DoorDash $10 Grocery Credit',desc:'$10 promo for grocery, convenience, etc',amount:10},
+      {id:'c_dd_all',name:'DoorDash All-Order Credit',desc:'$15/mo on any eligible DoorDash order — restaurant, grocery, or retail (from Oct 2026)',amount:15,startsFrom:{y:2026,m:9}},
       {id:'c_lyft',name:'Lyft Credit',desc:'Monthly in-app credit for rides (through Sep 2027)',amount:10,startsFrom:2025,expiresAfter:{y:2027,m:8}},
       {id:'c_peloton',name:'Peloton Credit',desc:'Toward eligible Peloton memberships',amount:10,startsFrom:2025},
     ]},

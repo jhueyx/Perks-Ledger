@@ -152,8 +152,21 @@ export function isBExpired(b,p){
 }
 export function isBNotAvailable(b,viewYear,p){
   if(b.startsFrom){
-    const checkYear=p?(p.endY!==undefined?p.endY:p.calY):viewYear;
-    if(checkYear<b.startsFrom) return true;
+    // Plain number: year-only granularity (available from Jan 1 of that year).
+    // {y,m} object: mirrors expiresAfter's month form, for benefits that
+    // start mid-year (e.g. a new credit effective a specific month).
+    if(typeof b.startsFrom==='object'){
+      if(p&&p.calM!==undefined){
+        const startAbs=b.startsFrom.y*12+b.startsFrom.m;
+        if(p.calY*12+p.calM<startAbs) return true;
+      }else{
+        const checkYear=p?(p.endY!==undefined?p.endY:p.calY):viewYear;
+        if(checkYear<b.startsFrom.y) return true;
+      }
+    }else{
+      const checkYear=p?(p.endY!==undefined?p.endY:p.calY):viewYear;
+      if(checkYear<b.startsFrom) return true;
+    }
   }
   if(b.halfStart!==undefined&&p!==undefined&&Math.floor(p.calM/6)<b.halfStart) return true;
   if(b.halfEnd!==undefined&&p!==undefined&&Math.floor(p.calM/6)>b.halfEnd) return true;
