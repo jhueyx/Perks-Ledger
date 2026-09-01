@@ -44,6 +44,23 @@
 </head>
 <body>
 
+<!-- TEMPORARY DIAGNOSTIC — not a fix, remove immediately after one reading.
+     Proves whether the DOM can paint at the true top edge in standalone
+     mode: if this red bar visually touches the physical top of the screen,
+     the page has access to that region (app bug). If a gap remains above
+     it, that region is outside the page's paintable viewport entirely
+     (WebKit bug 301994) — nothing at any z-index could reach past it. -->
+<div id="diagTopBar" style="position:fixed;top:0;left:0;right:0;height:44px;background:#ff0000;color:#fff;font:11px monospace;display:flex;align-items:center;justify-content:center;z-index:2147483647;text-align:center;padding:0 8px;"></div>
+<script>
+(function(){
+  var d=document.getElementById('diagTopBar');
+  if(d){
+    var vv=window.visualViewport?Math.round(window.visualViewport.height):'n/a';
+    d.textContent='DIAG innerH='+window.innerHeight+' screenH='+screen.height+' vvH='+vv;
+  }
+})();
+</script>
+
 <!-- Auth screen (replaces password splash) -->
 <div class="splash hidden" id="splash">
   <div class="splash-card" style="max-width:360px;width:100%">
