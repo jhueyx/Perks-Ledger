@@ -896,6 +896,7 @@ function toggleDark(){
     :`<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M13.5 9.5A6 6 0 0 1 6.5 2.5a6 6 0 1 0 7 7z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   document.getElementById('darkLabel').textContent=newTheme==='dark'?'Light':'Dark';
   document.getElementById('darkToggle')?.setAttribute('aria-pressed',newTheme==='dark'?'true':'false');
+  document.getElementById('themeColorMeta')?.setAttribute('content',newTheme==='dark'?'#111210':'#F5F3EF');
   localStorage.setItem('perks-theme',newTheme);
 }
 

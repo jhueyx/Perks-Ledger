@@ -159,6 +159,13 @@
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
+  /* Explicit html background (in addition to body's) so the iOS safe-area /
+     status-bar strip and overscroll-bounce region composite the correct
+     theme color instead of relying solely on background propagation. */
+  html {
+    background: var(--bg);
+  }
+
   body {
     font-family: var(--font);
     background: var(--bg);

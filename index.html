@@ -18,14 +18,21 @@
 <meta name="apple-mobile-web-app-title" content="Perks Ledger">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link rel="icon" type="image/x-icon" href="favicon.ico">
+
+<!-- Theme color: kept in sync with data-theme below (and by toggleDark() at
+     runtime) so the iOS status-bar/safe-area chrome always matches --bg
+     instead of a hardcoded dark value that would go stale in light mode. -->
+<meta name="theme-color" id="themeColorMeta" content="#F5F3EF">
 <script>
-  (function(){var t=localStorage.getItem('perks-theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');})();
+  (function(){
+    var t=localStorage.getItem('perks-theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+    if(t==='dark')document.documentElement.setAttribute('data-theme','dark');
+    var m=document.getElementById('themeColorMeta');
+    if(m)m.setAttribute('content', t==='dark' ? '#111210' : '#F5F3EF');
+  })();
 </script>
 <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-
-<!-- Theme color -->
-<meta name="theme-color" content="#1A1714">
 
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css?v=202608310825">
