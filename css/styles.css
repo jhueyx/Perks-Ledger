@@ -172,7 +172,12 @@
     color: var(--text);
     min-height: 100vh;
     padding: 0;
+    /* This is a mobile app (installed PWA) — no need for a visible
+       scrollbar indicator on the main page scroll, matching the same
+       treatment already used for .card-selector and .ach-recent-strip. */
+    scrollbar-width: none;
   }
+  body::-webkit-scrollbar { display: none; }
 
   .app-header {
     /* Flat, matching html/body's var(--bg) exactly — no translucent blur —
