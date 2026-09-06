@@ -978,7 +978,7 @@ function buildHeatmapHTML(){
         monthData[rdMonth].items.push({name:bName(cardKey,b)||b.label||'Benefit',amount:amt,claimed:used,id:b.id,pk});
       };
       if(cadence==='monthly'){
-        for(let m=0;m<12;m++){ const pk=`${CY}-m${m}`; s.benefits.forEach(b=>{ if(isBNotAvailable(b,CY)||isBExpired(b,{calY:CY,calM:m,m})) return; addAmt(m,b,pk); }); }
+        for(let m=0;m<12;m++){ const pk=`${CY}-m${m}`; s.benefits.forEach(b=>{ if(isBNotAvailable(b,CY,{calY:CY,calM:m})||isBExpired(b,{calY:CY,calM:m,m})) return; addAmt(m,b,pk); }); }
       } else if(cadence==='quarterly'){
         [[2,0],[5,1],[8,2],[11,3]].forEach(([displayM,q])=>{ const pk=`${CY}-q${q}`; s.benefits.forEach(b=>{ if(isBNotAvailable(b,CY)) return; addAmt(displayM,b,pk); }); });
       } else if(cadence==='cal-semi-annual'){
