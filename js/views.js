@@ -1240,7 +1240,7 @@ export function renderRecap(){
       });
     });
   });
-  const totalRedeemed=getAllPointsRedeemedYTD(year);
+  const totalRedeemed=getAllPointsRedeemedYTD(year,CARD_KEYS);
   const totalValueAllIn=totalCaptured+totalRedeemed;
   const effectiveFees=totalFees-totalValueAllIn;
   const feeCoverageRate=totalFees>0?Math.min(100,Math.round(totalValueAllIn/totalFees*100)):0;
@@ -1868,7 +1868,7 @@ export function renderWrap(){
     if(r>bestPointsCard.redeemed) bestPointsCard={key:k,redeemed:r};
   });
 
-  const totalRedeemed=getAllPointsRedeemedYTD(CY);
+  const totalRedeemed=getAllPointsRedeemedYTD(CY,keys);
   const totalValueAllIn=totalCaptured+totalRedeemed;
   const netValue=totalValueAllIn-totalFees;
   const inProfit=netValue>=0;
@@ -2301,7 +2301,7 @@ export function renderPointsRedemptions(){
   const CARD_KEYS=getVisibleCardKeys();
   const yr=window._ptsRY||CY;
   const isPrior=yr<CY;
-  const totalYTD=getAllPointsRedeemedYTD(yr);
+  const totalYTD=getAllPointsRedeemedYTD(yr,CARD_KEYS);
 
   // Year selector tabs
   const availableYears=[CY-1,CY];
@@ -2326,10 +2326,12 @@ export function renderPointsRedemptions(){
     <div style="font-size:11px;font-family:var(--mono);color:var(--text-tertiary);margin-top:6px">Log what you actually redeemed each month, and tag where it came from. Tagging a welcome bonus keeps it out of the recurring-value figures in the Detailed Report.</div>
   </div>`;
 
-  // Build months list: prior year = all 12 months; current year = 0..CM — newest first
+  // Build months list: always all 12, newest first. Current-year months past
+  // CM are filtered out below unless they already hold a value — otherwise a
+  // redemption mistakenly logged against a future month would count in every
+  // total above but never appear as an editable row to fix or clear.
   const months=[];
-  const maxM=isPrior?11:CM;
-  for(let m=maxM;m>=0;m--){
+  for(let m=11;m>=0;m--){
     months.push({year:yr,month:m});
   }
 
@@ -2347,7 +2349,10 @@ export function renderPointsRedemptions(){
     // Months before the card existed cannot have redemptions. Still shown if a
     // value is already recorded there, so a mistaken entry stays visible and
     // can be cleared rather than becoming orphaned data the UI hides.
-    const visible=months.filter(({year,month})=>wasCardHeld(cardKey,year,month)||byMonth[`${year}-${month}`]);
+    const visible=months.filter(({year,month})=>{
+      const isFuture=!isPrior&&month>CM;
+      return (wasCardHeld(cardKey,year,month)&&!isFuture)||byMonth[`${year}-${month}`];
+    });
     if(!visible.length){
       const {from}=cardHeldRange(cardKey);
       const opened=from!==null?`${MONTHS[from%12]} ${Math.floor(from/12)}`:'later';
@@ -2358,10 +2363,11 @@ export function renderPointsRedemptions(){
       const mk=`${year}-${month}`;
       const amt=(byMonth[mk]||0);
       const held=wasCardHeld(cardKey,year,month);
+      const isFuture=!isPrior&&month>CM;
       const isCurrent=!isPrior&&month===CM;
       const monthLabel=`${MONTHS[month]} ${year}`;
       html+=`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border-light)">
-        <div style="width:68px;flex-shrink:0;font-size:11px;font-family:var(--mono);color:${isCurrent?'var(--text)':'var(--text-tertiary)'};font-weight:${isCurrent?'600':'400'}">${monthLabel}${held?'':`<span title="Card was not open this month" style="color:var(--red);margin-left:3px">!</span>`}</div>
+        <div style="width:68px;flex-shrink:0;font-size:11px;font-family:var(--mono);color:${isCurrent?'var(--text)':'var(--text-tertiary)'};font-weight:${isCurrent?'600':'400'}">${monthLabel}${isFuture?`<span title="This month hasn't happened yet" style="color:var(--red);margin-left:3px">!</span>`:held?'':`<span title="Card was not open this month" style="color:var(--red);margin-left:3px">!</span>`}</div>
         <div style="display:flex;align-items:center;gap:4px;flex:1">
           <span style="font-size:12px;color:var(--text-tertiary);font-family:var(--mono)">$</span>
           <input type="number" min="0" step="0.01" placeholder="0.00"

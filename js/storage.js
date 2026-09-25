@@ -440,10 +440,15 @@ export function getPointsRedeemedYTD(cardKey,year){
   const byMonth=loadPointsRedeemed()[cardKey]||{};
   return Object.entries(byMonth).filter(([k])=>k.startsWith(`${year}-`)).reduce((s,[,v])=>s+v,0);
 }
-export function getAllPointsRedeemedYTD(year){
+// cardKeys, when given, restricts the sum to those cards (visible cards).
+// Without it, a card removed from the user's profile would keep contributing
+// to this total forever with no per-card row left to see or clear it.
+export function getAllPointsRedeemedYTD(year,cardKeys){
   const d=loadPointsRedeemed();
+  const keys=cardKeys||Object.keys(d);
   let total=0;
-  Object.values(d).forEach(byMonth=>{
+  keys.forEach(cardKey=>{
+    const byMonth=d[cardKey]||{};
     Object.entries(byMonth).filter(([k])=>k.startsWith(`${year}-`)).forEach(([,v])=>{ total+=v; });
   });
   return total;
