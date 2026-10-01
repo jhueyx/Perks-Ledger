@@ -12,7 +12,7 @@ import {
   getFeeOverrides, saveFeeOverridesData, getCardFeeMonth, getCardFeeDay,
   setSnoozedBenefit, isGloballySnoozed, isUsed,
   loadCardMeta, setCardOpenedDate,
-  setPointsRedeemed, setPointsSource
+  setPointsRedeemed, setPointsSource, saveToStorage
 } from './storage.js';
 import { render, getVisibleCardKeys, renderCurrent, renderRecap, haptic, checkAllClaimed, animateCounters, renderFeeOptimizer, buildAdvisorContext, buildCardChooserContext, formatAdvisorMarkdown, computeAlerts, renderPointsRedemptions, VIEW_GROUPS, VIEW_GROUP_OF, GROUP_ENTRY } from './views.js';
 import { checkBadges, getEarnedBadges, getEarnedAt, getUnseenBadges, markAllSeen, BADGE_DEFS, getApplicableBadgeDefs, TIER_COLORS } from './badges.js';
@@ -2245,11 +2245,22 @@ if('serviceWorker' in navigator&&location.hostname!=='www.claudeusercontent.com'
 // e.g. marking a benefit "used" right after midnight would record it under
 // the wrong month. Reloading on the actual date change is far lower-risk
 // than threading a live clock through every one of the ~300 call sites.
-document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='visible'&&new Date().toDateString()!==NOW.toDateString()){
-    window.location.reload();
-  }
-});
+// visibilitychange alone misses a desktop tab left in the foreground overnight
+// (it never goes hidden), which kept showing the previous quarter as current —
+// so also check on focus/pageshow and once a minute.
+let _rolloverReloading=false;
+async function checkDayRollover(){
+  if(_rolloverReloading||document.visibilityState!=='visible'||new Date().toDateString()===NOW.toDateString()) return;
+  _rolloverReloading=true;
+  // Don't drop a toggle still sitting in the 600ms save debounce.
+  clearTimeout(state.saveTimer);
+  try{ await saveToStorage(); }catch(e){}
+  window.location.reload();
+}
+document.addEventListener('visibilitychange',checkDayRollover);
+window.addEventListener('focus',checkDayRollover);
+window.addEventListener('pageshow',checkDayRollover);
+setInterval(checkDayRollover,60000);
 
 // ── iOS PWA standalone mode ──────────────────────────────────────────────
 if(window.navigator.standalone===true||window.matchMedia('(display-mode:standalone)').matches){
