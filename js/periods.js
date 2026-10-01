@@ -115,9 +115,23 @@ export function isYTDCurrent(cadence,p){
   if(cadence==='feb-annual'){ const s=p.calY*12+1,e=(p.endY||p.calY+1)*12+(p.endM!==undefined?p.endM:0),n=CY*12+CM; return n>=s&&n<=e; }
   return false;
 }
+// Calendar-cadence period containing today. Card-year periods are built from
+// the 12 months starting at the last anniversary, so between the 1st of the
+// fee month and the fee day today sits just past that window (e.g. Oct 1 with
+// an Oct 14 renewal) and the current quarter/half/month isn't in the list.
+// Falling back to the previous period there showed last quarter's claimed
+// credits as this quarter's.
+function calendarCurrentPeriod(cadence){
+  if(cadence==='monthly') return {pk:getPK(cadence,CM,CY),lbl:MONTHS[CM]};
+  if(cadence==='quarterly') return {pk:getPK(cadence,CM,CY),lbl:`Q${Math.floor(CM/3)+1}`};
+  if(cadence==='cal-semi-annual') return {pk:getPK(cadence,CM,CY),lbl:CM<6?`Jan–Jun ${CY}`:`Jul–Dec ${CY}`};
+  return null;
+}
 export function getCurrentPK(cardKey,cadence){
   const ps=getCardYearPeriods(cardKey,cadence);
   for(const p of ps){if(isPCurrent(cadence,p)) return p.pk;}
+  const cal=calendarCurrentPeriod(cadence);
+  if(cal) return cal.pk;
   let last=null; for(const p of ps){if(!isPFuture(p)) last=p;}
   return last?last.pk:ps[0].pk;
 }
@@ -125,7 +139,7 @@ export function getCurrentLabel(cardKey,cadence){
   if(cadence==='monthly') return `${MONTHS_FULL[CM]} ${CY}`;
   const ps=getCardYearPeriods(cardKey,cadence);
   for(const p of ps){if(isPCurrent(cadence,p)) return p.lbl+(p.endM!==undefined&&!p.lbl.includes('–')?` (${MONTHS[p.calM]}–${MONTHS[p.endM]})`:'');}
-  return '';
+  return calendarCurrentPeriod(cadence)?.lbl||'';
 }
 
 export function getBAmount(b,p){ return (b.decAmount&&p.m===11)?b.decAmount:b.amount; }
