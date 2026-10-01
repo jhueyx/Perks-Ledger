@@ -12,7 +12,8 @@ import {
   getFeeOverrides, saveFeeOverridesData, getCardFeeMonth, getCardFeeDay,
   setSnoozedBenefit, isGloballySnoozed, isUsed,
   loadCardMeta, setCardOpenedDate,
-  setPointsRedeemed, setPointsSource, saveToStorage
+  setPointsRedeemed, setPointsSource, saveToStorage,
+  loadPointsBalances, savePointsBalances, loadPointsValuations, savePointsValuations
 } from './storage.js';
 import { render, getVisibleCardKeys, renderCurrent, renderRecap, haptic, checkAllClaimed, animateCounters, renderFeeOptimizer, buildAdvisorContext, buildCardChooserContext, formatAdvisorMarkdown, computeAlerts, renderPointsRedemptions, VIEW_GROUPS, VIEW_GROUP_OF, GROUP_ENTRY } from './views.js';
 import { checkBadges, getEarnedBadges, getEarnedAt, getUnseenBadges, markAllSeen, BADGE_DEFS, getApplicableBadgeDefs, TIER_COLORS } from './badges.js';
@@ -2345,17 +2346,18 @@ function markAlertsSeen(){
 
 // ── Points balance helpers ─────────────────────────────────────────────────
 window.savePointsBalance=function(progId,value){
-  const data=JSON.parse(localStorage.getItem('perks-points-balances')||'{}');
+  const data=loadPointsBalances();
   const v=parseFloat(value)||0;
   if(v>0) data[progId]=v; else delete data[progId];
-  localStorage.setItem('perks-points-balances',JSON.stringify(data));
+  savePointsBalances(data);
   scheduleSave();
 };
 window.savePointsValuation=function(progId,value){
-  const data=JSON.parse(localStorage.getItem('perks-points-valuations')||'{}');
+  const data=loadPointsValuations();
   const v=parseFloat(value);
   if(v>0) data[progId]=v; else delete data[progId];
-  localStorage.setItem('perks-points-valuations',JSON.stringify(data));
+  savePointsValuations(data);
+  scheduleSave();
 };
 
 window.savePointsSourceEntry=function(cardKey,monthKey,source){

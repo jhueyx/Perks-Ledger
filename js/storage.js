@@ -33,10 +33,10 @@ export async function syncFromSupabase(){
       const localTs=localStorage.getItem(STORAGE_KEY+'-ts-'+state.currentUser.id);
       if(localTs&&data.updated_at&&new Date(data.updated_at)<=new Date(localTs)) return;
       const raw=data.data;
-      const remoteExtras={_customAmounts:raw._customAmounts||{},_customNames:raw._customNames||{},_partial:raw._partial||{},_notes:raw._notes||{},_credited:raw._credited||{},_skipped:raw._skipped||{},_feeOverrides:raw._feeOverrides||{},_snoozed:raw._snoozed||{},_cardOrder:raw._cardOrder||[],_cardMeta:raw._cardMeta||{},_badges:raw._badges||{},_redemptionMonths:raw._redemptionMonths||{},_pointsRedeemed:raw._pointsRedeemed||{},_pointsSources:raw._pointsSources||{}};
+      const remoteExtras={_customAmounts:raw._customAmounts||{},_customNames:raw._customNames||{},_partial:raw._partial||{},_notes:raw._notes||{},_credited:raw._credited||{},_skipped:raw._skipped||{},_feeOverrides:raw._feeOverrides||{},_snoozed:raw._snoozed||{},_cardOrder:raw._cardOrder||[],_cardMeta:raw._cardMeta||{},_badges:raw._badges||{},_redemptionMonths:raw._redemptionMonths||{},_pointsRedeemed:raw._pointsRedeemed||{},_pointsSources:raw._pointsSources||{},_pointsBalances:raw._pointsBalances||{},_pointsValuations:raw._pointsValuations||{}};
       const benefitData={...raw};
-      delete benefitData._customAmounts; delete benefitData._customNames; delete benefitData._partial; delete benefitData._notes; delete benefitData._credited; delete benefitData._skipped; delete benefitData._feeOverrides; delete benefitData._snoozed; delete benefitData._cardOrder; delete benefitData._cardMeta; delete benefitData._badges; delete benefitData._redemptionMonths; delete benefitData._pointsRedeemed; delete benefitData._pointsSources;
-      const localExtras={_customAmounts:loadCustomAmounts(),_customNames:loadCustomNames(),_partial:loadPartial(),_notes:loadNotes(),_credited:loadCredited(),_skipped:loadSkipped(),_feeOverrides:getFeeOverrides(),_snoozed:loadSnoozed(),_cardOrder:JSON.parse(localStorage.getItem('perks-card-order')||'[]'),_cardMeta:loadCardMeta(),_badges:loadBadges(),_redemptionMonths:loadRedemptionMonths(),_pointsRedeemed:loadPointsRedeemed(),_pointsSources:loadPointsSources()};
+      delete benefitData._customAmounts; delete benefitData._customNames; delete benefitData._partial; delete benefitData._notes; delete benefitData._credited; delete benefitData._skipped; delete benefitData._feeOverrides; delete benefitData._snoozed; delete benefitData._cardOrder; delete benefitData._cardMeta; delete benefitData._badges; delete benefitData._redemptionMonths; delete benefitData._pointsRedeemed; delete benefitData._pointsSources; delete benefitData._pointsBalances; delete benefitData._pointsValuations;
+      const localExtras={_customAmounts:loadCustomAmounts(),_customNames:loadCustomNames(),_partial:loadPartial(),_notes:loadNotes(),_credited:loadCredited(),_skipped:loadSkipped(),_feeOverrides:getFeeOverrides(),_snoozed:loadSnoozed(),_cardOrder:JSON.parse(localStorage.getItem('perks-card-order')||'[]'),_cardMeta:loadCardMeta(),_badges:loadBadges(),_redemptionMonths:loadRedemptionMonths(),_pointsRedeemed:loadPointsRedeemed(),_pointsSources:loadPointsSources(),_pointsBalances:loadPointsBalances(),_pointsValuations:loadPointsValuations()};
       const changed=JSON.stringify(benefitData)!==JSON.stringify(state.DATA)||JSON.stringify(remoteExtras)!==JSON.stringify(localExtras);
       // Record the baseline on every confirmed read, changed or not — it is
       // what diffPayload() measures "what this device changed" against.
@@ -53,7 +53,7 @@ export async function syncFromSupabase(){
 // Write a whole tracker_data payload into `state` and localStorage. Shared by
 // the pull path and by the rebase inside saveToStorage(), so the two cannot
 // drift apart on which extras they know about.
-export const PAYLOAD_EXTRAS=['_customAmounts','_customNames','_partial','_notes','_credited','_skipped','_feeOverrides','_snoozed','_cardOrder','_cardMeta','_badges','_redemptionMonths','_pointsRedeemed','_pointsSources'];
+export const PAYLOAD_EXTRAS=['_customAmounts','_customNames','_partial','_notes','_credited','_skipped','_feeOverrides','_snoozed','_cardOrder','_cardMeta','_badges','_redemptionMonths','_pointsRedeemed','_pointsSources','_pointsBalances','_pointsValuations'];
 export function applyPayloadLocally(raw){
   const x=k=>raw[k]||(k==='_cardOrder'?[]:{});
   const benefitData={...raw};
@@ -74,6 +74,8 @@ export function applyPayloadLocally(raw){
   if(Object.keys(x('_redemptionMonths')).length) saveRedemptionMonths(x('_redemptionMonths'));
   if(Object.keys(x('_pointsRedeemed')).length) savePointsRedeemedData(x('_pointsRedeemed'));
   if(Object.keys(x('_pointsSources')).length) savePointsSourcesData(x('_pointsSources'));
+  if(Object.keys(x('_pointsBalances')).length) savePointsBalances(x('_pointsBalances'));
+  if(Object.keys(x('_pointsValuations')).length) savePointsValuations(x('_pointsValuations'));
 }
 
 // ── Pending cloud writes ───────────────────────────────────────────────────
@@ -170,7 +172,7 @@ async function _doSave(){
     localStorage.setItem(STORAGE_KEY+'-'+state.currentUser.id,JSON.stringify(state.DATA));
   }catch(e){}
   try{
-    let payload={...state.DATA,_customAmounts:loadCustomAmounts(),_customNames:loadCustomNames(),_partial:loadPartial(),_notes:loadNotes(),_credited:loadCredited(),_skipped:loadSkipped(),_feeOverrides:getFeeOverrides(),_snoozed:loadSnoozed(),_cardOrder:JSON.parse(localStorage.getItem('perks-card-order')||'[]'),_cardMeta:loadCardMeta(),_badges:loadBadges(),_redemptionMonths:loadRedemptionMonths(),_pointsRedeemed:loadPointsRedeemed(),_pointsSources:loadPointsSources()};
+    let payload={...state.DATA,_customAmounts:loadCustomAmounts(),_customNames:loadCustomNames(),_partial:loadPartial(),_notes:loadNotes(),_credited:loadCredited(),_skipped:loadSkipped(),_feeOverrides:getFeeOverrides(),_snoozed:loadSnoozed(),_cardOrder:JSON.parse(localStorage.getItem('perks-card-order')||'[]'),_cardMeta:loadCardMeta(),_badges:loadBadges(),_redemptionMonths:loadRedemptionMonths(),_pointsRedeemed:loadPointsRedeemed(),_pointsSources:loadPointsSources(),_pointsBalances:loadPointsBalances(),_pointsValuations:loadPointsValuations()};
     // If another device wrote while this one was queued, rebase onto that row
     // instead of overwriting it: take the remote as the base and re-apply only
     // the entries this device actually changed since its last confirmed sync.
@@ -426,6 +428,14 @@ export function getPointsRedeemed(cardKey,yearMonth){ return (loadPointsRedeemed
 // User-declared only: the app has no way to know, and a first-year welcome
 // bonus must never be presented as recurring annual value. Key: cardKey__YYYY-M
 const POINTS_SOURCES_KEY='perks-points-sources';
+// Points balances / valuations (Points tab). Synced as _pointsBalances /
+// _pointsValuations; these used to be localStorage-only, so the iOS PWA and the
+// browser each kept their own numbers.
+const POINTS_BALANCES_KEY='perks-points-balances', POINTS_VALUATIONS_KEY='perks-points-valuations';
+export function loadPointsBalances(){ try{ return JSON.parse(localStorage.getItem(POINTS_BALANCES_KEY)||'{}'); }catch(e){ return {}; } }
+export function savePointsBalances(d){ try{ localStorage.setItem(POINTS_BALANCES_KEY,JSON.stringify(d)); }catch(e){} }
+export function loadPointsValuations(){ try{ return JSON.parse(localStorage.getItem(POINTS_VALUATIONS_KEY)||'{}'); }catch(e){ return {}; } }
+export function savePointsValuations(d){ try{ localStorage.setItem(POINTS_VALUATIONS_KEY,JSON.stringify(d)); }catch(e){} }
 export function loadPointsSources(){ try{ return JSON.parse(localStorage.getItem(POINTS_SOURCES_KEY)||'{}'); }catch(e){ return {}; } }
 export function savePointsSourcesData(d){ localStorage.setItem(POINTS_SOURCES_KEY,JSON.stringify(d)); }
 export function getPointsSource(cardKey,yearMonth){ return loadPointsSources()[`${cardKey}__${yearMonth}`]||''; }

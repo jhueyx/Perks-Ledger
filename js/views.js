@@ -1,6 +1,6 @@
 import { CARDS, MONTHS, MONTHS_FULL, CARD_LABELS, CARD_SHORT_LABELS, CARD_CLS, BENEFIT_CATEGORIES, POINTS_PROGRAMS, PREMIUM_CARD_CATALOG, POINTS_MULTIPLIERS } from './cards.js';
 import { state, CY, CM, escapeHtml } from './state.js';
-import { isUsed, isCredited, toggleCredited, getEffectiveAmount, bName, getNote, getPartialUsed, loadNotes, saveNotes, getNoteKey, isSkipped, isGloballySnoozed, isMonthSnoozed, getSnoozedUntil, getCardFeeMonth, getCardFeeDay, countSkipped, clearAllSkipped, loadSkipped, loadPointsRedeemed, getPointsRedeemedYTD, getAllPointsRedeemedYTD, getPointsSource } from './storage.js';
+import { isUsed, isCredited, toggleCredited, getEffectiveAmount, bName, getNote, getPartialUsed, loadNotes, saveNotes, getNoteKey, isSkipped, isGloballySnoozed, isMonthSnoozed, getSnoozedUntil, getCardFeeMonth, getCardFeeDay, countSkipped, clearAllSkipped, loadSkipped, loadPointsRedeemed, getPointsRedeemedYTD, getAllPointsRedeemedYTD, getPointsSource, loadPointsBalances, loadPointsValuations } from './storage.js';
 import {
   getCardYearStart, getCardYearPeriods, getYTDPeriods, isPFuture, isPCurrent, isYTDCurrent,
   getCurrentPK, getCurrentLabel, getBAmount, getFee, isBExpired, isBNotAvailable,
@@ -520,8 +520,8 @@ export function renderNetValue(){
   const CARD_KEYS=getVisibleCardKeys();
 
   // ── Points balance (computed upfront so it feeds the hero) ─────────────
-  const ptsBalances=JSON.parse(localStorage.getItem('perks-points-balances')||'{}');
-  const ptsVals=JSON.parse(localStorage.getItem('perks-points-valuations')||'{}');
+  const ptsBalances=loadPointsBalances();
+  const ptsVals=loadPointsValuations();
   const cardKeySet=new Set(CARD_KEYS);
   const activeProgs=Object.entries(POINTS_PROGRAMS).filter(([,p])=>p.cards.some(c=>cardKeySet.has(c)));
   let totalPtsVal=0, progRows='';
