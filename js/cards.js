@@ -43,10 +43,10 @@ export const CARDS={
   ]},
   csr:{name:'Chase Sapphire Reserve',fee:795,historicalFees:{2025:550},feeMonth:4,feeDay:1,sections:[
     {label:'Monthly',cadence:'monthly',benefits:[
-      {id:'c_dd_restaurant',name:'DoorDash Restaurant Credit',desc:'$5 promo for restaurant orders (DashPass required)',amount:5},
+      {id:'c_dd_restaurant',name:'DoorDash Restaurant Credit',desc:'$5 promo for restaurant orders (DashPass required). Replaced by the $15 all-order credit Oct 2026.',amount:5,expiresAfter:{y:2026,m:8}},
       {id:'c_dd_nonrest1',name:'DoorDash $10 Grocery Credit',desc:'$10 promo for grocery, convenience, etc',amount:10},
       {id:'c_dd_nonrest2',name:'DoorDash $10 Grocery Credit',desc:'$10 promo for grocery, convenience, etc',amount:10},
-      {id:'c_dd_all',name:'DoorDash All-Order Credit',desc:'$15/mo on any eligible DoorDash order — restaurant, grocery, or retail (from Oct 2026)',amount:15,startsFrom:{y:2026,m:9}},
+      {id:'c_dd_all',name:'DoorDash All-Order Credit',desc:'$15/mo on any eligible DoorDash order — restaurant, grocery, or retail (replaces the $5 restaurant promo from Oct 2026)',amount:15,startsFrom:{y:2026,m:9}},
       {id:'c_lyft',name:'Lyft Credit',desc:'Monthly in-app credit for rides (through Sep 2027)',amount:10,startsFrom:2025,expiresAfter:{y:2027,m:8}},
       {id:'c_peloton',name:'Peloton Credit',desc:'Toward eligible Peloton memberships',amount:10,startsFrom:2025},
     ]},
@@ -216,7 +216,7 @@ export const BENEFIT_CATEGORIES={
   p_uber:'travel', p_digital:'entertainment', p_walmart:'shopping',
   p_resy:'dining', p_lulu:'shopping', p_hotel:'travel', p_saks:'shopping',
   p_airline:'travel', p_equinox:'fitness', p_ge:'travel', p_clear:'travel', p_uberone:'travel', p_oura:'fitness',
-  c_dd_restaurant:'dining', c_dd_nonrest1:'shopping', c_dd_nonrest2:'shopping',
+  c_dd_restaurant:'dining', c_dd_all:'dining', c_dd_nonrest1:'shopping', c_dd_nonrest2:'shopping',
   c_lyft:'travel', c_peloton:'fitness', c_dining:'dining', c_stub:'entertainment',
   c_travel:'travel', c_edit1:'travel', c_edit2:'travel', c_ge:'travel', c_selecthotel:'travel',
   c_apple:'entertainment',

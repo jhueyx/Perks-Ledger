@@ -341,7 +341,8 @@ export function checkBadges(){
     const pks=new Set(Object.entries(d).filter(([,v])=>v).map(([k])=>k.split('__')[1]));
     return [...pks].some(pk=>ids.every(id=>d[`${id}__${pk}`]===true));
   };
-  const csrMonthFull=monthSweep('csr',['c_dd_restaurant','c_lyft','c_peloton']);
+  // The $15 all-order credit replaced the $5 restaurant one in Oct 2026.
+  const csrMonthFull=monthSweep('csr',['c_dd_restaurant','c_lyft','c_peloton'])||monthSweep('csr',['c_dd_all','c_lyft','c_peloton']);
   const goldMonthFull=monthSweep('gold',['g_dining','g_uber','g_dunkin']);
   const platMonthFull=monthSweep('platinum',['p_uber','p_digital','p_walmart']);
   const platHotelCount=Object.entries(state.DATA['platinum']||{}).filter(([k,v])=>v&&k.startsWith('p_hotel__')).length;
@@ -429,7 +430,7 @@ export function checkBadges(){
         const st=getLongestStreak(ck,b.id);
         if(st>maxStreak) maxStreak=st;
         if(['g_uber','p_uber'].includes(b.id)&&st>uberMaxStreak) uberMaxStreak=st;
-        if(['c_dd_restaurant','c_dd_nonrest1','c_dd_nonrest2'].includes(b.id)&&st>ddMaxStreak) ddMaxStreak=st;
+        if(['c_dd_restaurant','c_dd_all','c_dd_nonrest1','c_dd_nonrest2'].includes(b.id)&&st>ddMaxStreak) ddMaxStreak=st;
         if(['g_dining'].includes(b.id)&&st>diningMaxStreak) diningMaxStreak=st;
       });
     });
@@ -459,13 +460,13 @@ export function checkBadges(){
 
     // Uber/DD ever used + total count
     if(['g_uber','p_uber'].some(id=>everUsed(ck,id))) uberEverUsed=true;
-    if(['c_dd_restaurant','c_dd_nonrest1','c_dd_nonrest2'].some(id=>everUsed(ck,id))) ddEverUsed=true;
+    if(['c_dd_restaurant','c_dd_all','c_dd_nonrest1','c_dd_nonrest2'].some(id=>everUsed(ck,id))) ddEverUsed=true;
     if(everUsed(ck,'c_lyft')) lyftUsed=true;
     const d=state.DATA[ck]||{};
     Object.entries(d).forEach(([k,v])=>{
       if(!v) return;
       if(k.startsWith('g_uber__')||k.startsWith('p_uber__')) uberTotalUses++;
-      if(k.startsWith('c_dd_restaurant__')||k.startsWith('c_dd_nonrest1__')||k.startsWith('c_dd_nonrest2__')) ddTotalUses++;
+      if(k.startsWith('c_dd_restaurant__')||k.startsWith('c_dd_all__')||k.startsWith('c_dd_nonrest1__')||k.startsWith('c_dd_nonrest2__')) ddTotalUses++;
     });
 
     // Wellness types
