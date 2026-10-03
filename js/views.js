@@ -1,6 +1,6 @@
 import { CARDS, MONTHS, MONTHS_FULL, CARD_LABELS, CARD_SHORT_LABELS, CARD_CLS, BENEFIT_CATEGORIES, POINTS_PROGRAMS, PREMIUM_CARD_CATALOG, POINTS_MULTIPLIERS } from './cards.js';
 import { state, CY, CM, escapeHtml } from './state.js';
-import { isUsed, isCredited, toggleCredited, getEffectiveAmount, bName, getNote, getPartialUsed, loadNotes, saveNotes, getNoteKey, isSkipped, isGloballySnoozed, isMonthSnoozed, getSnoozedUntil, getCardFeeMonth, getCardFeeDay, countSkipped, clearAllSkipped, loadSkipped, loadPointsRedeemed, getPointsRedeemedYTD, getAllPointsRedeemedYTD, getPointsSource, loadPointsBalances, loadPointsValuations } from './storage.js';
+import { isUsed, isCredited, toggleCredited, getEffectiveAmount, bName, getNote, getPartialUsed, loadNotes, saveNotes, getNoteKey, isSkipped, isGloballySnoozed, isMonthSnoozed, getSnoozedUntil, getCardFeeMonth, getCardFeeDay, countSkipped, clearAllSkipped, loadSkipped, loadPointsRedeemed, getPointsRedeemedYTD, getAllPointsRedeemedYTD, getPointsSource, loadPointsBalances, loadPointsValuations, loadAlertsSeen } from './storage.js';
 import {
   getCardYearStart, getCardYearPeriods, getYTDPeriods, isPFuture, isPCurrent, isYTDCurrent,
   getCurrentPK, getCurrentLabel, getBAmount, getFee, isBExpired, isBNotAvailable,
@@ -66,7 +66,10 @@ function groupTabsHTML(view){
   return `<nav class="group-tabs" aria-label="${VIEW_GROUPS[g].label} views">`+
     VIEW_GROUPS[g].tabs.map(t=>{
       const on=t.view===view;
-      return `<button class="group-tab${on?' active':''}"${on?' aria-current="page"':''} onclick="setActiveView('${t.view}')">${t.label}</button>`;
+      // The Changes tab carries the same unread dot as the Menu button, so the
+      // dot leads somewhere instead of disappearing into the Alerts group.
+      const dot=!on&&t.view==='benefit-alerts'&&unseenAlertCount()>0;
+      return `<button class="group-tab${on?' active':''}${dot?' has-unseen-alerts':''}"${on?' aria-current="page"':''} onclick="setActiveView('${t.view}')">${t.label}</button>`;
     }).join('')+`</nav>`;
 }
 
@@ -1947,6 +1950,11 @@ export function renderWrap(){
 }
 
 // ── Benefit Alerts ─────────────────────────────────────────────────────────
+export function unseenAlertCount(){
+  const seen=loadAlertsSeen();
+  return computeAlerts(new Set(getVisibleCardKeys())).filter(a=>!seen[a.id]).length;
+}
+
 export function computeAlerts(userKeySet){
   const alerts=[];
   [...userKeySet].forEach(k=>{

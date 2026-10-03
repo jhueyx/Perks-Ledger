@@ -12,7 +12,7 @@ import {
   isUsed, isSkipped, isMonthSnoozed, getPartialUsed, getNote,
   bName, getCardFeeMonth, getCardFeeDay, loadRedemptionMonths, getPointsRedeemedYTD,
   loadCustomAmounts, loadCustomNames, loadPartial, loadNotes, loadCredited,
-  loadSkipped, loadSnoozed, loadCardMeta, loadPointsRedeemed, getFeeOverrides, loadPointsSources, loadPointsBalances, loadPointsValuations,
+  loadSkipped, loadSnoozed, loadCardMeta, loadPointsRedeemed, getFeeOverrides, loadPointsSources, loadPointsBalances, loadPointsValuations, loadAlertsSeen,
   loadBadges,
 } from './storage.js';
 import {
@@ -554,6 +554,7 @@ export function buildJSONBackup(report) {
       pointsSources: loadPointsSources(),
       pointsBalances: loadPointsBalances(),
       pointsValuations: loadPointsValuations(),
+      alertsSeen: loadAlertsSeen(),
       feeOverrides: getFeeOverrides(),
       cardOrder: JSON.parse(localStorage.getItem('perks-card-order') || '[]'),
     },

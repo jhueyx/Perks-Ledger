@@ -2950,3 +2950,7 @@
     .card-btn:hover { transform: none; }
     .check-btn:active { transform: none; }
   }
+
+/* Unread benefit-alerts marker on the path to Alerts → Changes (drawer item,
+   Menu page pill, Changes tab); matches the bottom-bar .tab-alert-dot. */
+.has-unseen-alerts::after { content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: #ef4444; vertical-align: middle; flex-shrink: 0; }

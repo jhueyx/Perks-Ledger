@@ -13,9 +13,10 @@ import {
   setSnoozedBenefit, isGloballySnoozed, isUsed,
   loadCardMeta, setCardOpenedDate,
   setPointsRedeemed, setPointsSource, saveToStorage,
-  loadPointsBalances, savePointsBalances, loadPointsValuations, savePointsValuations
+  loadPointsBalances, savePointsBalances, loadPointsValuations, savePointsValuations,
+  loadAlertsSeen, saveAlertsSeen
 } from './storage.js';
-import { render, getVisibleCardKeys, renderCurrent, renderRecap, haptic, checkAllClaimed, animateCounters, renderFeeOptimizer, buildAdvisorContext, buildCardChooserContext, formatAdvisorMarkdown, computeAlerts, renderPointsRedemptions, VIEW_GROUPS, VIEW_GROUP_OF, GROUP_ENTRY } from './views.js';
+import { render, getVisibleCardKeys, renderCurrent, renderRecap, haptic, checkAllClaimed, animateCounters, renderFeeOptimizer, buildAdvisorContext, buildCardChooserContext, formatAdvisorMarkdown, computeAlerts, unseenAlertCount, renderPointsRedemptions, VIEW_GROUPS, VIEW_GROUP_OF, GROUP_ENTRY } from './views.js';
 import { checkBadges, getEarnedBadges, getEarnedAt, getUnseenBadges, markAllSeen, BADGE_DEFS, getApplicableBadgeDefs, TIER_COLORS } from './badges.js';
 import { calcStats, getCardYearPeriods, isPCurrent, getFee, getBAmount, getCurrentPK, isBExpired, isBNotAvailable } from './periods.js';
 import { openReportConfig, previewReport, openPrintableReport, downloadReportHTML, downloadReportMarkdown, downloadReportCSV, downloadReportJSON } from './report-view.js';
@@ -1126,7 +1127,7 @@ document.addEventListener('perks:benefit-toggled',e=>{
 document.addEventListener('perks:benefit-skipped',e=>{
   showUndo(e.detail.cardKey,e.detail.id,e.detail.pk,'skipped');
 });
-document.addEventListener('perks:rerender',()=>{ if(state.activeView!=='settings') render(); });
+document.addEventListener('perks:rerender',()=>{ if(state.activeView!=='settings') render(); updateAlertBadge(); });
 document.addEventListener('perks:benefit-toggled',()=>{ setTimeout(checkProfitConfetti,200); });
 document.addEventListener('perks:benefit-toggled',()=>{
   setTimeout(()=>{
@@ -2049,7 +2050,8 @@ function renderMore(){
   let html='<div class="more-grid">';
   items.forEach(item=>{
     const icon=_DRAWER_ICONS[item.view]||'';
-    html+=`<button class="more-pill" onclick="setActiveView('${item.view}')"><span class="more-pill-icon">${icon}</span><span>${item.label}</span></button>`;
+    const dot=item.view==='alerts'&&unseenAlertCount()>0;
+    html+=`<button class="more-pill${dot?' has-unseen-alerts':''}"${item.view==='alerts'?' data-alerts-dot':''} onclick="setActiveView('${item.view}')"><span class="more-pill-icon">${icon}</span><span>${item.label}</span></button>`;
   });
   html+='</div>';
   document.getElementById('main').innerHTML=html;
@@ -2332,15 +2334,23 @@ function updateMonthTabLabel(){
 window.setPeriodOffset=(offset)=>{ state._periodOffset=offset; updateMonthTabLabel(); renderCurrent(); };
 
 // ── Alert badge ───────────────────────────────────────────────────────────
+// The unread dot marks the whole path to the alerts: the Menu tab, the Alerts
+// entry in the drawer and on the Menu page, and the Changes tab (views.js).
+// Only viewing Changes marks them seen.
 function updateAlertBadge(){
-  const seen=new Set(JSON.parse(localStorage.getItem('perks-alerts-seen')||'[]'));
-  const unseen=computeAlerts(new Set(getVisibleCardKeys())).filter(a=>!seen.has(a.id)).length;
+  const unseen=unseenAlertCount()>0;
   const dot=document.getElementById('alertBadgeDot');
-  if(dot) dot.style.display=unseen>0?'block':'none';
+  if(dot) dot.style.display=unseen?'block':'none';
+  document.querySelectorAll('[data-alerts-dot]').forEach(el=>el.classList.toggle('has-unseen-alerts',unseen));
 }
 function markAlertsSeen(){
-  const alerts=computeAlerts(new Set(getVisibleCardKeys()));
-  localStorage.setItem('perks-alerts-seen',JSON.stringify(alerts.map(a=>a.id)));
+  const seen=loadAlertsSeen();
+  const fresh=computeAlerts(new Set(getVisibleCardKeys())).filter(a=>!seen[a.id]);
+  if(fresh.length){
+    fresh.forEach(a=>{ seen[a.id]=true; });
+    saveAlertsSeen(seen);
+    scheduleSave();   // sync so the other devices clear their dot too
+  }
   updateAlertBadge();
 }
 
