@@ -1,5 +1,6 @@
 -- Run once in the Supabase SQL editor.
--- Sends background push every day at 16:00 UTC (~morning in the US).
+-- Runs every day at 16:00 UTC (~morning in the US). send-push itself only alerts
+-- in the last days of a month/quarter/half, once per period (push_sent_keys).
 
 select cron.schedule(
   'daily-perks-push',
