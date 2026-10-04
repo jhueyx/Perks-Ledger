@@ -33,6 +33,8 @@ interface DigestCache {
   annual?: BucketItem[];
   updated_at?: string;
 }
+// Mirrors the Settings → Notifications toggles; a missing key means on.
+type PushPrefs = { monthly?: boolean; quarterly?: boolean; semiannual?: boolean };
 type Payload = { title: string; body: string; url: string; tag: string };
 
 const DAY = 86400000;
@@ -58,11 +60,12 @@ function windows(now: Date) {
 
 // Returns a single notification covering every bucket that is in its expiry
 // window and has not been pushed yet this period, plus the period ids it covers.
-function buildPayload(cache: DigestCache, sent: string[], now: Date): { payload: Payload; ids: string[] } | null {
+function buildPayload(cache: DigestCache, sent: string[], prefs: PushPrefs, now: Date): { payload: Payload; ids: string[] } | null {
   // The cache only refreshes when the app is opened. One from an earlier period
   // describes benefits that have already reset, so it must not be announced.
   const cachedAt = cache.updated_at ? new Date(cache.updated_at) : null;
   const due = windows(now).filter(w =>
+    prefs[w.key] !== false &&
     w.daysLeft >= 0 && w.daysLeft <= w.thresh &&
     !sent.includes(w.id) &&
     cachedAt !== null && w.same(cachedAt) &&
@@ -91,7 +94,7 @@ Deno.serve(async () => {
   const now = new Date();
   const { data: profiles, error } = await supabase
     .from('user_profiles')
-    .select('user_id, digest_cache, push_sent_keys')
+    .select('user_id, digest_cache, push_sent_keys, push_prefs')
     .eq('push_enabled', true)
     .not('digest_cache', 'is', null);
 
@@ -101,7 +104,7 @@ Deno.serve(async () => {
 
   for (const profile of profiles ?? []) {
     const already = (profile.push_sent_keys ?? []) as string[];
-    const built = buildPayload((profile.digest_cache ?? {}) as DigestCache, already, now);
+    const built = buildPayload((profile.digest_cache ?? {}) as DigestCache, already, (profile.push_prefs ?? {}) as PushPrefs, now);
     if (!built) { skipped++; continue; }
 
     const { data: subs } = await supabase

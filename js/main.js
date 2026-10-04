@@ -923,6 +923,22 @@ function toggleNotifType(key,btn){
   const isOn=btn.classList.toggle('on');
   localStorage.setItem(key,isOn?'1':'0');
   if(key==='notif-perbenefit'&&isOn) firePerBenefitReminders();
+  if(key in PUSH_PREF_KEYS) savePushPrefs();
+}
+// The Monthly/Quarterly/Semi-annual toggles also gate background push. send-push
+// runs on the server and cannot see localStorage, so mirror them onto the
+// profile; a missing key means on, matching the toggles' default.
+const PUSH_PREF_KEYS={'notif-monthly':'monthly','notif-quarterly':'quarterly','notif-semiannual':'semiannual'};
+function buildPushPrefs(){
+  const prefs={};
+  for(const [k,bucket] of Object.entries(PUSH_PREF_KEYS)) prefs[bucket]=localStorage.getItem(k)!=='0';
+  return prefs;
+}
+async function savePushPrefs(){
+  const uid=state.currentUser&&state.currentUser.id;
+  if(!uid||uid==='demo') return;
+  const {error}=await sb.from('user_profiles').update({push_prefs:buildPushPrefs()}).eq('user_id',uid);
+  if(error) console.error('[push prefs]',error.message);
 }
 
 function scheduleMonthlyReminder(){
@@ -1038,7 +1054,7 @@ async function enablePush(){
     // The send-push function reads digest_cache to build payloads, so prime it here
     // (otherwise the user would only get pushes if Email Digest is also enabled).
     const cache=buildDigestCache();
-    const update={push_enabled:true};
+    const update={push_enabled:true,push_prefs:buildPushPrefs()};
     if(cache) update.digest_cache=cache;
     await sb.from('user_profiles').update(update).eq('user_id',uid);
   }
