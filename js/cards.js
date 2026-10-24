@@ -22,11 +22,12 @@ export const CARDS={
     ]},
     {label:'Semi-annual (calendar)',cadence:'cal-semi-annual',benefits:[
       {id:'p_saks',name:'Saks Fifth Avenue',desc:'At Saks stores or saks.com — resets Jan & Jul. Ends Jun 2026.',amount:50,expiresAfter:{y:2026,h:0},partial:true},
-      {id:'p_hotel',name:'Hotel Credit',desc:'Fine Hotels + Resorts or Hotel Collection, 2-night min — resets Jan & Jul',amount:300,partial:true},
+      {id:'p_hotel',name:'Lodging Credit',desc:'Fine Hotels + Resorts, Hotel Collection, or Airbnb Luxe via AmexTravel, 2-night min — resets Jan & Jul',amount:300,partial:true},
     ]},
     {label:'Annual (calendar year)',cadence:'cal-annual',benefits:[
       {id:'p_uberone',name:'Uber One Membership Credit',desc:'One-time credit for annual Uber One membership',amount:96,startsFrom:2025},
       {id:'p_airline',name:'Airline Fee Credit',desc:'Incidental fees with one selected airline',amount:200,partial:true},
+      {id:'p_airbnb_exp',name:'Airbnb Experiences Credit',desc:'Airbnb Experiences — unlocks after a confirmed prepaid Airbnb Luxe booking (link Airbnb account)',amount:250,startsFrom:2027,partial:true},
       {id:'p_equinox',name:'Equinox Credit',desc:'Equinox club or app membership',amount:300,partial:true},
       {id:'p_oura',name:'Oura Ring Credit',desc:'Hardware only via OURAring.com',amount:200,startsFrom:2025},
       {id:'p_ge',name:'Global Entry / TSA PreCheck',desc:'Statement credit every 4 years',amount:120},
@@ -214,7 +215,7 @@ export const BENEFIT_CATEGORIES={
   vx_travel:'travel', vx_anniv:'travel', vx_hotel:'travel', vx_ge:'travel',
   g_dining:'dining', g_uber:'dining', g_dunkin:'dining', g_resy:'dining', g_hotel:'travel',
   p_uber:'travel', p_digital:'entertainment', p_walmart:'shopping',
-  p_resy:'dining', p_lulu:'shopping', p_hotel:'travel', p_saks:'shopping',
+  p_resy:'dining', p_lulu:'shopping', p_hotel:'travel', p_airbnb_exp:'travel', p_saks:'shopping',
   p_airline:'travel', p_equinox:'fitness', p_ge:'travel', p_clear:'travel', p_uberone:'travel', p_oura:'fitness',
   c_dd_restaurant:'dining', c_dd_all:'dining', c_dd_nonrest1:'shopping', c_dd_nonrest2:'shopping',
   c_lyft:'travel', c_peloton:'fitness', c_dining:'dining', c_stub:'entertainment',
