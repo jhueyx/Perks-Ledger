@@ -92,7 +92,16 @@ function buildPayload(cache: DigestCache, sent: string[], prefs: PushPrefs, now:
   };
 }
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  // Only pg_cron may run this: it sends the shared secret from Supabase Vault
+  // (see supabase/cron_secret.sql), and the database checks it, so the value
+  // never lives in this function. verify_jwt stays off because cron has no JWT.
+  const { data: authorized, error: authErr } = await supabase.rpc('perks_check_cron_secret', {
+    candidate: req.headers.get('x-cron-secret'),
+  })
+  if (authErr || authorized !== true) {
+    return new Response(JSON.stringify({ error: 'forbidden' }), { status: 401 })
+  }
   const now = new Date();
   const { data: profiles, error } = await supabase
     .from('user_profiles')

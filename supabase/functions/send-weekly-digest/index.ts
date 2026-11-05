@@ -8,7 +8,16 @@ const supabase = createClient(
 const RESEND_KEY = Deno.env.get('RESEND_API_KEY')!;
 const FROM = 'Perks Ledger <digest@hueyventures.org>';
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  // Only pg_cron may run this: it sends the shared secret from Supabase Vault
+  // (see supabase/cron_secret.sql), and the database checks it, so the value
+  // never lives in this function. verify_jwt stays off because cron has no JWT.
+  const { data: authorized, error: authErr } = await supabase.rpc('perks_check_cron_secret', {
+    candidate: req.headers.get('x-cron-secret'),
+  })
+  if (authErr || authorized !== true) {
+    return new Response(JSON.stringify({ error: 'forbidden' }), { status: 401 })
+  }
   const { data: profiles, error } = await supabase
     .from('user_profiles')
     .select('user_id, digest_cache, digest_last_sent')
