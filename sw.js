@@ -1,4 +1,4 @@
-const CACHE_NAME = 'benefits-tracker-v84';
+const CACHE_NAME = 'benefits-tracker-v85';
 const ASSETS = [
   '/',
   '/index.html',
