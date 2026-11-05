@@ -1,12 +1,12 @@
 import { CARDS, MONTHS, MONTHS_FULL, CARD_LABELS, CARD_SHORT_LABELS, CARD_CLS, BENEFIT_CATEGORIES, POINTS_PROGRAMS, PREMIUM_CARD_CATALOG, POINTS_MULTIPLIERS } from './cards.js';
 import { state, CY, CM, escapeHtml } from './state.js';
-import { isUsed, isCredited, toggleCredited, getEffectiveAmount, bName, getNote, getPartialUsed, loadNotes, saveNotes, getNoteKey, isSkipped, isGloballySnoozed, isMonthSnoozed, getSnoozedUntil, getCardFeeMonth, getCardFeeDay, countSkipped, clearAllSkipped, loadSkipped, loadPointsRedeemed, getPointsRedeemedYTD, getAllPointsRedeemedYTD, getPointsSource, loadPointsBalances, loadPointsValuations, loadAlertsSeen } from './storage.js';
+import { isUsed, isCredited, toggleCredited, getEffectiveAmount, bName, bDesc, getNote, getPartialUsed, loadNotes, saveNotes, getNoteKey, isSkipped, isGloballySnoozed, isMonthSnoozed, getSnoozedUntil, getCardFeeMonth, getCardFeeDay, countSkipped, clearAllSkipped, loadSkipped, loadPointsRedeemed, getPointsRedeemedYTD, getAllPointsRedeemedYTD, getPointsSource, loadPointsBalances, loadPointsValuations, loadAlertsSeen } from './storage.js';
 import {
   getCardYearStart, getCardYearPeriods, getYTDPeriods, isPFuture, isPCurrent, isYTDCurrent,
   getCurrentPK, getCurrentLabel, getBAmount, getFee, isBExpired, isBNotAvailable,
   calcStats, metricsHTML, progressHTML, getStreak, getLongestStreak, daysUntilFee, daysUntilEOM,
   getUnclaimedMonthly, maxCardYearValue, calcCapturedByType, getCardYearMonthsElapsed,
-  getProjectedCapture, getROIGrade
+  getProjectedCapture, getROIGrade, isCondLocked, expiryLastMonth
 } from './periods.js';
 import { renderExportReport, ensureReportStyles } from './report-view.js';
 import { buildBreakEven, breakEvenVerdict } from './breakeven-model.js';
@@ -153,7 +153,7 @@ export function checkAllClaimed(cardKey){
   card.sections.forEach(s=>{
     const pk=getCurrentPK(cardKey,s.cadence);
     s.benefits.forEach(b=>{
-      if(isBExpired(b,{calY:CY,calM:CM,m:CM})||isBNotAvailable(b,CY,{calM:CM,calY:CY})||isGloballySnoozed(cardKey,b.id)) return;
+      if(isBExpired(b,{calY:CY,calM:CM,m:CM})||isBNotAvailable(b,CY,{calM:CM,calY:CY})||isGloballySnoozed(cardKey,b.id)||isCondLocked(cardKey,b,pk)) return;
       if(!isUsed(cardKey,b.id,pk)) allDone=false;
     });
   });
@@ -173,7 +173,7 @@ function getExpiryBadge(b){
   return '';
 }
 function getBenefitExpiryLabel(b){
-  if(b.startsFrom&&CY<b.startsFrom) return '';
+  if(isBNotAvailable(b,CY,{calY:CY,calM:CM})) return '';
   const now=new Date();
   if(b.desc&&b.desc.includes('through')){
     const match=b.desc.match(/through\s+([\w]+\s+\d{4})/i);
@@ -304,7 +304,7 @@ function buildAllCardsSummary(){
       const pk=getCurrentPK(cardKey,s.cadence);
       const p={calY:CY,calM:CM,m:CM};
       s.benefits.forEach(b=>{
-        if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(cardKey,b.id)) return;
+        if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(cardKey,b.id)||isCondLocked(cardKey,b,pk)) return;
         const amt=getBAmount(b,{m:CM});
         totalAvail+=amt;
         if(isUsed(cardKey,b.id,pk)) totalClaimed+=amt;
@@ -402,7 +402,7 @@ export function renderDigest(){
       const pk=getCurrentPK(cardKey,s.cadence);
       const p={calY:CY,calM:CM,m:CM};
       s.benefits.forEach(b=>{
-        if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(cardKey,b.id)) return;
+        if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(cardKey,b.id)||isCondLocked(cardKey,b,pk)) return;
         if(isUsed(cardKey,b.id,pk)||isSkipped(cardKey,b.id,pk)) return;
         bucket.items.push({cardKey,cardLabel:CARD_LABELS[cardKey],name:bName(cardKey,b),amt:getRemainingAmt(cardKey,b,{m:CM},pk),pk,benefitId:b.id});
       });
@@ -668,7 +668,7 @@ function buildPriorityQueue(){
         if(isBExpired(b,p)||isBNotAvailable(b,CY,p)) return;
         if(isUsed(cardKey,b.id,pk)) return;
         if(isSkipped(cardKey,b.id,pk)) return;
-        if(isGloballySnoozed(cardKey,b.id)) return;
+        if(isGloballySnoozed(cardKey,b.id)||isCondLocked(cardKey,b,pk)) return;
         const amt=getRemainingAmt(cardKey,b,{m:CM},pk);
         let urgency=0,urgencyLabel='Anytime',urgencyCls='urgency-ok',tier=1;
         if(s.cadence==='monthly'){
@@ -780,7 +780,7 @@ export function renderCurrent(){
         html+=`<div class="benefit-row${used?' used':''}${snoozed?' snoozed-row':''}" style="${snoozed?'opacity:0.45;':''}">
           <div style="flex:1">
             <div class="benefit-name">${bName(state.activeCard,b)}${catTag}${streakBadge}${expiryBadge}</div>
-            <div class="benefit-desc">${b.desc}</div>
+            <div class="benefit-desc">${bDesc(b)}</div>
             ${snoozedBadge}${!snoozed?noteHTML:''}${partialHTML}${creditedHTML}
           </div>
           <div style="display:flex;align-items:center;gap:4px">${snoozeBtn}<div class="benefit-amt">${dispAmt}</div></div>
@@ -897,7 +897,7 @@ export function renderAllCards(){
     CARDS[cardKey].sections.forEach(s=>{
       const pk=getCurrentPK(cardKey,s.cadence);
       s.benefits.forEach(b=>{
-        if(isBExpired(b,{calY:CY,calM:CM,m:CM})||isBNotAvailable(b,CY,{calM:CM,calY:CY})||isGloballySnoozed(cardKey,b.id)) return;
+        if(isBExpired(b,{calY:CY,calM:CM,m:CM})||isBNotAvailable(b,CY,{calM:CM,calY:CY})||isGloballySnoozed(cardKey,b.id)||isCondLocked(cardKey,b,pk)) return;
         byPeriodTotal[s.cadence]=(byPeriodTotal[s.cadence]||0)+1;
         const used=isUsed(cardKey,b.id,pk);
         if(!used){
@@ -1329,7 +1329,7 @@ export function updateCardBadges(){
     CARDS[cardKey].sections.forEach(s=>{
       const pk=getCurrentPK(cardKey,s.cadence);
       const p={calY:CY,calM:CM,m:CM};
-      s.benefits.forEach(b=>{ if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(cardKey,b.id)) return; if(!isUsed(cardKey,b.id,pk)) unclaimed++; });
+      s.benefits.forEach(b=>{ if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(cardKey,b.id)||isCondLocked(cardKey,b,pk)) return; if(!isUsed(cardKey,b.id,pk)) unclaimed++; });
     });
     let badge=btn.querySelector('.card-notif-badge');
     if(unclaimed>0){
@@ -1442,7 +1442,7 @@ export function renderCardSimulator(){
       getCardYearPeriods(ck,s.cadence).forEach(p=>{
         if(isPFuture(p)) return;
         s.benefits.forEach(b=>{
-          if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(ck,b.id)) return;
+          if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(ck,b.id)||isCondLocked(ck,b,p.pk)) return;
           const cat=BENEFIT_CATEGORIES[b.id]||'other';
           const amt=getBAmount(b,p);
           const used=isUsed(ck,b.id,p.pk);
@@ -1588,7 +1588,7 @@ export function renderUpgradeAdvisor(){
       getCardYearPeriods(ck,s.cadence).forEach(p=>{
         if(isPFuture(p)) return;
         s.benefits.forEach(b=>{
-          if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(ck,b.id)) return;
+          if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(ck,b.id)||isCondLocked(ck,b,p.pk)) return;
           const cat=BENEFIT_CATEGORIES[b.id]||'other';
           const amt=getBAmount(b,p);
           const used=isUsed(ck,b.id,p.pk);
@@ -1971,7 +1971,12 @@ export function computeAlerts(userKeySet){
   [...userKeySet].forEach(k=>{
     CARDS[k].sections.forEach(s=>{
       s.benefits.forEach(b=>{
-        if(b.startsFrom&&b.startsFrom>=CY-1) alerts.push({id:`nb_${b.id}`,type:'new_benefit',card:k,benefit:bName(k,b),amount:b.amount,since:b.startsFrom,cadence:s.cadence});
+        if(!b.startsFrom) return;
+        const sy=typeof b.startsFrom==='object'?b.startsFrom.y:b.startsFrom;
+        const sm=typeof b.startsFrom==='object'?b.startsFrom.m:0;
+        if(sy<CY-1) return;
+        const upcoming=sy*12+sm>CY*12+CM;
+        alerts.push({id:`nb_${b.id}`,type:'new_benefit',card:k,benefit:bName(k,b,sy),amount:b.amount,since:sy,sinceStr:sm?`${MONTHS[sm]} ${sy}`:`${sy}`,upcoming,cadence:s.cadence});
       });
     });
   });
@@ -1979,8 +1984,8 @@ export function computeAlerts(userKeySet){
     CARDS[k].sections.forEach(s=>{
       s.benefits.forEach(b=>{
         if(!b.expiresAfter) return;
-        const{y,h}=b.expiresAfter;
-        if(y*12+(h===0?5:11)>=CY*12+CM) alerts.push({id:`ex_${b.id}`,type:'expiring',card:k,benefit:bName(k,b),amount:b.amount,expiryStr:`${h===0?'Jun':'Dec'} ${y}`});
+        const{y,m}=expiryLastMonth(b);
+        if(y*12+m>=CY*12+CM) alerts.push({id:`ex_${b.id}`,type:'expiring',card:k,benefit:bName(k,b),amount:b.amount,expiryStr:`${MONTHS[m]} ${y}`});
       });
     });
   });
@@ -2005,10 +2010,10 @@ export function renderBenefitAlerts(){
     });
   }
   if(newBens.length){
-    html+=`<div class="section-header" style="margin-top:8px"><span class="section-title">New benefits (${CY-1}–${CY})</span></div>`;
-    newBens.forEach(({card,benefit,amount,since,cadence})=>{
+    html+=`<div class="section-header" style="margin-top:8px"><span class="section-title">New &amp; upcoming benefits</span></div>`;
+    newBens.forEach(({card,benefit,amount,sinceStr,upcoming,cadence})=>{
       const sfx=cadence==='monthly'?'/mo':cadence==='quarterly'?'/qtr':cadence.includes('semi')?'/half':'/yr';
-      html+=`<div class="alert-row"><div class="alert-row-hdr"><span class="alert-card-name">${CARD_LABELS[card]}</span><span class="green" style="font-family:var(--mono);font-size:11px;font-weight:600">NEW ${since}</span></div><div class="alert-detail">${benefit} · $${amount}${sfx}</div></div>`;
+      html+=`<div class="alert-row"><div class="alert-row-hdr"><span class="alert-card-name">${CARD_LABELS[card]}</span><span class="${upcoming?'':'green'}" style="font-family:var(--mono);font-size:11px;font-weight:600${upcoming?';color:var(--gold)':''}">${upcoming?'STARTS':'NEW'} ${sinceStr}</span></div><div class="alert-detail">${benefit} · $${amount}${sfx}</div></div>`;
     });
   }
   if(expiring.length){
@@ -2035,7 +2040,7 @@ export function buildAdvisorContext(){
       const pk=getCurrentPK(ck,s.cadence);
       const p={calY:CY,calM:CM,m:CM,endM:CM,endY:CY};
       s.benefits.forEach(b=>{
-        if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(ck,b.id)) return;
+        if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(ck,b.id)||isCondLocked(ck,b,pk)) return;
         if(isUsed(ck,b.id,pk)) return;
         const amt=getBAmount(b,{m:CM});
         const item=`${CARD_LABELS[ck]}: ${bName(ck,b)} ($${amt})`;

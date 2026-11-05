@@ -32,6 +32,7 @@ interface DigestCache {
   semiannual?: BucketItem[];
   annual?: BucketItem[];
   updated_at?: string;
+  tz_offset_min?: number;
 }
 // Mirrors the Settings → Notifications toggles; a missing key means on.
 type PushPrefs = { monthly?: boolean; quarterly?: boolean; semiannual?: boolean };
@@ -63,8 +64,9 @@ function windows(now: Date) {
 function buildPayload(cache: DigestCache, sent: string[], prefs: PushPrefs, now: Date): { payload: Payload; ids: string[] } | null {
   // The cache only refreshes when the app is opened. One from an earlier period
   // describes benefits that have already reset, so it must not be announced.
-  const cachedAt = cache.updated_at ? new Date(cache.updated_at) : null;
-  const due = windows(now).filter(w =>
+  const off = (cache.tz_offset_min ?? 0) * 60000;
+  const cachedAt = cache.updated_at ? new Date(new Date(cache.updated_at).getTime() - off) : null;
+  const due = windows(new Date(now.getTime() - off)).filter(w =>
     prefs[w.key] !== false &&
     w.daysLeft >= 0 && w.daysLeft <= w.thresh &&
     !sent.includes(w.id) &&

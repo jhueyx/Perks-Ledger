@@ -1,7 +1,7 @@
 import { CARDS, PREMIUM_CARD_CATALOG, MONTHS_FULL } from './cards.js';
 import { state, CY, CM } from './state.js';
 import { isUsed, isGloballySnoozed, isMonthSnoozed, scheduleSave } from './storage.js';
-import { calcStats, getCardYearPeriods, isPCurrent, getFee, getLongestStreak, getCurrentPK, isBExpired, isBNotAvailable } from './periods.js';
+import { calcStats, getCardYearPeriods, isPCurrent, getFee, getLongestStreak, getCurrentPK, isBExpired, isBNotAvailable, isCondLocked } from './periods.js';
 import { getVisibleCardKeys } from './views.js';
 
 // Scoped per-user (matching STORAGE_KEY's pattern in storage.js) — this was
@@ -199,7 +199,7 @@ export const BADGE_DEFS = [
 
   // ── Platinum-specific ────────────────────────────────────────────────
   { id:'plat_trifecta_month',tier:'silver',    name:'Platinum Triple',          desc:'Uber, Digital Entertainment, and Walmart+ all in one month', cards:['platinum'] },
-  { id:'hotel_twice',        tier:'silver',    name:'Fine Hotels Regular',      desc:'Platinum Fine Hotels + Resorts credit used 2+ times',      cards:['platinum'] },
+  { id:'hotel_twice',        tier:'silver',    name:'Fine Hotels Regular',      desc:'Platinum Hotel / Lodging Credit used 2+ times',      cards:['platinum'] },
   { id:'plat_mega',          tier:'platinum',  name:'Platinum Legend',          desc:'$3,000+ total captured on Amex Platinum alone',            cards:['platinum'] },
 
   // ── WF Premier Autograph-specific ────────────────────────────────────
@@ -405,7 +405,7 @@ export function checkBadges(){
       const pk=getCurrentPK(ck,sec.cadence);
       const p={calY:CY,calM:CM,m:CM};
       sec.benefits.forEach(b=>{
-        if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(ck,b.id)) return;
+        if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(ck,b.id)||isCondLocked(ck,b,pk)) return;
         if(!isUsed(ck,b.id,pk)) allCurrentClaimed=false;
       });
     });
@@ -416,7 +416,7 @@ export function checkBadges(){
       getCardYearPeriods(ck,sec.cadence).forEach(p=>{
         if(p.calY>CY||(p.calY===CY&&p.calM>CM)) return;
         sec.benefits.forEach(b=>{
-          if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(ck,b.id)) return;
+          if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(ck,b.id)||isCondLocked(ck,b,p.pk)) return;
           if(!isUsed(ck,b.id,p.pk)) cardYearAll=false;
         });
       });

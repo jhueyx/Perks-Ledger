@@ -48,7 +48,13 @@ self.addEventListener('notificationclick', e => {
   const url = (e.notification.data && e.notification.data.url) || '/';
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
-      for (const c of list) { if ('focus' in c) { c.navigate(url); return c.focus(); } }
+      for (const c of list) {
+        if (!('focus' in c)) continue;
+        // navigate() is missing on older iOS and rejects for uncontrolled
+        // clients; fall back to just focusing the tab.
+        const nav = typeof c.navigate === 'function' ? c.navigate(url).catch(() => null) : Promise.resolve(null);
+        return nav.then(nc => (nc || c).focus());
+      }
       if (self.clients.openWindow) return self.clients.openWindow(url);
     })
   );

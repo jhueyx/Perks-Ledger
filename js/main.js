@@ -10,7 +10,7 @@ import {
   loadCredited, saveCredited, toggleCredited,
   loadSkipped, saveSkipped, isSkipped, skipBenefit, unskipBenefit, clearAllSkipped, countSkipped,
   getFeeOverrides, saveFeeOverridesData, getCardFeeMonth, getCardFeeDay,
-  setSnoozedBenefit, isGloballySnoozed, isUsed,
+  setSnoozedBenefit, isGloballySnoozed, isUsed, bName,
   loadCardMeta, setCardOpenedDate,
   setPointsRedeemed, setPointsSource, saveToStorage,
   loadPointsBalances, savePointsBalances, loadPointsValuations, savePointsValuations,
@@ -18,7 +18,7 @@ import {
 } from './storage.js';
 import { render, getVisibleCardKeys, renderCurrent, renderRecap, haptic, checkAllClaimed, animateCounters, renderFeeOptimizer, buildAdvisorContext, buildCardChooserContext, formatAdvisorMarkdown, computeAlerts, unseenAlertCount, renderPointsRedemptions, VIEW_GROUPS, VIEW_GROUP_OF, GROUP_ENTRY } from './views.js';
 import { checkBadges, getEarnedBadges, getEarnedAt, getUnseenBadges, markAllSeen, BADGE_DEFS, getApplicableBadgeDefs, TIER_COLORS } from './badges.js';
-import { calcStats, getCardYearPeriods, isPCurrent, getFee, getBAmount, getCurrentPK, isBExpired, isBNotAvailable } from './periods.js';
+import { calcStats, getCardYearPeriods, isPCurrent, getFee, getBAmount, getCurrentPK, isBExpired, isBNotAvailable, isCondLocked } from './periods.js';
 import { openReportConfig, previewReport, openPrintableReport, downloadReportHTML, downloadReportMarkdown, downloadReportCSV, downloadReportJSON } from './report-view.js';
 
 // Web Push: paste the base64url VAPID PUBLIC key here (same one set as the
@@ -142,10 +142,12 @@ function buildDigestCache(){
       const pk=getCurrentPK(cardKey,sec.cadence);
       const p={calY:CY,calM:CM,m:CM};
       sec.benefits.forEach(b=>{
-        if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(cardKey,b.id)) return;
+        if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(cardKey,b.id)||isCondLocked(cardKey,b,pk)) return;
         if(isUsed(cardKey,b.id,pk)||isSkipped(cardKey,b.id,pk)) return;
-        const amt=getBAmount(b,{m:CM});
-        const item={card:CARD_LABELS[cardKey],name:b.name,amt};
+        const full=getBAmount(b,{m:CM});
+        const amt=b.partial?Math.max(0,full-getPartialUsed(cardKey,b.id,pk)):full;
+        if(amt<=0) return;
+        const item={card:CARD_LABELS[cardKey],name:bName(cardKey,b,CY),amt};
         if(sec.cadence==='monthly') buckets.monthly.push(item);
         else if(sec.cadence==='quarterly') buckets.quarterly.push(item);
         else if(sec.cadence==='semi-annual'||sec.cadence==='cal-semi-annual') buckets.semiannual.push(item);
@@ -154,7 +156,9 @@ function buildDigestCache(){
       });
     });
   });
-  return {email:user.email,total_unclaimed:totalUnclaimed,...buckets,updated_at:new Date().toISOString()};
+  // tz_offset_min lets the edge functions bucket periods by the user's local
+  // month, not UTC (getTimezoneOffset: minutes to ADD to local to get UTC).
+  return {email:user.email,total_unclaimed:totalUnclaimed,...buckets,updated_at:new Date().toISOString(),tz_offset_min:new Date().getTimezoneOffset()};
 }
 
 async function saveDigestCache(){
@@ -664,9 +668,9 @@ function openCardSheet(cardKey){
   html+=`<div class="card-sheet-section"><div class="card-sheet-section-title">Benefits</div>`;
   card.sections.forEach(s=>{
     const cadLbl=s.cadence==='monthly'?'monthly':s.cadence==='quarterly'?'quarterly':s.cadence==='cal-semi-annual'||s.cadence==='semi-annual'?'semi-annual':'annual';
-    s.benefits.filter(b=>!b.startsFrom||b.startsFrom<=CY).forEach(b=>{
+    s.benefits.filter(b=>!isBNotAvailable(b,CY,{calY:CY,calM:CM})&&!isBExpired(b,{calY:CY,calM:CM})).forEach(b=>{
       const amt=b.amount>0?`$${b.amount}`:(b.note||'');
-      html+=`<div class="card-sheet-row"><span style="color:var(--text-secondary);font-size:12px">${b.name}</span><span style="font-family:var(--mono);font-size:12px;color:var(--text)">${amt}<span style="color:var(--text-tertiary);font-size:10px"> /${cadLbl}</span></span></div>`;
+      html+=`<div class="card-sheet-row"><span style="color:var(--text-secondary);font-size:12px">${bName(cardKey,b,CY)}</span><span style="font-family:var(--mono);font-size:12px;color:var(--text)">${amt}<span style="color:var(--text-tertiary);font-size:10px"> /${cadLbl}</span></span></div>`;
     });
   });
   html+=`</div>`;
@@ -959,7 +963,7 @@ function scheduleMonthlyReminder(){
         const pk=pkFn(s.cadence);
         s.benefits.forEach(b=>{
           if(state.DATA[ck]?.[`${b.id}__${pk}`]) return;
-          if(isSkipped(ck,b.id,pk)||isGloballySnoozed(ck,b.id)) return;
+          if(isSkipped(ck,b.id,pk)||isGloballySnoozed(ck,b.id)||isCondLocked(ck,b,pk)) return;
           t+=b.partial?Math.max(0,(b.amount||0)-getPartialUsed(ck,b.id,pk)):(b.amount||0);
         });
       });
@@ -1006,7 +1010,7 @@ function firePerBenefitReminders(){
       if(daysLeft<0||daysLeft>thr) return;
       s.benefits.forEach(b=>{
         if(isBNotAvailable(b,CY,cur)||isBExpired(b,cur)) return;
-        if(isGloballySnoozed(ck,b.id)||isSkipped(ck,b.id,cur.pk)) return;
+        if(isGloballySnoozed(ck,b.id)||isCondLocked(ck,b,cur.pk)||isSkipped(ck,b.id,cur.pk)) return;
         if(isUsed(ck,b.id,cur.pk)) return;
         cands.push({ck,b,pk:cur.pk,daysLeft});
       });
@@ -1020,7 +1024,7 @@ function firePerBenefitReminders(){
     if(localStorage.getItem(dkey)) continue;
     const when=daysLeft<=0?'expires today':`${daysLeft} day${daysLeft===1?'':'s'} left`;
     const remaining=b.partial?Math.max(0,(b.amount||0)-getPartialUsed(ck,b.id,pk)):(b.amount||0);
-    new Notification('Perks Ledger',{body:`$${remaining} ${b.name} (${CARD_LABELS[ck]}) — ${when}`,icon:'apple-touch-icon.png'});
+    new Notification('Perks Ledger',{body:`$${remaining} ${bName(ck,b,CY)} (${CARD_LABELS[ck]}) — ${when}`,icon:'apple-touch-icon.png'});
     localStorage.setItem(dkey,'1');
     fired++;
   }

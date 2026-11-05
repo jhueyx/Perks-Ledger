@@ -1,6 +1,6 @@
 import { CARDS, MONTHS, MONTHS_FULL } from './cards.js';
 import { state, CY, CM, CD } from './state.js';
-import { isUsed, getCardFeeMonth, getCardFeeDay, isGloballySnoozed } from './storage.js';
+import { isUsed, getCardFeeMonth, getCardFeeDay, isGloballySnoozed, bName, getPartialUsed } from './storage.js';
 
 // ── Period helpers ────────────────────────────────────────────────────────
 export function getCardYearStart(c,forYear){
@@ -187,9 +187,15 @@ export function isBNotAvailable(b,viewYear,p){
   return false;
 }
 
+// A `conditional` benefit only exists once a qualifying action unlocks it
+// (e.g. Airbnb Experiences needs a prepaid Airbnb Luxe booking). Until it's
+// checked off (or partly spent) for a period it counts as neither available nor missed, so it
+// can't inflate value, projections or the keep/cancel verdict.
+export function isCondLocked(cardKey,b,pk){ return !!b.conditional&&!isUsed(cardKey,b.id,pk)&&!(b.partial&&getPartialUsed(cardKey,b.id,pk)>0); }
+
 export function calcStats(cardKey,getPsFn,isCurFn){
   const card=CARDS[cardKey]; let captured=0,missed=0,total=0;
-  card.sections.forEach(s=>{ const ps=getPsFn(s.cadence); ps.forEach(p=>{ const fut=isPFuture(p),cur=isCurFn(s.cadence,p); s.benefits.forEach(b=>{ if(isBExpired(b,p)||isBNotAvailable(b,state.selectedYear,p)||isGloballySnoozed(cardKey,b.id)) return; const amt=getBAmount(b,p); total+=amt; const used=isUsed(cardKey,b.id,p.pk); if(used) captured+=amt; else if(!fut&&!cur) missed+=amt; }); }); });
+  card.sections.forEach(s=>{ const ps=getPsFn(s.cadence); ps.forEach(p=>{ const fut=isPFuture(p),cur=isCurFn(s.cadence,p); s.benefits.forEach(b=>{ if(isBExpired(b,p)||isBNotAvailable(b,state.selectedYear,p)||isGloballySnoozed(cardKey,b.id)||isCondLocked(cardKey,b,p.pk)) return; const amt=getBAmount(b,p); total+=amt; const used=isUsed(cardKey,b.id,p.pk); if(used) captured+=amt; else if(!fut&&!cur) missed+=amt; }); }); });
   return {captured,missed,total};
 }
 
@@ -253,8 +259,8 @@ export function getUnclaimedMonthly(cardKey){
     if(s.cadence!=='monthly') return;
     const pk=getCurrentPK(cardKey,s.cadence);
     s.benefits.forEach(b=>{
-      if(isBExpired(b,{calY:CY,calM:CM,m:CM})||isBNotAvailable(b,CY,{calM:CM,calY:CY})||isGloballySnoozed(cardKey,b.id)) return;
-      if(!isUsed(cardKey,b.id,pk)) unclaimed.push({name:b.name,amt:getBAmount(b,{m:CM})});
+      if(isBExpired(b,{calY:CY,calM:CM,m:CM})||isBNotAvailable(b,CY,{calM:CM,calY:CY})||isGloballySnoozed(cardKey,b.id)||isCondLocked(cardKey,b,pk)) return;
+      if(!isUsed(cardKey,b.id,pk)) unclaimed.push({name:bName(cardKey,b,CY),amt:getBAmount(b,{m:CM})});
     });
   });
   return unclaimed;
@@ -266,7 +272,7 @@ export function maxCardYearValue(cardKey){
     s.benefits.forEach(b=>{
       if(isGloballySnoozed(cardKey,b.id)) return;
       ps.forEach(p=>{
-        if(isBExpired(b,p)||isBNotAvailable(b,CY,p)) return;
+        if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isCondLocked(cardKey,b,p.pk)) return;
         t+=getBAmount(b,p);
       });
     });

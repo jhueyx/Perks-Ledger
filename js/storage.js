@@ -234,7 +234,11 @@ const CUSTOM_NAMES_KEY='perks-custom-names';
 export function loadCustomNames(){ try{ return JSON.parse(localStorage.getItem(CUSTOM_NAMES_KEY)||'{}'); }catch(e){ return {}; } }
 export function saveCustomNames(d){ localStorage.setItem(CUSTOM_NAMES_KEY,JSON.stringify(d)); }
 export function getCustomName(cardKey,benefitId){ return loadCustomNames()[`${cardKey}__${benefitId}`]||''; }
-export function bName(cardKey,b){ return (b&&(loadCustomNames()[`${cardKey}__${b.id}`]||b.name))||''; }
+// `before:{y,name,desc}` on a benefit = the label it carried in years before y
+// (e.g. a renamed credit). Year defaults to the year being viewed.
+function eraOf(b,year){ const y=year??state.selectedYear??CY; return (b&&b.before&&y<b.before.y)?b.before:null; }
+export function bName(cardKey,b,year){ return (b&&(loadCustomNames()[`${cardKey}__${b.id}`]||eraOf(b,year)?.name||b.name))||''; }
+export function bDesc(b,year){ return (b&&(eraOf(b,year)?.desc||b.desc))||''; }
 export function setCustomName(cardKey,benefitId,name){
   const d=loadCustomNames();
   const k=`${cardKey}__${benefitId}`;

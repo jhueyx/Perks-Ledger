@@ -10,13 +10,13 @@ import { CARDS, CARD_LABELS, BENEFIT_CATEGORIES, MONTHS, MONTHS_FULL } from './c
 import { state, CY, CM } from './state.js';
 import {
   isUsed, isSkipped, isMonthSnoozed, getPartialUsed, getNote,
-  bName, getCardFeeMonth, getCardFeeDay, loadRedemptionMonths, getPointsRedeemedYTD,
+  bName, bDesc, getCardFeeMonth, getCardFeeDay, loadRedemptionMonths, getPointsRedeemedYTD,
   loadCustomAmounts, loadCustomNames, loadPartial, loadNotes, loadCredited,
   loadSkipped, loadSnoozed, loadCardMeta, loadPointsRedeemed, getFeeOverrides, loadPointsSources, loadPointsBalances, loadPointsValuations, loadAlertsSeen,
   loadBadges,
 } from './storage.js';
 import {
-  getYTDPeriods, getBAmount, getFee, isBExpired, isBNotAvailable,
+  getYTDPeriods, getBAmount, getFee, isBExpired, isBNotAvailable, isCondLocked,
 } from './periods.js';
 import {
   buildPortfolioReport, STATUS, STATUS_LABELS, fmtMoney, fmtPct, fmtSignedMoney,
@@ -230,6 +230,7 @@ export function buildReportInput(opts, visibleCardKeys) {
             const retired = isBExpired(b, p);
             const skipped = isSkipped(cardKey, b.id, p.pk);
             const snoozed = isMonthSnoozed(cardKey, b.id, p.calY, p.calM);
+            const locked = isCondLocked(cardKey, b, p.pk);
             const rd = redemptions[`${cardKey}__${b.id}__${p.pk}`];
             return {
               periodKey: p.pk,
@@ -248,9 +249,9 @@ export function buildReportInput(opts, visibleCardKeys) {
               isNotYetAvailable: notOffered || retired,
               isOutsideCardOwnership: (openedAbs !== null && openedAbs > endAbs)
                 || (closedAbs !== null && closedAbs < startAbs),
-              isExcluded: skipped || snoozed,
+              isExcluded: skipped || snoozed || locked,
               isSnoozed: snoozed && !skipped,
-              excludeReason: skipped ? 'Marked skipped' : snoozed ? 'Snoozed for this period' : '',
+              excludeReason: skipped ? 'Marked skipped' : snoozed ? 'Snoozed for this period' : locked ? 'Not unlocked (requires a qualifying booking)' : '',
               usageDate: rd ? monthLabel(rd.year, rd.month) : null,
               note: o.includeNotes ? getNote(cardKey, b.id, p.pk) : '',
               isEstimated: o.includeEstimated && override !== null,
@@ -259,8 +260,8 @@ export function buildReportInput(opts, visibleCardKeys) {
 
           benefits.push({
             benefitId: b.id,
-            benefitName: bName(cardKey, b),
-            description: b.desc || '',
+            benefitName: bName(cardKey, b, year),
+            description: bDesc(b, year),
             category: BENEFIT_CATEGORIES[b.id] || 'other',
             frequency: section.cadence,
             frequencyLabel: frequencyLabelFor(section.cadence),

@@ -22,12 +22,15 @@ export const CARDS={
     ]},
     {label:'Semi-annual (calendar)',cadence:'cal-semi-annual',benefits:[
       {id:'p_saks',name:'Saks Fifth Avenue',desc:'At Saks stores or saks.com — resets Jan & Jul. Ends Jun 2026.',amount:50,expiresAfter:{y:2026,h:0},partial:true},
-      {id:'p_hotel',name:'Lodging Credit',desc:'Fine Hotels + Resorts, Hotel Collection, or Airbnb Luxe via AmexTravel, 2-night min — resets Jan & Jul',amount:300,partial:true},
+      // Renamed + widened to Airbnb Luxe effective Jan 2027. Same id so history,
+      // streaks and badges carry over; `before` keeps the old label for earlier years.
+      {id:'p_hotel',name:'Lodging Credit',desc:'Fine Hotels + Resorts, Hotel Collection, or Airbnb Luxe via AmexTravel, 2-night min — resets Jan & Jul',amount:300,partial:true,
+        before:{y:2027,name:'Hotel Credit',desc:'Fine Hotels + Resorts or Hotel Collection, 2-night min — resets Jan & Jul'}},
     ]},
     {label:'Annual (calendar year)',cadence:'cal-annual',benefits:[
       {id:'p_uberone',name:'Uber One Membership Credit',desc:'One-time credit for annual Uber One membership',amount:96,startsFrom:2025},
       {id:'p_airline',name:'Airline Fee Credit',desc:'Incidental fees with one selected airline',amount:200,partial:true},
-      {id:'p_airbnb_exp',name:'Airbnb Experiences Credit',desc:'Airbnb Experiences — unlocks after a confirmed prepaid Airbnb Luxe booking (link Airbnb account)',amount:250,startsFrom:2027,partial:true},
+      {id:'p_airbnb_exp',name:'Airbnb Experiences Credit',desc:'Airbnb Experiences — unlocks after a confirmed prepaid Airbnb Luxe booking (link Airbnb account)',amount:250,startsFrom:2027,partial:true,conditional:true},
       {id:'p_equinox',name:'Equinox Credit',desc:'Equinox club or app membership',amount:300,partial:true},
       {id:'p_oura',name:'Oura Ring Credit',desc:'Hardware only via OURAring.com',amount:200,startsFrom:2025},
       {id:'p_ge',name:'Global Entry / TSA PreCheck',desc:'Statement credit every 4 years',amount:120},

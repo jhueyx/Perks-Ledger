@@ -11,7 +11,7 @@ const FROM = 'Perks Ledger <digest@hueyventures.org>';
 Deno.serve(async () => {
   const { data: profiles, error } = await supabase
     .from('user_profiles')
-    .select('user_id, digest_cache')
+    .select('user_id, digest_cache, digest_last_sent')
     .eq('digest_enabled', true)
     .not('digest_cache', 'is', null);
 
@@ -21,12 +21,21 @@ Deno.serve(async () => {
 
   let sent = 0, skipped = 0, failed = 0;
 
+  const now = new Date();
   for (const profile of profiles ?? []) {
-    const cache = profile.digest_cache as DigestCache | null;
-    if (!cache?.email || !cache?.total_unclaimed || cache.total_unclaimed <= 0) {
-      skipped++;
-      continue;
-    }
+    // Weekly at most: the function is publicly invokable (verify_jwt=false for
+    // pg_cron), so a repeat call must not re-send.
+    const last = profile.digest_last_sent ? new Date(profile.digest_last_sent).getTime() : 0;
+    if (now.getTime() - last < MIN_GAP_MS) { skipped++; continue; }
+
+    const raw = profile.digest_cache as DigestCache | null;
+    const cache = raw ? freshOnly(raw, now) : null;
+    if (!cache || cache.total_unclaimed <= 0) { skipped++; continue; }
+
+    // Never trust a client-written address: send to the account's auth email.
+    const { data: u } = await supabase.auth.admin.getUserById(profile.user_id);
+    const to = u?.user?.email;
+    if (!to) { skipped++; continue; }
 
     try {
       const html = buildEmailHTML(cache);
@@ -38,7 +47,7 @@ Deno.serve(async () => {
         },
         body: JSON.stringify({
           from: FROM,
-          to: cache.email,
+          to,
           subject: `$${cache.total_unclaimed} unclaimed — your weekly perks digest`,
           html,
         }),
@@ -67,6 +76,31 @@ Deno.serve(async () => {
   );
 });
 
+const MIN_GAP_MS = 6 * 86400000;
+
+// The cache only refreshes when the app is opened, so drop any bucket whose
+// period has already reset since then. Periods are computed in the user's
+// local time (tz_offset_min from the client), not UTC.
+function freshOnly(c: DigestCache, now: Date): DigestCache | null {
+  if (!c.updated_at) return null;
+  const off = (c.tz_offset_min ?? 0) * 60000;
+  const local = (d: Date) => new Date(d.getTime() - off);
+  const n = local(now), a = local(new Date(c.updated_at));
+  const sameY = n.getUTCFullYear() === a.getUTCFullYear();
+  const nm = n.getUTCMonth(), am = a.getUTCMonth();
+  const out: DigestCache = {
+    ...c,
+    monthly: sameY && nm === am ? c.monthly ?? [] : [],
+    quarterly: sameY && Math.floor(nm / 3) === Math.floor(am / 3) ? c.quarterly ?? [] : [],
+    semiannual: sameY && (nm < 6) === (am < 6) ? c.semiannual ?? [] : [],
+    // Annual buckets mix calendar and card-year periods; keep them for 31 days.
+    annual: now.getTime() - new Date(c.updated_at).getTime() <= 31 * 86400000 ? c.annual ?? [] : [],
+  };
+  out.total_unclaimed = [...out.monthly, ...out.quarterly, ...out.semiannual, ...out.annual]
+    .reduce((s, i) => s + (i.amt || 0), 0);
+  return out;
+}
+
 interface BucketItem { card: string; name: string; amt: number; }
 interface DigestCache {
   email: string;
@@ -76,6 +110,7 @@ interface DigestCache {
   semiannual: BucketItem[];
   annual: BucketItem[];
   updated_at: string;
+  tz_offset_min?: number;
 }
 
 function buildEmailHTML(cache: DigestCache): string {
