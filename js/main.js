@@ -1,5 +1,6 @@
 import { CARDS, CARD_LABELS, PREMIUM_CARD_CATALOG, POINTS_MULTIPLIERS, TRANSFER_PARTNERS } from './cards.js';
-const DEPLOY_DATE='2026-11-04 19:29';
+import { cardFromHash, resolveCardLink, withoutCardHash } from './deepLink.js';
+const DEPLOY_DATE='2026-11-16 20:26';
 import { state, CY, CM, NOW, MONTHS, MONTHS_FULL, sb, freshDATA, STORAGE_KEY, escapeHtml, SUPABASE_URL, SUPABASE_KEY } from './state.js';
 import {
   toggle, scheduleSave, setSave, syncFromSupabase, installSyncRetryHooks, hasPendingSync,
@@ -222,6 +223,7 @@ function doUnlock(){
   state.cardMeta=loadCardMeta();
   applyUserCards();
   render();
+  applyCardDeepLink();
   updateAlertBadge();
   setTimeout(initCardFlip,200);
   syncFromSupabase();
@@ -799,6 +801,26 @@ function setActiveView(primary){
 }
 
 function goToCardPeriod(cardKey){ state.activeCard=cardKey; setActiveView('this-period'); }
+
+// #card=<id or name> (deep link from Nexus's Daily Briefing): select that card
+// on This Period if the user holds it, then clear the hash. Runs after sign-in
+// and on hashchange while the app is open. Unknown or unheld cards are ignored.
+function applyCardDeepLink(){
+  const raw=cardFromHash(location.hash);
+  // Signed out: keep the hash so doUnlock() applies it after sign-in.
+  if(!raw||!state.currentUser||!state.userCards) return;
+  history.replaceState(history.state,'',withoutCardHash(location.href));
+  const id=resolveCardLink(raw,PREMIUM_CARD_CATALOG,state.userCards,CARD_LABELS);
+  if(!id||!CARDS[id]) return;
+  state.activeCard=id;
+  document.querySelectorAll('.card-btn').forEach(b=>b.className='card-btn');
+  const btn=document.querySelector(`.card-btn[data-card="${id}"]`);
+  if(btn){ btn.classList.add(`active-${id}`); btn.scrollIntoView({behavior:'instant',block:'nearest',inline:'center'}); }
+  stopCarousel();
+  setActiveView('this-period');
+  setTimeout(()=>{ initCardFlip(); },50);
+}
+window.addEventListener('hashchange',applyCardDeepLink);
 
 function openDrawer(){
   document.getElementById('navExtras').classList.add('open');
