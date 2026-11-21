@@ -7,6 +7,7 @@
 //   supabase functions deploy ask-perks-advisor --project-ref rsbvddlhismetljqoqre
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { reserveAiCall } from '../_shared/aiQuota.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -44,6 +45,14 @@ Deno.serve(async (req) => {
     if (!question?.trim() || !context?.trim()) {
       return new Response(JSON.stringify({ error: 'Missing question or context' }), {
         status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const quota = await reserveAiCall(user.id, 'ask-perks-advisor', { perUser: 20, global: 60 });
+    if (!quota.ok) {
+      return new Response(JSON.stringify({ error: quota.error }), {
+        status: quota.status,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
