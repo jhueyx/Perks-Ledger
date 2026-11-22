@@ -38,8 +38,12 @@ export const CARDS={
       {id:'p_airbnb_exp',name:'Airbnb Experiences Credit',desc:'Airbnb Experiences — unlocks after a confirmed prepaid Airbnb Luxe booking (link Airbnb account)',amount:250,startsFrom:2026,partial:true,conditional:true},
       {id:'p_equinox',name:'Equinox Credit',desc:'Equinox club or app membership',amount:300,partial:true},
       {id:'p_oura',name:'Oura Ring Credit',desc:'Hardware only via OURAring.com',amount:200,startsFrom:2025},
-      {id:'p_ge',name:'Global Entry / TSA PreCheck',desc:'Statement credit every 4 years',amount:120},
       {id:'p_clear',name:'CLEAR Plus Credit',desc:'Annual CLEAR+ membership ($219 from Jul 2026)',amount:219},
+    ]},
+    // Own section so it reads as a 4-year credit. Same cadence as before, so
+    // existing check-offs keep their period keys.
+    {label:'Benefit (every 4 years)',cadence:'cal-annual',fourYear:true,benefits:[
+      {id:'p_ge',name:'Global Entry / TSA PreCheck',desc:'Statement credit every 4 years',amount:120},
     ]},
   ]},
   cap1_venture_x:{name:'Capital One Venture X',fee:395,historicalFees:{2025:395},feeMonth:0,feeDay:15,sections:[
@@ -71,6 +75,8 @@ export const CARDS={
     {label:'Annual',cadence:'annual',benefits:[
       {id:'c_selecthotel',expiresAfter:{y:2026,m:11},name:'Select Hotel Credit (2026 only)',desc:'IHG, Montage, Pendry, Omni, Virgin, Minor, Pan Pacific',amount:250,startsFrom:2026},
       {id:'c_apple',expiresAfter:{y:2027,m:5},name:'Apple TV+ & Apple Music',desc:'Complimentary annual subscriptions — activate once via Chase (through Jun 2027)',amount:288,startsFrom:2026},
+    ]},
+    {label:'Benefit (every 4 years)',cadence:'annual',fourYear:true,benefits:[
       {id:'c_ge',name:'Global Entry / TSA PreCheck / NEXUS',desc:'Statement credit every 4 years',amount:120},
     ]},
     // Year Y's credits are earned by $75K spend in Y-1, usable from the moment
@@ -147,7 +153,7 @@ export const CARDS={
     {label:'Annual (calendar year)',cadence:'cal-annual-overlap',benefits:[
       {id:'wfpa_airline',name:'Airline Credit',desc:'Statement credit on airline purchases — flights, seat upgrades, bag fees, in-flight purchases',amount:50,partial:true},
     ]},
-    {label:'Benefit (every 4 years)',cadence:'cal-annual',benefits:[
+    {label:'Benefit (every 4 years)',cadence:'cal-annual',fourYear:true,benefits:[
       {id:'wfpa_ge',name:'Global Entry / TSA PreCheck',desc:'Statement credit every 4 years',amount:120},
     ]},
   ]},

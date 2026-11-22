@@ -751,7 +751,7 @@ export function renderCurrent(){
     if(isHistory&&!isMonthly) return; // in history mode, only show monthly section
     const allClaimed=visibleBenefits.every(b=>isUsed(state.activeCard,b.id,pk));
     const claimedCount=visibleBenefits.filter(b=>isUsed(state.activeCard,b.id,pk)).length;
-    const sectionKey=`current-${state.activeCard}-${s.cadence}${slot.key||''}`;
+    const sectionKey=`current-${state.activeCard}-${s.cadence}${slot.key||''}${s.fourYear?'-4yr':''}`;
     if(!allClaimed) state._userExpandedSections.delete(sectionKey);
     const isAutoCollapsed=allClaimed&&!state._userExpandedSections.has(sectionKey);
     // A fully claimed section collapses itself and the header click toggles
@@ -761,7 +761,7 @@ export function renderCurrent(){
     const isCollapsed=allClaimed?isAutoCollapsed:state._collapsedCurrentSections.has(sectionKey);
     const indicator=allClaimed&&isCollapsed?`<span style="color:var(--green);font-size:12px">✓</span>`:allClaimed?`<span style="color:var(--green);font-size:12px">✓</span>`:`<span style="font-size:13px;color:var(--text-tertiary);display:inline-block;transform:rotate(${isCollapsed?'-90deg':'0deg'});transition:transform 0.2s">▾</span>`;
     const countBadge=allClaimed?`<span style="font-size:10px;font-family:var(--mono);color:var(--green);background:rgba(42,155,106,0.1);padding:1px 7px;border-radius:100px">${claimedCount}/${visibleBenefits.length} ✓</span>`:`<span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);background:var(--border-light);padding:1px 7px;border-radius:100px">${claimedCount}/${visibleBenefits.length}</span>`;
-    let sectionTitle=isMonthly&&isHistory?`${MONTHS_FULL[viewM]} ${viewY}`:s.unlock?s.label:(CADENCE_THIS[s.cadence]||s.label);
+    let sectionTitle=isMonthly&&isHistory?`${MONTHS_FULL[viewM]} ${viewY}`:(s.unlock||s.fourYear)?s.label:(CADENCE_THIS[s.cadence]||s.label);
     // Two cadences can share a heading (cal-annual and cal-annual-overlap are
     // both "This year", e.g. WF Premier Autograph) — fall back to the label.
     if(usedTitles.has(sectionTitle)) sectionTitle=s.label;
