@@ -6,7 +6,7 @@ import {
   getCurrentPK, getCurrentLabel, getBAmount, getFee, isBExpired, isBNotAvailable,
   calcStats, metricsHTML, progressHTML, getStreak, getLongestStreak, daysUntilFee, daysUntilEOM,
   getUnclaimedMonthly, maxCardYearValue, calcCapturedByType, getCardYearMonthsElapsed,
-  getProjectedCapture, getROIGrade, isCondLocked, expiryLastMonth
+  getProjectedCapture, getROIGrade, isCondLocked, expiryLastMonth, capturedAmt
 } from './periods.js';
 import { renderExportReport, ensureReportStyles } from './report-view.js';
 import { buildBreakEven, breakEvenVerdict } from './breakeven-model.js';
@@ -307,7 +307,7 @@ function buildAllCardsSummary(){
         if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(cardKey,b.id)||isCondLocked(cardKey,b,pk)) return;
         const amt=getBAmount(b,{m:CM});
         totalAvail+=amt;
-        if(isUsed(cardKey,b.id,pk)) totalClaimed+=amt;
+        totalClaimed+=capturedAmt(cardKey,b,pk,amt);
       });
     });
   });
@@ -714,7 +714,7 @@ export function renderCurrent(){
   const monthPK=`${viewY}-m${viewM}`;
 
   let totalNow=0,usedNow=0;
-  card.sections.forEach(s=>{ if(s.cadence!=='monthly') return; s.benefits.forEach(b=>{ if(isBExpired(b,{calY:viewY,calM:viewM,m:viewM})||isBNotAvailable(b,viewY)||isGloballySnoozed(state.activeCard,b.id)) return; totalNow+=getBAmount(b,{m:viewM}); if(isUsed(state.activeCard,b.id,monthPK)) usedNow+=getBAmount(b,{m:viewM}); }); });
+  card.sections.forEach(s=>{ if(s.cadence!=='monthly') return; s.benefits.forEach(b=>{ if(isBExpired(b,{calY:viewY,calM:viewM,m:viewM})||isBNotAvailable(b,viewY)||isGloballySnoozed(state.activeCard,b.id)) return; totalNow+=getBAmount(b,{m:viewM}); usedNow+=capturedAmt(state.activeCard,b,monthPK,getBAmount(b,{m:viewM})); }); });
   const pct=totalNow>0?Math.round(usedNow/totalNow*100):0;
   const {captured}=calcStats(state.activeCard,c=>getCardYearPeriods(state.activeCard,c),isPCurrent);
   const effectiveFee=getFee(state.activeCard,CY)-captured;
@@ -885,8 +885,8 @@ export function renderSummBase(getPsFn,isCurFn,bannerHTML,label){
       let bc=0,bm=0,bl=0;
       ps.forEach(p=>{
         if(isBExpired(b,p)||isBNotAvailable(b,0,p)) return;
-        const fut=isPFuture(p),cur=isCurFn(s.cadence,p),used=isUsed(state.activeCard,b.id,p.pk),amt=getBAmount(b,p);
-        if(used) bc+=amt; else if(!fut&&!cur) bm+=amt; else bl+=amt;
+        const fut=isPFuture(p),cur=isCurFn(s.cadence,p),amt=getBAmount(b,p),got=capturedAmt(state.activeCard,b,p.pk,amt);
+        bc+=got; if(!fut&&!cur) bm+=amt-got; else bl+=amt-got;
       });
       const snoozeBtn=`<button class="snooze-btn" data-snooze-id="${b.id}" data-snooze-card="${state.activeCard}" data-snooze-name="${bName(state.activeCard,b)}" title="Snooze this benefit" style="background:none;border:none;cursor:pointer;font-size:11px;padding:6px 8px;color:var(--text-secondary);opacity:0.55;transition:opacity 0.15s;line-height:1;border-radius:3px;flex-shrink:0" aria-label="Snooze benefit">⏸︎</button>`;
       html+=`<div class="summary-row-item"><div><span class="summary-item-name">${bName(state.activeCard,b)}</span>${expiredTag}<span class="summary-item-cadence">${amtLbl}</span></div><div class="badges" style="display:flex;align-items:center;gap:4px">${bc>0?`<span class="badge-captured">+$${bc.toFixed(0)}</span>`:''}${bm>0?`<span class="badge-missed">−$${bm.toFixed(0)} missed</span>`:''}${bl>0?`<span class="badge-left">$${bl.toFixed(0)} left</span>`:''}${snoozeBtn}</div></div>`;
@@ -1160,8 +1160,7 @@ export function renderPerformance(){
           if(isBNotAvailable(b,y)) return;
           periods.forEach(p=>{
             if(isBExpired(b,p)) return;
-            if(isUsed(cardKey,b.id,p.pk)) total+=getBAmount(b,p);
-            else if(b.partial){ const partial=getPartialUsed(cardKey,b.id,p.pk); if(partial>0) total+=partial; }
+            total+=capturedAmt(cardKey,b,p.pk,getBAmount(b,p));
           });
         });
       });
@@ -1247,7 +1246,7 @@ export function renderRecap(){
         if(isBNotAvailable(b,year)) return;
         const periods=getYTDPeriods(s.cadence);
         let bMissed=0,bCaptured=0;
-        periods.forEach(p=>{ if(isPFuture(p)) return; const amt=getBAmount(b,p); if(isUsed(cardKey,b.id,p.pk)) bCaptured+=amt; else if(!isYTDCurrent(s.cadence,p)) bMissed+=amt; });
+        periods.forEach(p=>{ if(isPFuture(p)) return; const amt=getBAmount(b,p),got=capturedAmt(cardKey,b,p.pk,amt); bCaptured+=got; if(!isYTDCurrent(s.cadence,p)) bMissed+=amt-got; });
         if(bMissed>biggestMiss.amt) biggestMiss={name:bName(cardKey,b),amt:bMissed,card:CARD_LABELS[cardKey]};
         if(bCaptured>topBenefit.amt) topBenefit={name:bName(cardKey,b),amt:bCaptured,card:CARD_LABELS[cardKey]};
       });
