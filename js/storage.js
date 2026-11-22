@@ -1,5 +1,5 @@
 import { CARDS, FEE_MONTHS } from './cards.js';
-import { state, STORAGE_KEY, sb, freshDATA, CY, CM } from './state.js';
+import { state, STORAGE_KEY, sb, freshDATA, CY, CM, MONTHS } from './state.js';
 
 // ── Data helpers ──────────────────────────────────────────────────────────
 export function bKey(id,pk){ return `${id}__${pk}`; }
@@ -386,8 +386,30 @@ export function loadCardMeta(){ try{ return JSON.parse(localStorage.getItem(CARD
 export function saveCardMetaData(d){ localStorage.setItem(CARD_META_KEY,JSON.stringify(d)); state.cardMeta=d; }
 export function setCardOpenedDate(cardKey,year,month){
   const d=loadCardMeta();
-  if(!year){ delete d[cardKey]; } else { d[cardKey]={openedYear:year,openedMonth:month??0}; }
+  // Keep the card's other meta (e.g. `unlocks`) when the open date changes.
+  const cur={...(d[cardKey]||{})};
+  if(!year){ delete cur.openedYear; delete cur.openedMonth; } else { cur.openedYear=year; cur.openedMonth=month??0; }
+  if(Object.keys(cur).length) d[cardKey]=cur; else delete d[cardKey];
   saveCardMetaData(d);
+}
+
+// ── Per-period unlocks ─────────────────────────────────────────────────────
+// Some credits only exist after a qualifying event the app can't observe
+// (CSR: $75K calendar-year spend). The user marks the unlock per period; it
+// rides in _cardMeta so it syncs without new payload plumbing.
+// Stored value is the month it was marked ("Nov 2026"); older `true` values still count.
+export function getUnlockedAt(cardKey,unlockId,pk){ return state.cardMeta?.[cardKey]?.unlocks?.[`${unlockId}__${pk}`]||null; }
+export function isUnlocked(cardKey,unlockId,pk){ return !!getUnlockedAt(cardKey,unlockId,pk); }
+export function setUnlocked(cardKey,unlockId,pk,on){
+  const d=loadCardMeta();
+  const cur={...(d[cardKey]||{})};
+  const unlocks={...(cur.unlocks||{})};
+  const k=`${unlockId}__${pk}`;
+  if(on) unlocks[k]=`${MONTHS[CM]} ${CY}`; else delete unlocks[k];
+  if(Object.keys(unlocks).length) cur.unlocks=unlocks; else delete cur.unlocks;
+  if(Object.keys(cur).length) d[cardKey]=cur; else delete d[cardKey];
+  saveCardMetaData(d);
+  scheduleSave();
 }
 
 // ── Redemption months ─────────────────────────────────────────────────────

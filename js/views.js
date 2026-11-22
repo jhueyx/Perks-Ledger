@@ -1,6 +1,6 @@
 import { CARDS, MONTHS, MONTHS_FULL, CARD_LABELS, CARD_SHORT_LABELS, CARD_CLS, BENEFIT_CATEGORIES, POINTS_PROGRAMS, PREMIUM_CARD_CATALOG, POINTS_MULTIPLIERS } from './cards.js';
 import { state, CY, CM, escapeHtml } from './state.js';
-import { isUsed, isCredited, toggleCredited, getEffectiveAmount, bName, bDesc, getNote, getPartialUsed, loadNotes, saveNotes, getNoteKey, isSkipped, isGloballySnoozed, isMonthSnoozed, getSnoozedUntil, getCardFeeMonth, getCardFeeDay, countSkipped, clearAllSkipped, loadSkipped, loadPointsRedeemed, getPointsRedeemedYTD, getAllPointsRedeemedYTD, getPointsSource, loadPointsBalances, loadPointsValuations, loadAlertsSeen } from './storage.js';
+import { isUsed, isCredited, toggleCredited, getEffectiveAmount, bName, bDesc, getNote, getPartialUsed, loadNotes, saveNotes, getNoteKey, isSkipped, isGloballySnoozed, isMonthSnoozed, getSnoozedUntil, getCardFeeMonth, getCardFeeDay, countSkipped, clearAllSkipped, loadSkipped, loadPointsRedeemed, getPointsRedeemedYTD, getAllPointsRedeemedYTD, getPointsSource, loadPointsBalances, loadPointsValuations, loadAlertsSeen, getUnlockedAt, setUnlocked } from './storage.js';
 import {
   getCardYearStart, getCardYearPeriods, getYTDPeriods, isPFuture, isPCurrent, isYTDCurrent,
   getCurrentPK, getCurrentLabel, getBAmount, getFee, isBExpired, isBNotAvailable,
@@ -732,28 +732,44 @@ export function renderCurrent(){
   if(!isHistory) html+=`<div class="period-note">Use it now — <strong>${MONTHS_FULL[CM]} ${CY}</strong></div>`;
 
   const CADENCE_THIS={'monthly':'This month','quarterly':'This quarter','semi-annual':'This half','cal-semi-annual':'This half','annual':'This card year','cal-annual':'This year','cal-annual-overlap':'This year','feb-annual':'This year'};
+  // Spend-unlock sections (CSR $75K): year Y's credits are earned by Y-1 spend
+  // and usable from the moment they unlock through Dec 31 of Y — so next
+  // year's credits can be live now. Show this year's and next year's slot.
+  const slots=[];
   card.sections.forEach(s=>{
+    if(s.unlock&&s.cadence==='cal-annual') [CY,CY+1].forEach(y=>slots.push({s,pk:`${y}-annual`,y,lbl:`${y} credits · use by Dec 31, ${y}`,pY:y,pM:0,key:`-${y}`}));
+    else slots.push({s});
+  });
+  slots.forEach(({s,...slot})=>{
     const isMonthly=s.cadence==='monthly';
-    const pk=isMonthly?monthPK:getCurrentPK(state.activeCard,s.cadence);
-    const lbl=isMonthly?`${MONTHS_FULL[viewM]} ${viewY}`:getCurrentLabel(state.activeCard,s.cadence);
-    const pY=isMonthly?viewY:CY,pM=isMonthly?viewM:CM;
+    const pk=slot.pk??(isMonthly?monthPK:getCurrentPK(state.activeCard,s.cadence));
+    const lbl=slot.lbl??(isMonthly?`${MONTHS_FULL[viewM]} ${viewY}`:getCurrentLabel(state.activeCard,s.cadence));
+    const pY=slot.pY??(isMonthly?viewY:CY),pM=slot.pM??(isMonthly?viewM:CM);
     const currentP={calY:pY,calM:pM,m:pM};
     const visibleBenefits=s.benefits.filter(b=>!isBExpired(b,currentP)&&!isBNotAvailable(b,pY,currentP));
     if(!visibleBenefits.length) return;
     if(isHistory&&!isMonthly) return; // in history mode, only show monthly section
     const allClaimed=visibleBenefits.every(b=>isUsed(state.activeCard,b.id,pk));
     const claimedCount=visibleBenefits.filter(b=>isUsed(state.activeCard,b.id,pk)).length;
-    const sectionKey=`current-${state.activeCard}-${s.cadence}`;
+    const sectionKey=`current-${state.activeCard}-${s.cadence}${slot.key||''}`;
     if(!allClaimed) state._userExpandedSections.delete(sectionKey);
     const isAutoCollapsed=allClaimed&&!state._userExpandedSections.has(sectionKey);
     const isCollapsed=isAutoCollapsed||state._collapsedCurrentSections.has(sectionKey);
     const indicator=allClaimed&&isCollapsed?`<span style="color:var(--green);font-size:12px">✓</span>`:allClaimed?`<span style="color:var(--green);font-size:12px">✓</span>`:`<span style="font-size:13px;color:var(--text-tertiary);display:inline-block;transform:rotate(${isCollapsed?'-90deg':'0deg'});transition:transform 0.2s">▾</span>`;
     const countBadge=allClaimed?`<span style="font-size:10px;font-family:var(--mono);color:var(--green);background:rgba(42,155,106,0.1);padding:1px 7px;border-radius:100px">${claimedCount}/${visibleBenefits.length} ✓</span>`:`<span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);background:var(--border-light);padding:1px 7px;border-radius:100px">${claimedCount}/${visibleBenefits.length}</span>`;
-    const sectionTitle=isMonthly&&isHistory?`${MONTHS_FULL[viewM]} ${viewY}`:(CADENCE_THIS[s.cadence]||s.label);
+    const sectionTitle=isMonthly&&isHistory?`${MONTHS_FULL[viewM]} ${viewY}`:s.unlock?s.label:(CADENCE_THIS[s.cadence]||s.label);
     html+=`<div class="section-header collapsible-header" data-section-key="${sectionKey}" data-all-claimed="${allClaimed}" style="cursor:pointer;user-select:none">
       <div style="display:flex;align-items:center;gap:8px">${indicator}<span class="section-title" style="color:${allClaimed?'var(--text-tertiary)':''}">${sectionTitle}</span>${countBadge}</div>
       <span class="section-period">${lbl}</span>
     </div>`;
+    if(s.unlock){
+      const on=getUnlockedAt(state.activeCard,s.unlock.id,pk);
+      const yr=slot.y??pY;
+      html+=`<div class="benefit-row" style="font-size:11px;font-family:var(--mono);color:${on?'var(--green)':'var(--text-tertiary)'}">
+        <div style="flex:1">${on?`✓ Unlocked${typeof on==='string'?' '+escapeHtml(on):''} — counts toward ${yr}, use by Dec 31, ${yr}`:`🔒 Locked — not counted until you mark it unlocked`}</div>
+        <button type="button" class="linkish" style="text-decoration:underline" data-unlock-id="${s.unlock.id}" data-unlock-pk="${pk}" data-unlock-on="${on?'0':'1'}" aria-pressed="${on?'true':'false'}">${on?'undo':`${escapeHtml(s.unlock.label)} ${yr-1}`}</button>
+      </div>`;
+    }
     if(!isCollapsed){
       visibleBenefits.forEach(b=>{
         const used=isUsed(state.activeCard,b.id,pk);
@@ -801,6 +817,10 @@ export function renderCurrent(){
     }));
     document.querySelectorAll('[data-credit-id]').forEach(el=>el.addEventListener('click',()=>{
       toggleCredited(state.activeCard,el.dataset.creditId,el.dataset.creditPk);
+      renderCurrent();
+    }));
+    document.querySelectorAll('[data-unlock-id]').forEach(el=>el.addEventListener('click',()=>{
+      setUnlocked(state.activeCard,el.dataset.unlockId,el.dataset.unlockPk,el.dataset.unlockOn==='1');
       renderCurrent();
     }));
   });

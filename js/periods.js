@@ -1,6 +1,6 @@
 import { CARDS, MONTHS, MONTHS_FULL } from './cards.js';
 import { state, CY, CM, CD } from './state.js';
-import { isUsed, getCardFeeMonth, getCardFeeDay, isGloballySnoozed, bName, getPartialUsed } from './storage.js';
+import { isUsed, getCardFeeMonth, getCardFeeDay, isGloballySnoozed, bName, getPartialUsed, isUnlocked } from './storage.js';
 
 // ── Period helpers ────────────────────────────────────────────────────────
 export function getCardYearStart(c,forYear){
@@ -191,7 +191,9 @@ export function isBNotAvailable(b,viewYear,p){
 // (e.g. Airbnb Experiences needs a prepaid Airbnb Luxe booking). Until it's
 // checked off (or partly spent) for a period it counts as neither available nor missed, so it
 // can't inflate value, projections or the keep/cancel verdict.
-export function isCondLocked(cardKey,b,pk){ return !!b.conditional&&!isUsed(cardKey,b.id,pk)&&!(b.partial&&getPartialUsed(cardKey,b.id,pk)>0); }
+// A benefit with `unlock` is also live once the user marks that unlock for the
+// period — then it counts fully, including as missed if it goes unused.
+export function isCondLocked(cardKey,b,pk){ return !!b.conditional&&!(b.unlock&&isUnlocked(cardKey,b.unlock,pk))&&!isUsed(cardKey,b.id,pk)&&!(b.partial&&getPartialUsed(cardKey,b.id,pk)>0); }
 
 export function calcStats(cardKey,getPsFn,isCurFn){
   const card=CARDS[cardKey]; let captured=0,missed=0,total=0;
