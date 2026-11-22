@@ -39,7 +39,7 @@ export const CARDS={
       {id:'p_equinox',name:'Equinox Credit',desc:'Equinox club or app membership',amount:300,partial:true},
       {id:'p_oura',name:'Oura Ring Credit',desc:'Hardware only via OURAring.com',amount:200,startsFrom:2025},
       {id:'p_ge',name:'Global Entry / TSA PreCheck',desc:'Statement credit every 4 years',amount:120},
-      {id:'p_clear',name:'CLEAR Plus Credit',desc:'Annual CLEAR Plus membership',amount:209},
+      {id:'p_clear',name:'CLEAR Plus Credit',desc:'Annual CLEAR+ membership ($219 from Jul 2026)',amount:219},
     ]},
   ]},
   cap1_venture_x:{name:'Capital One Venture X',fee:395,historicalFees:{2025:395},feeMonth:0,feeDay:15,sections:[
