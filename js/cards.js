@@ -74,7 +74,7 @@ export const CARDS={
     // next year's slot early). Until then both stay `conditional`: no value.
     {label:'$75K spend unlock',cadence:'cal-annual',unlock:{id:'c_75k',label:'Hit $75K spend in'},benefits:[
       {id:'c_75k_southwest',name:'Southwest Airlines Credit',desc:'From $75K spend the prior calendar year — Southwest flights via Chase Travel. Usable once unlocked, through Dec 31',amount:500,startsFrom:2027,partial:true,conditional:true,unlock:'c_75k'},
-      {id:'c_75k_shops',name:'Shops at Chase Credit',desc:'Unlocked by $75K spend the prior calendar year',amount:250,startsFrom:2027,partial:true,conditional:true,unlock:'c_75k'},
+      {id:'c_75k_shops',name:'Shops at Chase Credit',desc:'From $75K spend the prior calendar year. Usable once unlocked, through Dec 31',amount:250,startsFrom:2027,partial:true,conditional:true,unlock:'c_75k'},
     ]},
   ]},
   chase_sapphire_pref:{name:'Chase Sapphire Preferred',fee:95,historicalFees:{2025:95},feeMonth:0,feeDay:1,sections:[
