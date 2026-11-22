@@ -774,8 +774,8 @@ export function renderCurrent(){
       const on=getUnlockedAt(state.activeCard,s.unlock.id,pk);
       const yr=slot.y??pY;
       html+=`<div class="benefit-row" style="font-size:11px;font-family:var(--mono);color:${on?'var(--green)':'var(--text-tertiary)'}">
-        <div style="flex:1">${on?`✓ Unlocked${typeof on==='string'?' '+escapeHtml(on):''} — counts toward ${yr}, use by Dec 31, ${yr}`:`🔒 Locked — not counted until you mark it unlocked`}</div>
-        <button type="button" class="linkish" style="text-decoration:underline" data-unlock-id="${s.unlock.id}" data-unlock-pk="${pk}" data-unlock-on="${on?'0':'1'}" aria-pressed="${on?'true':'false'}">${on?'undo':`${escapeHtml(s.unlock.label)} ${yr-1}`}</button>
+        <div style="flex:1">${on?`✓ Unlocked${typeof on==='string'?' '+escapeHtml(on):''}`:`🔒 ${escapeHtml(s.unlock.label)} ${yr-1}`}</div>
+        <button type="button" class="linkish" style="text-decoration:underline" data-unlock-id="${s.unlock.id}" data-unlock-pk="${pk}" data-unlock-on="${on?'0':'1'}" aria-pressed="${on?'true':'false'}">${on?'undo':'Mark unlocked'}</button>
       </div>`;
     }
     if(!isCollapsed){
