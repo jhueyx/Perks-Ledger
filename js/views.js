@@ -754,7 +754,11 @@ export function renderCurrent(){
     const sectionKey=`current-${state.activeCard}-${s.cadence}${slot.key||''}`;
     if(!allClaimed) state._userExpandedSections.delete(sectionKey);
     const isAutoCollapsed=allClaimed&&!state._userExpandedSections.has(sectionKey);
-    const isCollapsed=isAutoCollapsed||state._collapsedCurrentSections.has(sectionKey);
+    // A fully claimed section collapses itself and the header click toggles
+    // _userExpandedSections. Default-collapsed sections (Gold/Platinum/CSR
+    // halves and years) also sit in _collapsedCurrentSections, which the
+    // claimed-path click never touches, so they could never be opened.
+    const isCollapsed=allClaimed?isAutoCollapsed:state._collapsedCurrentSections.has(sectionKey);
     const indicator=allClaimed&&isCollapsed?`<span style="color:var(--green);font-size:12px">✓</span>`:allClaimed?`<span style="color:var(--green);font-size:12px">✓</span>`:`<span style="font-size:13px;color:var(--text-tertiary);display:inline-block;transform:rotate(${isCollapsed?'-90deg':'0deg'});transition:transform 0.2s">▾</span>`;
     const countBadge=allClaimed?`<span style="font-size:10px;font-family:var(--mono);color:var(--green);background:rgba(42,155,106,0.1);padding:1px 7px;border-radius:100px">${claimedCount}/${visibleBenefits.length} ✓</span>`:`<span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);background:var(--border-light);padding:1px 7px;border-radius:100px">${claimedCount}/${visibleBenefits.length}</span>`;
     const sectionTitle=isMonthly&&isHistory?`${MONTHS_FULL[viewM]} ${viewY}`:s.unlock?s.label:(CADENCE_THIS[s.cadence]||s.label);
