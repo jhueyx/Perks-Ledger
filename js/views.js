@@ -735,7 +735,7 @@ export function renderCurrent(){
   // Spend-unlock sections (CSR $75K): year Y's credits are earned by Y-1 spend
   // and usable from the moment they unlock through Dec 31 of Y — so next
   // year's credits can be live now. Show this year's and next year's slot.
-  const slots=[];
+  const slots=[],usedTitles=new Set();
   card.sections.forEach(s=>{
     if(s.unlock&&s.cadence==='cal-annual') [CY,CY+1].forEach(y=>slots.push({s,pk:`${y}-annual`,y,lbl:`${y} credits · use by Dec 31, ${y}`,pY:y,pM:0,key:`-${y}`}));
     else slots.push({s});
@@ -761,7 +761,11 @@ export function renderCurrent(){
     const isCollapsed=allClaimed?isAutoCollapsed:state._collapsedCurrentSections.has(sectionKey);
     const indicator=allClaimed&&isCollapsed?`<span style="color:var(--green);font-size:12px">✓</span>`:allClaimed?`<span style="color:var(--green);font-size:12px">✓</span>`:`<span style="font-size:13px;color:var(--text-tertiary);display:inline-block;transform:rotate(${isCollapsed?'-90deg':'0deg'});transition:transform 0.2s">▾</span>`;
     const countBadge=allClaimed?`<span style="font-size:10px;font-family:var(--mono);color:var(--green);background:rgba(42,155,106,0.1);padding:1px 7px;border-radius:100px">${claimedCount}/${visibleBenefits.length} ✓</span>`:`<span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);background:var(--border-light);padding:1px 7px;border-radius:100px">${claimedCount}/${visibleBenefits.length}</span>`;
-    const sectionTitle=isMonthly&&isHistory?`${MONTHS_FULL[viewM]} ${viewY}`:s.unlock?s.label:(CADENCE_THIS[s.cadence]||s.label);
+    let sectionTitle=isMonthly&&isHistory?`${MONTHS_FULL[viewM]} ${viewY}`:s.unlock?s.label:(CADENCE_THIS[s.cadence]||s.label);
+    // Two cadences can share a heading (cal-annual and cal-annual-overlap are
+    // both "This year", e.g. WF Premier Autograph) — fall back to the label.
+    if(usedTitles.has(sectionTitle)) sectionTitle=s.label;
+    usedTitles.add(sectionTitle);
     html+=`<div class="section-header collapsible-header" data-section-key="${sectionKey}" data-all-claimed="${allClaimed}" style="cursor:pointer;user-select:none">
       <div style="display:flex;align-items:center;gap:8px">${indicator}<span class="section-title" style="color:${allClaimed?'var(--text-tertiary)':''}">${sectionTitle}</span>${countBadge}</div>
       <span class="section-period">${lbl}</span>
