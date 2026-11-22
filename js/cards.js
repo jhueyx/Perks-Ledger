@@ -51,6 +51,8 @@ export const CARDS={
       {id:'vx_travel',name:'Annual Travel Credit',desc:'For bookings through Capital One Travel; resets on card anniversary',amount:300,partial:true},
       {id:'vx_anniv',name:'Anniversary Bonus Miles',desc:'10,000 bonus miles credited on each account anniversary (~$100 in travel value)',amount:100},
       {id:'vx_hotel',name:'Premier Collection Hotel Credit',desc:'Experience credit on eligible 2-night+ stays via Capital One Travel',amount:100,partial:true},
+    ]},
+    {label:'Benefit (every 4 years)',cadence:'annual',fourYear:true,benefits:[
       {id:'vx_ge',name:'Global Entry / TSA PreCheck',desc:'Statement credit every 4 years',amount:120},
     ]},
   ]},
@@ -95,6 +97,8 @@ export const CARDS={
     {label:'Annual',cadence:'annual',benefits:[
       {id:'csp_hotel',name:'Hotel Credit',desc:'Statement credit on hotel stays booked through Chase Travel',amount:100},
       {id:'csp_apple',expiresAfter:{y:2026,m:11},name:'Apple TV+',desc:'Complimentary annual subscription — activate once via Chase (through Dec 2026)',amount:156,startsFrom:2026},
+    ]},
+    {label:'Benefit (every 4 years)',cadence:'annual',fourYear:true,benefits:[
       {id:'csp_ge',name:'Global Entry / TSA PreCheck / NEXUS',desc:'Statement credit every 4 years',amount:120,startsFrom:2026},
     ]},
   ]},
@@ -111,6 +115,8 @@ export const CARDS={
     {label:'Annual (calendar year)',cadence:'cal-annual',benefits:[
       {id:'ah_airline',name:'Airline Fee Credit',desc:'Incidental fees with one selected airline',amount:200,partial:true},
       {id:'ah_freenight',name:'Free Night Award',desc:'One free night at any Hilton property worldwide',amount:250},
+    ]},
+    {label:'Benefit (every 4 years)',cadence:'cal-annual',fourYear:true,benefits:[
       {id:'ah_ge',name:'Global Entry / TSA PreCheck',desc:'Statement credit every 4 years',amount:120},
     ]},
   ]},
@@ -121,6 +127,8 @@ export const CARDS={
     {label:'Annual (calendar year)',cadence:'cal-annual',benefits:[
       {id:'amb_freenight',name:'Free Night Award',desc:'One free night at any Marriott property (up to 85,000 pts)',amount:500},
       {id:'amb_propcredit',name:'Property Credit',desc:'$100 on-property credit on qualifying 2-night+ paid stays',amount:100},
+    ]},
+    {label:'Benefit (every 4 years)',cadence:'cal-annual',fourYear:true,benefits:[
       {id:'amb_ge',name:'Global Entry / TSA PreCheck',desc:'Statement credit every 4 years',amount:120},
     ]},
   ]},
@@ -135,12 +143,16 @@ export const CARDS={
     ]},
     {label:'Annual (calendar year)',cadence:'cal-annual',benefits:[
       {id:'uq_miles',name:'Award Miles Back',desc:'Up to 10,000 miles back per year on United award redemptions',amount:100},
+    ]},
+    {label:'Benefit (every 4 years)',cadence:'cal-annual',fourYear:true,benefits:[
       {id:'uq_ge',name:'Global Entry / TSA PreCheck',desc:'Statement credit every 4 years',amount:120},
     ]},
   ]},
   chase_united_club:{name:'United Club Infinite',fee:525,historicalFees:{2025:525},feeMonth:0,feeDay:1,sections:[
     {label:'Annual (calendar year)',cadence:'cal-annual',benefits:[
       {id:'uc_club',name:'United Club Membership',desc:'Unlimited United Club lounge access for cardholder + guests',amount:700},
+    ]},
+    {label:'Benefit (every 4 years)',cadence:'cal-annual',fourYear:true,benefits:[
       {id:'uc_ge',name:'Global Entry / TSA PreCheck',desc:'Statement credit every 4 years',amount:120},
     ]},
   ]},
