@@ -6,7 +6,7 @@
 // Guards three ways this went wrong before:
 //  - the rename rewrote 2025/2026 history (and the report) to "Lodging Credit"
 //  - the conditional $250 counted as guaranteed value / missed value
-//  - a 2027 benefit was announced as available in 2026
+//  - Airbnb Experiences offered before it existed (it starts 2026)
 
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
@@ -54,20 +54,10 @@ test('a custom name still wins over the era name', () => {
   store.clear();
 });
 
-test('Airbnb Experiences is not offered before 2027', () => {
+test('Airbnb Experiences is offered from 2026, not before', () => {
   const b = plat('p_airbnb_exp');
-  assert.equal(isBNotAvailable(b, 2026, { calY: 2026, calM: 11 }), true);
-  assert.equal(isBNotAvailable(b, 2027, { calY: 2027, calM: 0 }), false);
-});
-
-test('Airbnb Experiences is excluded from 2026 Platinum value', () => {
-  freshState(2026);
-  const { total } = calcStats('platinum', c => getYTDPeriods(c), isYTDCurrent);
-  freshState(2026);
-  // Even a stray check-off in 2026 must not add it.
-  const pk = getYTDPeriods('cal-annual')[0].pk;
-  state.DATA.platinum[`p_airbnb_exp__${pk}`] = true;
-  assert.equal(calcStats('platinum', c => getYTDPeriods(c), isYTDCurrent).total, total);
+  assert.equal(isBNotAvailable(b, 2025, { calY: 2025, calM: 11 }), true);
+  assert.equal(isBNotAvailable(b, 2026, { calY: 2026, calM: 0 }), false);
 });
 
 test('conditional $250 counts only once it is used', () => {

@@ -105,7 +105,7 @@ test('the three calendar-year credits are still claimable, not expired', () => {
   for (const [cardId, benefitId, amount] of [
     ['csr', 'c_selecthotel', 250],
     ['csr', 'c_ge', 120],
-    ['platinum', 'p_clear', 189],
+    ['platinum', 'p_clear', 209],
   ]) {
     const b = benefitOn(cardId, benefitId);
     assert.equal(b.status, STATUS.UNUSED, `${b.benefitName} should be Available — Unused`);

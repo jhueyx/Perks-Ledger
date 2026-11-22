@@ -155,7 +155,7 @@ export const CARDS_2026 = [
         [calYear('2026-annual', '2026', 120, { isExcluded: true, excludeReason: 'Marked skipped' })]),
       // Window runs to Dec 31 — must not read as Expired on Jul 28.
       benefit('p_clear', 'CLEAR Plus Credit', 'travel', 'cal-annual',
-        [calYear('2026-annual', '2026', 189)]),
+        [calYear('2026-annual', '2026', 209)]),
       benefit('p_equinox', 'Equinox Credit', 'fitness', 'cal-annual',
         [calYear('2026-annual', '2026', 300, { used: true })]),
       benefit('p_oura', 'Oura Ring Credit', 'fitness', 'cal-annual',
