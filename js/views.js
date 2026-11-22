@@ -735,7 +735,7 @@ export function renderCurrent(){
   // Spend-unlock sections (CSR $75K): year Y's credits are earned by Y-1 spend
   // and usable from the moment they unlock through Dec 31 of Y — so next
   // year's credits can be live now. Show this year's and next year's slot.
-  const slots=[];
+  const slots=[],usedTitles=new Set();
   card.sections.forEach(s=>{
     if(s.unlock&&s.cadence==='cal-annual') [CY,CY+1].forEach(y=>slots.push({s,pk:`${y}-annual`,y,lbl:`${y} credits · use by Dec 31, ${y}`,pY:y,pM:0,key:`-${y}`}));
     else slots.push({s});
@@ -754,10 +754,18 @@ export function renderCurrent(){
     const sectionKey=`current-${state.activeCard}-${s.cadence}${slot.key||''}`;
     if(!allClaimed) state._userExpandedSections.delete(sectionKey);
     const isAutoCollapsed=allClaimed&&!state._userExpandedSections.has(sectionKey);
-    const isCollapsed=isAutoCollapsed||state._collapsedCurrentSections.has(sectionKey);
+    // A fully claimed section collapses itself and the header click toggles
+    // _userExpandedSections. Default-collapsed sections (Gold/Platinum/CSR
+    // halves and years) also sit in _collapsedCurrentSections, which the
+    // claimed-path click never touches, so they could never be opened.
+    const isCollapsed=allClaimed?isAutoCollapsed:state._collapsedCurrentSections.has(sectionKey);
     const indicator=allClaimed&&isCollapsed?`<span style="color:var(--green);font-size:12px">✓</span>`:allClaimed?`<span style="color:var(--green);font-size:12px">✓</span>`:`<span style="font-size:13px;color:var(--text-tertiary);display:inline-block;transform:rotate(${isCollapsed?'-90deg':'0deg'});transition:transform 0.2s">▾</span>`;
     const countBadge=allClaimed?`<span style="font-size:10px;font-family:var(--mono);color:var(--green);background:rgba(42,155,106,0.1);padding:1px 7px;border-radius:100px">${claimedCount}/${visibleBenefits.length} ✓</span>`:`<span style="font-size:10px;font-family:var(--mono);color:var(--text-tertiary);background:var(--border-light);padding:1px 7px;border-radius:100px">${claimedCount}/${visibleBenefits.length}</span>`;
-    const sectionTitle=isMonthly&&isHistory?`${MONTHS_FULL[viewM]} ${viewY}`:s.unlock?s.label:(CADENCE_THIS[s.cadence]||s.label);
+    let sectionTitle=isMonthly&&isHistory?`${MONTHS_FULL[viewM]} ${viewY}`:s.unlock?s.label:(CADENCE_THIS[s.cadence]||s.label);
+    // Two cadences can share a heading (cal-annual and cal-annual-overlap are
+    // both "This year", e.g. WF Premier Autograph) — fall back to the label.
+    if(usedTitles.has(sectionTitle)) sectionTitle=s.label;
+    usedTitles.add(sectionTitle);
     html+=`<div class="section-header collapsible-header" data-section-key="${sectionKey}" data-all-claimed="${allClaimed}" style="cursor:pointer;user-select:none">
       <div style="display:flex;align-items:center;gap:8px">${indicator}<span class="section-title" style="color:${allClaimed?'var(--text-tertiary)':''}">${sectionTitle}</span>${countBadge}</div>
       <span class="section-period">${lbl}</span>
@@ -899,7 +907,10 @@ export function renderSummBase(getPsFn,isCurFn,bannerHTML,label){
 // ── Render: all cards ──────────────────────────────────────────────────────
 export function renderAllCards(){
   const CARD_KEYS=getVisibleCardKeys();
-  const CADENCE_ORDER=['monthly','quarterly','cal-semi-annual','semi-annual','feb-annual','cal-annual','cal-annual-overlap','annual'];
+  // cal-annual-overlap is the same calendar year as cal-annual, so both share
+  // one "Annual — <year>" group instead of showing the heading twice.
+  const CADENCE_ORDER=['monthly','quarterly','cal-semi-annual','semi-annual','feb-annual','cal-annual','annual'];
+  const group=c=>c==='cal-annual-overlap'?'cal-annual':c;
   const CADENCE_LABELS={
     'monthly':`Monthly — ${MONTHS_FULL[CM]} ${CY}`,
     'quarterly':`Quarterly — Q${Math.floor(CM/3)+1} ${CY}`,
@@ -918,11 +929,11 @@ export function renderAllCards(){
       const pk=getCurrentPK(cardKey,s.cadence);
       s.benefits.forEach(b=>{
         if(isBExpired(b,{calY:CY,calM:CM,m:CM})||isBNotAvailable(b,CY,{calM:CM,calY:CY})||isGloballySnoozed(cardKey,b.id)||isCondLocked(cardKey,b,pk)) return;
-        byPeriodTotal[s.cadence]=(byPeriodTotal[s.cadence]||0)+1;
+        byPeriodTotal[group(s.cadence)]=(byPeriodTotal[group(s.cadence)]||0)+1;
         const used=isUsed(cardKey,b.id,pk);
         if(!used){
           const amt=getBAmount(b,{m:CM});
-          byPeriod[s.cadence].push({cardKey,cardLabel:CARD_LABELS[cardKey],cardCls:CARD_CLS[cardKey],name:bName(cardKey,b),amt});
+          byPeriod[group(s.cadence)].push({cardKey,cardLabel:CARD_LABELS[cardKey],cardCls:CARD_CLS[cardKey],name:bName(cardKey,b),amt});
           grandTotal+=amt;
         }
       });
