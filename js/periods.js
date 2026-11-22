@@ -195,9 +195,18 @@ export function isBNotAvailable(b,viewYear,p){
 // period — then it counts fully, including as missed if it goes unused.
 export function isCondLocked(cardKey,b,pk){ return !!b.conditional&&!(b.unlock&&isUnlocked(cardKey,b.unlock,pk))&&!isUsed(cardKey,b.id,pk)&&!(b.partial&&getPartialUsed(cardKey,b.id,pk)>0); }
 
+// Value captured for one benefit in one period: the full amount when checked
+// off, otherwise whatever was logged as partly used (capped at the amount).
+// Totals use this so a partly used credit counts what was used, and only the
+// unused remainder can be missed (DEV-190).
+export function capturedAmt(cardKey,b,pk,amt){
+  if(isUsed(cardKey,b.id,pk)) return amt;
+  return b.partial?Math.min(amt,Math.max(0,getPartialUsed(cardKey,b.id,pk))):0;
+}
+
 export function calcStats(cardKey,getPsFn,isCurFn){
   const card=CARDS[cardKey]; let captured=0,missed=0,total=0;
-  card.sections.forEach(s=>{ const ps=getPsFn(s.cadence); ps.forEach(p=>{ const fut=isPFuture(p),cur=isCurFn(s.cadence,p); s.benefits.forEach(b=>{ if(isBExpired(b,p)||isBNotAvailable(b,state.selectedYear,p)||isGloballySnoozed(cardKey,b.id)||isCondLocked(cardKey,b,p.pk)) return; const amt=getBAmount(b,p); total+=amt; const used=isUsed(cardKey,b.id,p.pk); if(used) captured+=amt; else if(!fut&&!cur) missed+=amt; }); }); });
+  card.sections.forEach(s=>{ const ps=getPsFn(s.cadence); ps.forEach(p=>{ const fut=isPFuture(p),cur=isCurFn(s.cadence,p); s.benefits.forEach(b=>{ if(isBExpired(b,p)||isBNotAvailable(b,state.selectedYear,p)||isGloballySnoozed(cardKey,b.id)||isCondLocked(cardKey,b,p.pk)) return; const amt=getBAmount(b,p); total+=amt; const got=capturedAmt(cardKey,b,p.pk,amt); captured+=got; if(!fut&&!cur) missed+=amt-got; }); }); });
   return {captured,missed,total};
 }
 
@@ -301,8 +310,8 @@ export function calcCapturedByType(cardKey){
       }
       s.benefits.forEach(b=>{
         if(isBExpired(b,p)||isBNotAvailable(b,CY,p)||isGloballySnoozed(cardKey,b.id)) return;
-        if(!isUsed(cardKey,b.id,p.pk)) return;
-        const amt=getBAmount(b,p);
+        const amt=capturedAmt(cardKey,b,p.pk,getBAmount(b,p));
+        if(!amt) return;
         if(isRepeating) repeating+=amt;
         else oneTime+=amt;
       });
