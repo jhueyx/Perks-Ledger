@@ -9,6 +9,11 @@ export const CARDS={
     {label:'Semi-annual (calendar)',cadence:'cal-semi-annual',benefits:[
       {id:'g_resy',name:'Resy Dining Credit',desc:'Any U.S. Resy restaurant — no reservation required',amount:50,startsFrom:2025,partial:true},
     ]},
+    // Per-booking, not a recurring credit (why it was dropped in 3b12e6b), so
+    // it's `conditional`: counts only once used, never as missed.
+    {label:'Annual (calendar year)',cadence:'cal-annual',benefits:[
+      {id:'g_hotel',name:'Hotel Collection Credit',desc:'$100 per stay at The Hotel Collection via Amex Travel, 2-night min — counts only once used',amount:100,partial:true,conditional:true,startsFrom:2025},
+    ]},
   ]},
   platinum:{name:'AMEX Platinum',fee:895,historicalFees:{2025:695},feeMonth:9,feeDay:14,sections:[
     {label:'Monthly',cadence:'monthly',benefits:[
@@ -28,13 +33,13 @@ export const CARDS={
         before:{y:2027,name:'Hotel Credit',desc:'Fine Hotels + Resorts or Hotel Collection, 2-night min — resets Jan & Jul'}},
     ]},
     {label:'Annual (calendar year)',cadence:'cal-annual',benefits:[
-      {id:'p_uberone',name:'Uber One Membership Credit',desc:'One-time credit for annual Uber One membership',amount:96,startsFrom:2025},
+      {id:'p_uberone',name:'Uber One Membership Credit',desc:'Up to $120/yr for Uber One paid on the card — annual plan ($96) or monthly',amount:120,partial:true,startsFrom:2025},
       {id:'p_airline',name:'Airline Fee Credit',desc:'Incidental fees with one selected airline',amount:200,partial:true},
-      {id:'p_airbnb_exp',name:'Airbnb Experiences Credit',desc:'Airbnb Experiences — unlocks after a confirmed prepaid Airbnb Luxe booking (link Airbnb account)',amount:250,startsFrom:2027,partial:true,conditional:true},
+      {id:'p_airbnb_exp',name:'Airbnb Experiences Credit',desc:'Airbnb Experiences — unlocks after a confirmed prepaid Airbnb Luxe booking (link Airbnb account)',amount:250,startsFrom:2026,partial:true,conditional:true},
       {id:'p_equinox',name:'Equinox Credit',desc:'Equinox club or app membership',amount:300,partial:true},
       {id:'p_oura',name:'Oura Ring Credit',desc:'Hardware only via OURAring.com',amount:200,startsFrom:2025},
       {id:'p_ge',name:'Global Entry / TSA PreCheck',desc:'Statement credit every 4 years',amount:120},
-      {id:'p_clear',name:'CLEAR Plus Credit',desc:'Annual CLEAR Plus membership',amount:189},
+      {id:'p_clear',name:'CLEAR Plus Credit',desc:'Annual CLEAR Plus membership',amount:209},
     ]},
   ]},
   cap1_venture_x:{name:'Capital One Venture X',fee:395,historicalFees:{2025:395},feeMonth:0,feeDay:15,sections:[

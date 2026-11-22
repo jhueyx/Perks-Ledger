@@ -381,7 +381,7 @@ export function checkBadges(){
   });
 
   const travelBenefitIds=['vx_travel','c_travel','p_airline','ah_airline','wfpa_airline','uq_miles'];
-  const hotelBenefitIds=['p_hotel','vx_hotel','csp_hotel','ah_resort','amb_propcredit','amb_freenight'];
+  const hotelBenefitIds=['p_hotel','g_hotel','vx_hotel','csp_hotel','ah_resort','amb_propcredit','amb_freenight'];
 
   let platCaptured=0;
   cardKeys.forEach(ck=>{
