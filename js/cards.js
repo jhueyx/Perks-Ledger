@@ -33,7 +33,7 @@ export const CARDS={
         before:{y:2027,name:'Hotel Credit',desc:'Fine Hotels + Resorts or Hotel Collection, 2-night min — resets Jan & Jul'}},
     ]},
     {label:'Annual (calendar year)',cadence:'cal-annual',benefits:[
-      {id:'p_uberone',name:'Uber One Membership Credit',desc:'Up to $120/yr for Uber One paid on the card — annual plan ($96) or monthly',amount:120,partial:true,startsFrom:2025},
+      {id:'p_uberone',name:'Uber One Membership Credit',desc:'Covers the $96 annual Uber One plan paid on the card (cap is $120/yr)',amount:96,startsFrom:2025},
       {id:'p_airline',name:'Airline Fee Credit',desc:'Incidental fees with one selected airline',amount:200,partial:true},
       {id:'p_airbnb_exp',name:'Airbnb Experiences Credit',desc:'Airbnb Experiences — unlocks after a confirmed prepaid Airbnb Luxe booking (link Airbnb account)',amount:250,startsFrom:2026,partial:true,conditional:true},
       {id:'p_equinox',name:'Equinox Credit',desc:'Equinox club or app membership',amount:300,partial:true},
