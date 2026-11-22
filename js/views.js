@@ -907,7 +907,10 @@ export function renderSummBase(getPsFn,isCurFn,bannerHTML,label){
 // ── Render: all cards ──────────────────────────────────────────────────────
 export function renderAllCards(){
   const CARD_KEYS=getVisibleCardKeys();
-  const CADENCE_ORDER=['monthly','quarterly','cal-semi-annual','semi-annual','feb-annual','cal-annual','cal-annual-overlap','annual'];
+  // cal-annual-overlap is the same calendar year as cal-annual, so both share
+  // one "Annual — <year>" group instead of showing the heading twice.
+  const CADENCE_ORDER=['monthly','quarterly','cal-semi-annual','semi-annual','feb-annual','cal-annual','annual'];
+  const group=c=>c==='cal-annual-overlap'?'cal-annual':c;
   const CADENCE_LABELS={
     'monthly':`Monthly — ${MONTHS_FULL[CM]} ${CY}`,
     'quarterly':`Quarterly — Q${Math.floor(CM/3)+1} ${CY}`,
@@ -926,11 +929,11 @@ export function renderAllCards(){
       const pk=getCurrentPK(cardKey,s.cadence);
       s.benefits.forEach(b=>{
         if(isBExpired(b,{calY:CY,calM:CM,m:CM})||isBNotAvailable(b,CY,{calM:CM,calY:CY})||isGloballySnoozed(cardKey,b.id)||isCondLocked(cardKey,b,pk)) return;
-        byPeriodTotal[s.cadence]=(byPeriodTotal[s.cadence]||0)+1;
+        byPeriodTotal[group(s.cadence)]=(byPeriodTotal[group(s.cadence)]||0)+1;
         const used=isUsed(cardKey,b.id,pk);
         if(!used){
           const amt=getBAmount(b,{m:CM});
-          byPeriod[s.cadence].push({cardKey,cardLabel:CARD_LABELS[cardKey],cardCls:CARD_CLS[cardKey],name:bName(cardKey,b),amt});
+          byPeriod[group(s.cadence)].push({cardKey,cardLabel:CARD_LABELS[cardKey],cardCls:CARD_CLS[cardKey],name:bName(cardKey,b),amt});
           grandTotal+=amt;
         }
       });
